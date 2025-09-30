@@ -128,6 +128,10 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
         data: formData,
       });
 
+      console.log('[DEBUG] Full response:', response);
+      console.log('[DEBUG] response.data:', response.data);
+      console.log('[DEBUG] response.data?.code:', response.data?.code);
+
       // response 结构: { data: { code: 0, data: {...}, message: '' } }
       if (response.data?.code === 0) {
         const result = response.data.data;
@@ -136,6 +140,7 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
         setFileList([]);
         setFolderStructure([]);
       } else {
+        console.error('[DEBUG] Upload failed, response.data:', response.data);
         message.error(response.data?.message || 'Upload failed');
       }
     } catch (error) {

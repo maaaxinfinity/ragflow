@@ -39,16 +39,8 @@ def upload_folder():
     Upload multiple files with folder structure preserved
     Returns a tree structure of uploaded files and folders
     """
-    # Debug logging
-    logging.info(f"[DEBUG] request.files keys: {list(request.files.keys())}")
-    logging.info(f"[DEBUG] request.form keys: {list(request.form.keys())}")
-    logging.info(f"[DEBUG] request.files: {request.files}")
-
     parent_id = request.form.get("parent_id")
     folder_paths = request.form.getlist('folder_path')  # Array of relative paths
-
-    logging.info(f"[DEBUG] parent_id: {parent_id}")
-    logging.info(f"[DEBUG] folder_paths: {folder_paths}")
 
     if not parent_id:
         root_folder = FileService.get_root_folder(current_user.id)
@@ -59,7 +51,6 @@ def upload_folder():
                 data=False, message='Root folder not found!', code=settings.RetCode.DATA_ERROR)
 
     if 'files' not in request.files:
-        logging.error(f"[DEBUG] 'files' not in request.files. Available keys: {list(request.files.keys())}")
         return get_json_result(
             data=False, message='No files uploaded!', code=settings.RetCode.ARGUMENT_ERROR)
 
