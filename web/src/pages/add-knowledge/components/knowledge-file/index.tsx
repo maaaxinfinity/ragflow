@@ -21,11 +21,13 @@ import {
   useNavigateToOtherPage,
   useRenameDocument,
   useShowMetaModal,
+  useSelectFilesFromManager,
 } from './hooks';
 import ParsingActionCell from './parsing-action-cell';
 import ParsingStatusCell from './parsing-status-cell';
 import RenameModal from './rename-modal';
 import WebCrawlModal from './web-crawl-modal';
+import { FileSelectorModal } from './file-selector-modal';
 
 import FileUploadModal from '@/components/file-upload-modal';
 import { RunningStatus } from '@/constants/knowledge';
@@ -94,6 +96,14 @@ const KnowledgeFile = () => {
     setMetaLoading,
     onSetMetaModalOk,
   } = useShowMetaModal(currentRecord.id);
+
+  const {
+    fileSelectorVisible,
+    hideFileSelectorModal,
+    showFileSelectorModal,
+    onFileSelectorOk,
+    fileSelectorLoading,
+  } = useSelectFilesFromManager();
 
   const rowSelection = useGetRowSelection();
 
@@ -207,6 +217,7 @@ const KnowledgeFile = () => {
         showCreateModal={showCreateModal}
         showWebCrawlModal={showWebCrawlUploadModal}
         showDocumentUploadModal={showDocumentUploadModal}
+        showFileSelectorModal={showFileSelectorModal}
         searchString={searchString}
         handleInputChange={handleInputChange}
         documents={documents}
@@ -268,6 +279,12 @@ const KnowledgeFile = () => {
           initialMetaData={currentRecord.meta_fields}
         ></SetMetaModal>
       )}
+      <FileSelectorModal
+        visible={fileSelectorVisible}
+        onCancel={hideFileSelectorModal}
+        onOk={onFileSelectorOk}
+        loading={fileSelectorLoading}
+      />
     </div>
   );
 };

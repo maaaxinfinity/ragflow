@@ -933,6 +933,11 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       parserManual: 'Manual/Guide',
       parserQA: 'Q&A Format',
       parserTable: 'Table/Spreadsheet',
+      selectFromFileManager: 'From File Manager',
+      selectFiles: 'Select Files',
+      selectFilesToAdd: 'Select files to add to knowledge base',
+      noFilesSelected: 'No files selected',
+      filesSelectedCount: '{count} files selected',
     },
     flow: {
       recommended: 'Recommended',

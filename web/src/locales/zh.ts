@@ -887,6 +887,11 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       parserManual: '手册/指南',
       parserQA: '问答格式',
       parserTable: '表格/电子表格',
+      selectFromFileManager: '从文件管理器选择',
+      selectFiles: '选择文件',
+      selectFilesToAdd: '选择要添加到知识库的文件',
+      noFilesSelected: '未选择文件',
+      filesSelectedCount: '已选择 {count} 个文件',
     },
     flow: {
       recommended: '推荐',

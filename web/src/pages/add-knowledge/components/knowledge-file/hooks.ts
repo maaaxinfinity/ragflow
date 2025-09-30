@@ -9,6 +9,7 @@ import {
   useUploadNextDocument,
 } from '@/hooks/document-hooks';
 import { useGetKnowledgeSearchParams } from '@/hooks/route-hook';
+import { useConnectToKnowledge } from '@/hooks/file-manager-hooks';
 import { IDocumentInfo } from '@/interfaces/database/document';
 import { IChangeParserConfigRequestBody } from '@/interfaces/request/document';
 import { UploadFile } from 'antd';
@@ -360,5 +361,42 @@ export const useShowMetaModal = (documentId: string) => {
     setMetaVisible,
     hideSetMetaModal,
     showSetMetaModal,
+  };
+};
+
+export const useSelectFilesFromManager = () => {
+  const { knowledgeId } = useGetKnowledgeSearchParams();
+  const { connectFileToKnowledge, loading } = useConnectToKnowledge();
+
+  const {
+    visible: fileSelectorVisible,
+    hideModal: hideFileSelectorModal,
+    showModal: showFileSelectorModal,
+  } = useSetModalState();
+
+  const onFileSelectorOk = useCallback(
+    async (fileIds: string[]) => {
+      if (fileIds.length === 0) {
+        return;
+      }
+
+      const ret = await connectFileToKnowledge({
+        fileIds,
+        kbIds: [knowledgeId],
+      });
+
+      if (ret === 0) {
+        hideFileSelectorModal();
+      }
+    },
+    [connectFileToKnowledge, knowledgeId, hideFileSelectorModal],
+  );
+
+  return {
+    fileSelectorLoading: loading,
+    onFileSelectorOk,
+    fileSelectorVisible,
+    hideFileSelectorModal,
+    showFileSelectorModal,
   };
 };

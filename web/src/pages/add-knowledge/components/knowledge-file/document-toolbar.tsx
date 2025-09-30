@@ -14,6 +14,7 @@ import {
   DownOutlined,
   FileOutlined,
   FileTextOutlined,
+  FolderOpenOutlined,
   PlusOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
@@ -29,6 +30,7 @@ interface IProps {
   showCreateModal(): void;
   showWebCrawlModal(): void;
   showDocumentUploadModal(): void;
+  showFileSelectorModal(): void;
   searchString: string;
   handleInputChange: React.ChangeEventHandler<HTMLInputElement>;
   documents: IDocumentInfo[];
@@ -39,6 +41,7 @@ const DocumentToolbar = ({
   selectedRowKeys,
   showCreateModal,
   showDocumentUploadModal,
+  showFileSelectorModal,
   handleInputChange,
   documents,
 }: IProps) => {
@@ -64,6 +67,20 @@ const DocumentToolbar = ({
           </div>
         ),
       },
+      {
+        key: '2',
+        onClick: showFileSelectorModal,
+        label: (
+          <div>
+            <Button type="link">
+              <Space>
+                <FolderOpenOutlined />
+                {t('selectFromFileManager')}
+              </Space>
+            </Button>
+          </div>
+        ),
+      },
       { type: 'divider' },
       {
         key: '3',
@@ -78,7 +95,7 @@ const DocumentToolbar = ({
         ),
       },
     ];
-  }, [showDocumentUploadModal, showCreateModal, t]);
+  }, [showDocumentUploadModal, showFileSelectorModal, showCreateModal, t]);
 
   const handleDelete = useCallback(() => {
     const deletedKeys = selectedRowKeys.filter(

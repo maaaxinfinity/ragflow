@@ -3,7 +3,7 @@ import { Upload, Button, message, Modal, Input, Form, Select, Progress, Tree } f
 import { FolderAddOutlined, FolderOpenOutlined, FileOutlined } from '@ant-design/icons';
 import { UploadProps } from 'antd/lib/upload';
 import request from 'umi-request';
-import { useTranslation } from 'react-i18next';
+import { useTranslate, useCommonTranslation } from '@/hooks/common-hooks';
 
 interface FolderUploadProps {
   parentId?: string;
@@ -16,7 +16,7 @@ interface FileWithPath extends File {
 }
 
 export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslate('fileManager');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [fileList, setFileList] = useState<FileWithPath[]>([]);
@@ -134,7 +134,7 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
       if (response.code === 0) {
         const result = response.data;
         message.success(
-          t('fileManager.uploadFolderSuccess', {
+          t('uploadFolderSuccess', {
             files: result.total_files || 0,
             folders: result.total_folders || 0,
           })
@@ -143,11 +143,11 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
         setFileList([]);
         setFolderStructure([]);
       } else {
-        message.error(response.message || t('fileManager.uploadFailed'));
+        message.error(response.message || t('uploadFailed'));
       }
     } catch (error) {
       console.error('Upload error:', error);
-      message.error(t('fileManager.uploadFailed'));
+      message.error(t('uploadFailed'));
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -162,13 +162,13 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
         onClick={handleFolderSelect}
         disabled={uploading}
       >
-        {t('fileManager.selectFolder')}
+        {t('selectFolder')}
       </Button>
 
       {fileList.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <div style={{ marginBottom: 10 }}>
-            {t('fileManager.selectedFiles', { count: fileList.length })}
+            {t('selectedFiles', { count: fileList.length })}
           </div>
 
           <Tree
@@ -192,7 +192,7 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
             onClick={handleUpload}
             loading={uploading}
           >
-            {t('fileManager.uploadAllFiles')}
+            {t('uploadAllFiles')}
           </Button>
         </div>
       )}
@@ -215,7 +215,8 @@ export const CreateKBFromFolder: React.FC<CreateKBFromFolderProps> = ({
   onCancel,
   onSuccess,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslate('fileManager');
+  const { t: tCommon } = useCommonTranslation();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
@@ -238,18 +239,18 @@ export const CreateKBFromFolder: React.FC<CreateKBFromFolderProps> = ({
       if (response.code === 0) {
         const result = response.data;
         message.success(
-          t('fileManager.createKBSuccess', {
+          t('createKBSuccess', {
             count: result.documents_added || 0,
           })
         );
         onSuccess(result);
         form.resetFields();
       } else {
-        message.error(response.message || t('fileManager.createKBFailed'));
+        message.error(response.message || t('createKBFailed'));
       }
     } catch (error) {
       console.error('KB creation error:', error);
-      message.error(t('fileManager.createKBFailed'));
+      message.error(t('createKBFailed'));
     } finally {
       setLoading(false);
     }
@@ -257,7 +258,7 @@ export const CreateKBFromFolder: React.FC<CreateKBFromFolderProps> = ({
 
   return (
     <Modal
-      title={t('fileManager.createKBFromFolder', { name: folderName })}
+      title={t('createKBFromFolder', { name: folderName })}
       open={visible}
       onCancel={onCancel}
       onOk={handleCreate}
@@ -274,35 +275,35 @@ export const CreateKBFromFolder: React.FC<CreateKBFromFolderProps> = ({
       >
         <Form.Item
           name="kb_name"
-          label={t('fileManager.kbName')}
-          rules={[{ required: true, message: t('common.namePlaceholder') }]}
+          label={t('kbName')}
+          rules={[{ required: true, message: tCommon('namePlaceholder') }]}
         >
-          <Input placeholder={t('fileManager.kbNamePlaceholder')} />
+          <Input placeholder={t('kbNamePlaceholder')} />
         </Form.Item>
 
         <Form.Item
           name="description"
-          label={t('fileManager.description')}
+          label={t('description')}
         >
           <Input.TextArea
             rows={3}
-            placeholder={t('fileManager.descriptionPlaceholder')}
+            placeholder={t('descriptionPlaceholder')}
           />
         </Form.Item>
 
         <Form.Item
           name="parser_id"
-          label={t('fileManager.parserType')}
+          label={t('parserType')}
           rules={[{ required: true }]}
         >
           <Select>
-            <Select.Option value="naive">{t('fileManager.parserGeneral')}</Select.Option>
-            <Select.Option value="paper">{t('fileManager.parserPaper')}</Select.Option>
-            <Select.Option value="book">{t('fileManager.parserBook')}</Select.Option>
-            <Select.Option value="laws">{t('fileManager.parserLaws')}</Select.Option>
-            <Select.Option value="manual">{t('fileManager.parserManual')}</Select.Option>
-            <Select.Option value="qa">{t('fileManager.parserQA')}</Select.Option>
-            <Select.Option value="table">{t('fileManager.parserTable')}</Select.Option>
+            <Select.Option value="naive">{t('parserGeneral')}</Select.Option>
+            <Select.Option value="paper">{t('parserPaper')}</Select.Option>
+            <Select.Option value="book">{t('parserBook')}</Select.Option>
+            <Select.Option value="laws">{t('parserLaws')}</Select.Option>
+            <Select.Option value="manual">{t('parserManual')}</Select.Option>
+            <Select.Option value="qa">{t('parserQA')}</Select.Option>
+            <Select.Option value="table">{t('parserTable')}</Select.Option>
           </Select>
         </Form.Item>
       </Form>
