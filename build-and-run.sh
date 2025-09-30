@@ -87,7 +87,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║                RAGFlow Local Build and Run Script                 ║${NC}"
+echo -e "${BLUE}║                RAGFlow Local Build and Run Script                  ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -128,15 +128,17 @@ if [ "$REBUILD" = true ]; then
     echo ""
 fi
 
-# Build the Docker image
+# Build the Docker image from local Dockerfile
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║                        Building Docker Image                       ║${NC}"
+echo -e "${BLUE}║              Building Docker Image from Local Source               ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${YELLOW}Configuration:${NC}"
-echo -e "  Image Tag: ${GREEN}${IMAGE_TAG}${NC}"
-echo -e "  Build Type: ${GREEN}$([ "$LIGHTEN" -eq 1 ] && echo "Slim (without embedding models)" || echo "Full (with embedding models)")${NC}"
-echo -e "  Use Cache: ${GREEN}$([ "$NO_CACHE" = true ] && echo "No" || echo "Yes")${NC}"
+echo -e "  Build Source:  ${GREEN}Local Dockerfile (./Dockerfile)${NC}"
+echo -e "  Image Tag:     ${GREEN}${IMAGE_TAG}${NC}"
+echo -e "  Build Type:    ${GREEN}$([ "$LIGHTEN" -eq 1 ] && echo "Slim (without embedding models)" || echo "Full (with embedding models)")${NC}"
+echo -e "  Use Cache:     ${GREEN}$([ "$NO_CACHE" = true ] && echo "No" || echo "Yes")${NC}"
+echo -e "  Build Context: ${GREEN}$(pwd)${NC}"
 echo ""
 
 BUILD_ARGS="--build-arg LIGHTEN=${LIGHTEN}"
@@ -144,8 +146,9 @@ if [ "$NO_CACHE" = true ]; then
     BUILD_ARGS="$BUILD_ARGS --no-cache"
 fi
 
-echo -e "${YELLOW}► Starting Docker build...${NC}"
-echo -e "${YELLOW}  This may take 10-30 minutes depending on your system...${NC}"
+echo -e "${YELLOW}► Starting Docker build from local source code...${NC}"
+echo -e "${YELLOW}  This will build RAGFlow using ./Dockerfile${NC}"
+echo -e "${YELLOW}  Estimated time: 10-30 minutes depending on your system...${NC}"
 echo ""
 
 if docker build ${BUILD_ARGS} -t ${IMAGE_TAG} -f Dockerfile .; then
@@ -247,7 +250,8 @@ echo ""
 echo -e "${GREEN}RAGFlow is now running with your local code!${NC}"
 echo ""
 echo -e "${YELLOW}Access URLs:${NC}"
-echo -e "  Web UI:      ${GREEN}http://localhost${NC}"
+echo -e "  Web UI:      ${GREEN}http://localhost:10080${NC}"
+echo -e "  HTTPS:       ${GREEN}https://localhost:10443${NC}"
 echo -e "  API:         ${GREEN}http://localhost:9380${NC}"
 echo -e "  MinIO:       ${GREEN}http://localhost:9001${NC}"
 echo -e "  Kibana:      ${GREEN}http://localhost:6601${NC}"

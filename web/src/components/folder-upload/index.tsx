@@ -122,28 +122,21 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
     });
 
     try {
+      // 不设置 Content-Type，让浏览器自动设置 boundary
       const response = await request('/v1/file_folder/upload_folder', {
         method: 'POST',
         data: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        onUploadProgress: (progressEvent: any) => {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / (progressEvent.total || 1)
-          );
-          setUploadProgress(percentCompleted);
-        },
       });
 
-      if (response.code === 0 || response.code === 200) {
-        const data = response.data || response;
-        message.success(`Successfully uploaded ${data.total_files || 0} files in ${data.total_folders || 0} folders`);
-        onSuccess?.(data);
+      // response 结构: { data: { code: 0, data: {...}, message: '' } }
+      if (response.data?.code === 0) {
+        const result = response.data.data;
+        message.success(`Successfully uploaded ${result.total_files || 0} files in ${result.total_folders || 0} folders`);
+        onSuccess?.(result);
         setFileList([]);
         setFolderStructure([]);
       } else {
-        message.error(response.message || 'Upload failed');
+        message.error(response.data?.message || 'Upload failed');
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -233,13 +226,14 @@ export const CreateKBFromFolder: React.FC<CreateKBFromFolderProps> = ({
         },
       });
 
-      if (response.code === 0 || response.code === 200) {
-        const data = response.data || response;
-        message.success(`Successfully created knowledge base with ${data.documents_added || 0} documents`);
-        onSuccess(data);
+      // response 结构: { data: { code: 0, data: {...}, message: '' } }
+      if (response.data?.code === 0) {
+        const result = response.data.data;
+        message.success(`Successfully created knowledge base with ${result.documents_added || 0} documents`);
+        onSuccess(result);
         form.resetFields();
       } else {
-        message.error(response.message || 'Creation failed');
+        message.error(response.data?.message || 'Creation failed');
       }
     } catch (error) {
       console.error('KB creation error:', error);
