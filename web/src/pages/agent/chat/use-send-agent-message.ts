@@ -200,12 +200,16 @@ export const useSendAgentMessage = ({
   beginParams,
   isShared,
   refetch,
+  kbIds,
+  kbEnabled,
 }: {
   url?: string;
   addEventList?: (data: IEventList, messageId: string) => void;
   beginParams?: any[];
   isShared?: boolean;
   refetch?: () => void;
+  kbIds?: string[];
+  kbEnabled?: boolean;
 }) => {
   const { id: agentId } = useParams();
   const { handleInputChange, value, setValue } = useHandleMessageInputChange();
@@ -268,6 +272,14 @@ export const useSendAgentMessage = ({
         params.files = uploadResponseList;
 
         params.session_id = sessionId;
+
+        // 添加知识库参数
+        if (kbEnabled && kbIds && kbIds.length > 0) {
+          params.kb_ids = kbIds;
+          params.kb_enabled = true;
+        } else {
+          params.kb_enabled = false;
+        }
       }
 
       try {
@@ -299,6 +311,8 @@ export const useSendAgentMessage = ({
       setValue,
       removeLatestMessage,
       refetch,
+      kbEnabled,
+      kbIds,
     ],
   );
 
@@ -426,5 +440,6 @@ export const useSendAgentMessage = ({
     appendUploadResponseList,
     addNewestOneAnswer,
     sendMessage,
+    sessionId,
   };
 };

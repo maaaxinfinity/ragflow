@@ -733,6 +733,7 @@ class File(DataBaseModel):
     size = IntegerField(default=0, index=True)
     type = CharField(max_length=32, null=False, help_text="file extension", index=True)
     source_type = CharField(max_length=128, null=False, default="", help_text="where dose this document come from", index=True)
+    folder_path = CharField(max_length=1024, null=True, default=None, help_text="full path in folder structure", index=True)
 
     class Meta:
         db_table = "file"
@@ -1020,6 +1021,10 @@ def migrate_db():
         pass
     try:
         migrate(migrator.add_column("task", "task_type", CharField(max_length=32, null=False, default="")))
+    except Exception:
+        pass
+    try:
+        migrate(migrator.add_column("file", "folder_path", CharField(max_length=1024, null=True, default=None, help_text="full path in folder structure", index=True)))
     except Exception:
         pass
     try:

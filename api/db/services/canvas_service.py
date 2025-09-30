@@ -181,6 +181,9 @@ def completion(tenant_id, agent_id, session_id=None, **kwargs):
     files = kwargs.get("files", [])
     inputs = kwargs.get("inputs", {})
     user_id = kwargs.get("user_id", "")
+    # 新增：支持动态知识库
+    kb_ids = kwargs.get("kb_ids", [])
+    kb_enabled = kwargs.get("kb_enabled", False)
 
     if session_id:
         e, conv = API4ConversationService.get_by_id(session_id)
@@ -218,7 +221,13 @@ def completion(tenant_id, agent_id, session_id=None, **kwargs):
         "id": message_id
     })
     txt = ""
-    for ans in canvas.run(query=query, files=files, user_id=user_id, inputs=inputs):
+    # 传递知识库参数到Canvas运行
+    run_kwargs = {"query": query, "files": files, "user_id": user_id, "inputs": inputs}
+    if kb_enabled and kb_ids:
+        run_kwargs["kb_ids"] = kb_ids
+        run_kwargs["kb_enabled"] = True
+
+    for ans in canvas.run(**run_kwargs):
         ans["session_id"] = session_id
         if ans["event"] == "message":
             txt += ans["data"]["content"]

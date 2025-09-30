@@ -80,21 +80,31 @@ class Retrieval(ToolBase, ABC):
             self.set_output("formalized_content", self._param.empty_response)
 
         kb_ids: list[str] = []
-        for id in self._param.kb_ids:
-            if id.find("@") < 0:
-                kb_ids.append(id)
-                continue
-            kb_nm = self._canvas.get_variable_value(id)
-            # if kb_nm is a list
-            kb_nm_list = kb_nm if isinstance(kb_nm, list) else [kb_nm]
-            for nm_or_id in kb_nm_list:
-                e, kb = KnowledgebaseService.get_by_name(nm_or_id,
-                                                         self._canvas._tenant_id)
-                if not e:
-                    e, kb = KnowledgebaseService.get_by_id(nm_or_id)
+
+        # 首先检查是否有动态知识库
+        if hasattr(self._canvas, 'globals') and self._canvas.globals.get("sys.kb_enabled"):
+            dynamic_kb_ids = self._canvas.globals.get("sys.kb_ids", [])
+            if dynamic_kb_ids:
+                # 使用动态指定的知识库
+                kb_ids.extend(dynamic_kb_ids)
+
+        # 如果没有动态知识库或未启用，使用配置的知识库
+        if not kb_ids:
+            for id in self._param.kb_ids:
+                if id.find("@") < 0:
+                    kb_ids.append(id)
+                    continue
+                kb_nm = self._canvas.get_variable_value(id)
+                # if kb_nm is a list
+                kb_nm_list = kb_nm if isinstance(kb_nm, list) else [kb_nm]
+                for nm_or_id in kb_nm_list:
+                    e, kb = KnowledgebaseService.get_by_name(nm_or_id,
+                                                             self._canvas._tenant_id)
                     if not e:
-                        raise Exception(f"Dataset({nm_or_id}) does not exist.")
-                kb_ids.append(kb.id)
+                        e, kb = KnowledgebaseService.get_by_id(nm_or_id)
+                        if not e:
+                            raise Exception(f"Dataset({nm_or_id}) does not exist.")
+                    kb_ids.append(kb.id)
 
         filtered_kb_ids: list[str] = list(set([kb_id for kb_id in kb_ids if kb_id]))
 

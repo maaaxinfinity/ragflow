@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useRowSelection } from '@/hooks/logic-hooks/use-row-selection';
 import { useFetchFileList } from '@/hooks/use-file-request';
-import { Upload } from 'lucide-react';
+import { Upload, FolderOpen, Database } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CreateFolderDialog } from './create-folder-dialog';
 import { FileBreadcrumb } from './file-breadcrumb';
@@ -22,9 +22,15 @@ import { useHandleCreateFolder } from './use-create-folder';
 import { useHandleMoveFile } from './use-move-file';
 import { useSelectBreadcrumbItems } from './use-navigate-to-folder';
 import { useHandleUploadFile } from './use-upload-file';
+import { FolderUpload, CreateKBFromFolder } from '@/components/folder-upload';
+import { useState } from 'react';
+import { Modal } from 'antd';
 
 export default function Files() {
   const { t } = useTranslation();
+  const [folderUploadVisible, setFolderUploadVisible] = useState(false);
+  const [createKBVisible, setCreateKBVisible] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<any>(null);
   const {
     fileUploadVisible,
     hideFileUploadModal,
@@ -106,6 +112,10 @@ export default function Files() {
             <DropdownMenuItem onClick={showFileUploadModal}>
               {t('fileManager.uploadFile')}
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setFolderUploadVisible(true)}>
+              <FolderOpen className="mr-2 h-4 w-4" />
+              Upload Folder
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={showFolderCreateModal}>
               {t('fileManager.newFolder')}
@@ -147,6 +157,41 @@ export default function Files() {
           onOk={onMoveFileOk}
           loading={moveFileLoading}
         ></MoveDialog>
+      )}
+
+      {/* Folder Upload Modal */}
+      <Modal
+        title="Upload Folder"
+        open={folderUploadVisible}
+        onCancel={() => setFolderUploadVisible(false)}
+        footer={null}
+        width={800}
+      >
+        <FolderUpload
+          parentId={breadcrumbItems[breadcrumbItems.length - 1]?.id}
+          onSuccess={() => {
+            setFolderUploadVisible(false);
+            // Refresh the file list
+            window.location.reload();
+          }}
+        />
+      </Modal>
+
+      {/* Create KB from Folder Modal */}
+      {selectedFolder && (
+        <CreateKBFromFolder
+          visible={createKBVisible}
+          folderId={selectedFolder.id}
+          folderName={selectedFolder.name}
+          onCancel={() => {
+            setCreateKBVisible(false);
+            setSelectedFolder(null);
+          }}
+          onSuccess={() => {
+            setCreateKBVisible(false);
+            setSelectedFolder(null);
+          }}
+        />
       )}
     </section>
   );

@@ -216,6 +216,13 @@ class Canvas(Graph):
         for k, cpn in self.components.items():
             self.components[k]["obj"].reset(True)
 
+        # 支持动态知识库
+        if kwargs.get("kb_enabled") and kwargs.get("kb_ids"):
+            self.globals["sys.kb_ids"] = kwargs.get("kb_ids")
+            self.globals["sys.kb_enabled"] = True
+        else:
+            self.globals["sys.kb_enabled"] = False
+
         for k in kwargs.keys():
             if k in ["query", "user_id", "files"] and kwargs[k]:
                 if k == "files":

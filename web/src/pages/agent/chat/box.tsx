@@ -14,14 +14,18 @@ import {
 } from '@/hooks/use-agent-request';
 import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
 import { buildMessageUuidWithRole } from '@/utils/chat';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { useParams } from 'umi';
 import DebugContent from '../debug-content';
 import { useAwaitCompentData } from '../hooks/use-chat-logic';
 import { useIsTaskMode } from '../hooks/use-get-begin-query';
+import { KnowledgeBaseSelector } from './knowledge-base-selector';
 
 function AgentChatBox() {
   const { data: canvasInfo, refetch } = useFetchAgent();
+  const [selectedKbIds, setSelectedKbIds] = useState<string[]>([]);
+  const [kbEnabled, setKbEnabled] = useState<boolean>(false);
+
   const {
     value,
     scrollRef,
@@ -34,7 +38,12 @@ function AgentChatBox() {
     sendFormMessage,
     findReferenceByMessageId,
     appendUploadResponseList,
-  } = useSendAgentMessage({ refetch });
+    sessionId,
+  } = useSendAgentMessage({
+    refetch,
+    kbIds: kbEnabled ? selectedKbIds : [],
+    kbEnabled
+  });
 
   const { visible, hideModal, documentId, selectedChunk, clickDocumentButton } =
     useClickDrawer();
@@ -59,6 +68,31 @@ function AgentChatBox() {
       },
       [appendUploadResponseList, uploadCanvasFile],
     );
+
+  const handleKbChange = useCallback(
+    (kbIds: string[], enabled: boolean) => {
+      setSelectedKbIds(kbIds);
+      // 这里可以添加保存到sessionStorage的逻辑，以便页面刷新后恢复
+      if (sessionId) {
+        sessionStorage.setItem(`agent_kb_${sessionId}`, JSON.stringify({ kbIds, enabled }));
+      }
+    },
+    [sessionId]
+  );
+
+  const handleKbToggle = useCallback(
+    (enabled: boolean) => {
+      setKbEnabled(enabled);
+      if (sessionId) {
+        const stored = sessionStorage.getItem(`agent_kb_${sessionId}`);
+        if (stored) {
+          const data = JSON.parse(stored);
+          sessionStorage.setItem(`agent_kb_${sessionId}`, JSON.stringify({ ...data, enabled }));
+        }
+      }
+    },
+    [sessionId]
+  );
 
   return (
     <>
@@ -113,18 +147,29 @@ function AgentChatBox() {
           <div ref={scrollRef} />
         </div>
         {isTaskMode || (
-          <NextMessageInput
-            value={value}
-            sendLoading={sendLoading}
-            disabled={isWaitting}
-            sendDisabled={sendLoading || isWaitting}
-            isUploading={loading || isWaitting}
-            onPressEnter={handlePressEnter}
-            onInputChange={handleInputChange}
-            stopOutputMessage={stopOutputMessage}
-            onUpload={handleUploadFile}
-            conversationId=""
-          />
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <KnowledgeBaseSelector
+                sessionId={sessionId}
+                selectedKbIds={selectedKbIds}
+                onKbChange={handleKbChange}
+                onKbToggle={handleKbToggle}
+                kbEnabled={kbEnabled}
+              />
+            </div>
+            <NextMessageInput
+              value={value}
+              sendLoading={sendLoading}
+              disabled={isWaitting}
+              sendDisabled={sendLoading || isWaitting}
+              isUploading={loading || isWaitting}
+              onPressEnter={handlePressEnter}
+              onInputChange={handleInputChange}
+              stopOutputMessage={stopOutputMessage}
+              onUpload={handleUploadFile}
+              conversationId=""
+            />
+          </div>
         )}
       </section>
       <PdfDrawer
