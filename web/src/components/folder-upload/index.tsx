@@ -3,6 +3,7 @@ import { Upload, Button, message, Modal, Input, Form, Select, Progress, Tree } f
 import { FolderAddOutlined, FolderOpenOutlined, FileOutlined } from '@ant-design/icons';
 import { UploadProps } from 'antd/lib/upload';
 import request from 'umi-request';
+import { useTranslation } from 'react-i18next';
 
 interface FolderUploadProps {
   parentId?: string;
@@ -15,6 +16,7 @@ interface FileWithPath extends File {
 }
 
 export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess }) => {
+  const { t } = useTranslation();
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [fileList, setFileList] = useState<FileWithPath[]>([]);
@@ -128,24 +130,24 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
         data: formData,
       });
 
-      console.log('[DEBUG] Full response:', response);
-      console.log('[DEBUG] response.data:', response.data);
-      console.log('[DEBUG] response.data?.code:', response.data?.code);
-
-      // response 结构: { data: { code: 0, data: {...}, message: '' } }
-      if (response.data?.code === 0) {
-        const result = response.data.data;
-        message.success(`Successfully uploaded ${result.total_files || 0} files in ${result.total_folders || 0} folders`);
+      // response 已经被拦截器解包，结构是: { code: 0, data: {...}, message: '' }
+      if (response.code === 0) {
+        const result = response.data;
+        message.success(
+          t('fileManager.uploadFolderSuccess', {
+            files: result.total_files || 0,
+            folders: result.total_folders || 0,
+          })
+        );
         onSuccess?.(result);
         setFileList([]);
         setFolderStructure([]);
       } else {
-        console.error('[DEBUG] Upload failed, response.data:', response.data);
-        message.error(response.data?.message || 'Upload failed');
+        message.error(response.message || t('fileManager.uploadFailed'));
       }
     } catch (error) {
       console.error('Upload error:', error);
-      message.error('Upload failed');
+      message.error(t('fileManager.uploadFailed'));
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -160,13 +162,13 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
         onClick={handleFolderSelect}
         disabled={uploading}
       >
-        Select Folder
+        {t('fileManager.selectFolder')}
       </Button>
 
       {fileList.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <div style={{ marginBottom: 10 }}>
-            Selected {fileList.length} files
+            {t('fileManager.selectedFiles', { count: fileList.length })}
           </div>
 
           <Tree
@@ -190,7 +192,7 @@ export const FolderUpload: React.FC<FolderUploadProps> = ({ parentId, onSuccess 
             onClick={handleUpload}
             loading={uploading}
           >
-            Upload All Files
+            {t('fileManager.uploadAllFiles')}
           </Button>
         </div>
       )}
@@ -213,6 +215,7 @@ export const CreateKBFromFolder: React.FC<CreateKBFromFolderProps> = ({
   onCancel,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
@@ -231,18 +234,22 @@ export const CreateKBFromFolder: React.FC<CreateKBFromFolderProps> = ({
         },
       });
 
-      // response 结构: { data: { code: 0, data: {...}, message: '' } }
-      if (response.data?.code === 0) {
-        const result = response.data.data;
-        message.success(`Successfully created knowledge base with ${result.documents_added || 0} documents`);
+      // response 已经被拦截器解包，结构是: { code: 0, data: {...}, message: '' }
+      if (response.code === 0) {
+        const result = response.data;
+        message.success(
+          t('fileManager.createKBSuccess', {
+            count: result.documents_added || 0,
+          })
+        );
         onSuccess(result);
         form.resetFields();
       } else {
-        message.error(response.data?.message || 'Creation failed');
+        message.error(response.message || t('fileManager.createKBFailed'));
       }
     } catch (error) {
       console.error('KB creation error:', error);
-      message.error('Failed to create knowledge base');
+      message.error(t('fileManager.createKBFailed'));
     } finally {
       setLoading(false);
     }
@@ -250,7 +257,7 @@ export const CreateKBFromFolder: React.FC<CreateKBFromFolderProps> = ({
 
   return (
     <Modal
-      title={`Create Knowledge Base from Folder: ${folderName}`}
+      title={t('fileManager.createKBFromFolder', { name: folderName })}
       open={visible}
       onCancel={onCancel}
       onOk={handleCreate}
@@ -267,35 +274,35 @@ export const CreateKBFromFolder: React.FC<CreateKBFromFolderProps> = ({
       >
         <Form.Item
           name="kb_name"
-          label="Knowledge Base Name"
-          rules={[{ required: true, message: 'Please enter a name' }]}
+          label={t('fileManager.kbName')}
+          rules={[{ required: true, message: t('common.namePlaceholder') }]}
         >
-          <Input placeholder="Enter knowledge base name" />
+          <Input placeholder={t('fileManager.kbNamePlaceholder')} />
         </Form.Item>
 
         <Form.Item
           name="description"
-          label="Description"
+          label={t('fileManager.description')}
         >
           <Input.TextArea
             rows={3}
-            placeholder="Enter description (optional)"
+            placeholder={t('fileManager.descriptionPlaceholder')}
           />
         </Form.Item>
 
         <Form.Item
           name="parser_id"
-          label="Parser Type"
+          label={t('fileManager.parserType')}
           rules={[{ required: true }]}
         >
           <Select>
-            <Select.Option value="naive">General</Select.Option>
-            <Select.Option value="paper">Academic Paper</Select.Option>
-            <Select.Option value="book">Book</Select.Option>
-            <Select.Option value="laws">Legal Document</Select.Option>
-            <Select.Option value="manual">Manual/Guide</Select.Option>
-            <Select.Option value="qa">Q&A Format</Select.Option>
-            <Select.Option value="table">Table/Spreadsheet</Select.Option>
+            <Select.Option value="naive">{t('fileManager.parserGeneral')}</Select.Option>
+            <Select.Option value="paper">{t('fileManager.parserPaper')}</Select.Option>
+            <Select.Option value="book">{t('fileManager.parserBook')}</Select.Option>
+            <Select.Option value="laws">{t('fileManager.parserLaws')}</Select.Option>
+            <Select.Option value="manual">{t('fileManager.parserManual')}</Select.Option>
+            <Select.Option value="qa">{t('fileManager.parserQA')}</Select.Option>
+            <Select.Option value="table">{t('fileManager.parserTable')}</Select.Option>
           </Select>
         </Form.Item>
       </Form>
