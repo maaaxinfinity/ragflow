@@ -198,3 +198,11 @@ backup
 
 # Claude
 .claude
+
+# Docker build script backups
+docker/.env.backup
+docker/.env.tmp
+
+# Build artifacts and temporary files
+*.backup
+*.tmp
