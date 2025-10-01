@@ -1,6 +1,7 @@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useTranslation } from 'react-i18next';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useFetchPureFileList } from '@/hooks/file-manager-hooks';
 import { File, Folder, Search } from 'lucide-react';
 import {
@@ -58,10 +59,12 @@ export function SelectFilesDialog({
   const { loading: fetchLoading, fetchList } = useFetchPureFileList();
 
   // Fetch files when folder changes
-  useMemo(() => {
+  useEffect(() => {
     if (visible) {
       fetchList(currentFolderId).then((data) => {
-        setFiles(data?.data || []);
+        // data is ResponseType, data.data contains the actual file list
+        const fileList = Array.isArray(data?.data) ? data.data : [];
+        setFiles(fileList);
       });
     }
   }, [currentFolderId, visible, fetchList]);
@@ -117,23 +120,24 @@ export function SelectFilesDialog({
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t('fileManager.selectFilesToAdd')}</DialogTitle>
+          <DialogDescription>
+            {t('fileManager.selectFiles')}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <Breadcrumb>
             <BreadcrumbList>
               {folderPath.map((item, index) => (
-                <>
+                <BreadcrumbItem key={item.id || index}>
                   {index > 0 && <BreadcrumbSeparator />}
-                  <BreadcrumbItem key={item.id}>
-                    <BreadcrumbLink
-                      onClick={() => handleBreadcrumbClick(index)}
-                      className="cursor-pointer"
-                    >
-                      {item.name}
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                </>
+                  <BreadcrumbLink
+                    onClick={() => handleBreadcrumbClick(index)}
+                    className="cursor-pointer"
+                  >
+                    {item.name}
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
               ))}
             </BreadcrumbList>
           </Breadcrumb>
