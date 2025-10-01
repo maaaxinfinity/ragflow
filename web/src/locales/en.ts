@@ -653,6 +653,11 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       deleteBot: 'Delete Bot',
       deleteBotConfirm: 'Are you sure you want to delete this bot? This action cannot be undone.',
       enterChat: 'Enter Chat',
+      selectDialog: 'Select Dialog',
+      selectDialogForFreeChat: 'Select Dialog for Free Chat',
+      noDialogsAvailable: 'No dialogs available. Please create a dialog first.',
+      goToCreateDialog: 'Go to Create Dialog',
+      dialogProvideBaseConfig: 'This dialog provides the base LLM configuration. You can still override parameters and knowledge bases dynamically.',
       // FreeChat Sessions
       freechatSessions: 'FreeChat Sessions',
       freechatSessionsDescription: 'Chat sessions for the selected bot',

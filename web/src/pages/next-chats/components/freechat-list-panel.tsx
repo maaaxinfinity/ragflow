@@ -27,10 +27,10 @@ export function FreeChatListPanel({ dialogId }: FreeChatListPanelProps) {
     refetch,
   } = useQuery<IConversation[]>({
     queryKey: ['freechat-conversations', dialogId],
-    enabled: !!dialogId,
+    enabled: !!dialogId && dialogId !== '',
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      if (!dialogId) return [];
+      if (!dialogId || dialogId === '') return [];
       const { data } = await chatService.listConversation({
         params: { dialog_id: dialogId },
       });

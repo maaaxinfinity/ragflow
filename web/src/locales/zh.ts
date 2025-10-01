@@ -645,6 +645,11 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       deleteBot: '删除Bot',
       deleteBotConfirm: '确定要删除这个Bot吗？此操作无法撤销。',
       enterChat: '进入聊天',
+      selectDialog: '选择对话',
+      selectDialogForFreeChat: '为FreeChat选择对话',
+      noDialogsAvailable: '暂无可用对话。请先创建对话。',
+      goToCreateDialog: '去创建对话',
+      dialogProvideBaseConfig: '此对话提供基础LLM配置。你仍然可以动态覆盖参数和知识库。',
       // FreeChat Sessions
       freechatSessions: 'FreeChat会话',
       freechatSessionsDescription: '选中Bot的聊天会话',
