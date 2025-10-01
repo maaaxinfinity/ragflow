@@ -61,10 +61,16 @@ export function SelectFilesDialog({
   // Fetch files when folder changes
   useEffect(() => {
     if (visible) {
-      fetchList(currentFolderId).then((data) => {
-        // data is ResponseType, data.data contains the actual file list
-        const fileList = Array.isArray(data?.data) ? data.data : [];
-        setFiles(fileList);
+      fetchList(currentFolderId).then((result) => {
+        if (result?.code === 0 && result?.data?.files) {
+          // Filter out .knowledgebase folder
+          const fileList = result.data.files.filter(
+            (file: FileItem) => file.name !== '.knowledgebase'
+          );
+          setFiles(fileList);
+        } else {
+          setFiles([]);
+        }
       });
     }
   }, [currentFolderId, visible, fetchList]);
