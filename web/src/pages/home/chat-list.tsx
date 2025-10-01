@@ -6,11 +6,14 @@ import { useTranslation } from 'react-i18next';
 import { ChatDropdown } from '../next-chats/chat-dropdown';
 import { useRenameChat } from '../next-chats/hooks/use-rename-chat';
 import { ApplicationCard } from './application-card';
+import { useCallback } from 'react';
+import { useNavigate } from 'umi';
+import { Routes } from '@/routes';
 
 export function ChatList() {
   const { t } = useTranslation();
   const { data } = useFetchDialogList();
-  const { navigateToChat } = useNavigatePage();
+  const navigate = useNavigate();
 
   const {
     initialChatName,
@@ -20,6 +23,13 @@ export function ChatList() {
     onChatRenameOk,
     chatRenameLoading,
   } = useRenameChat();
+
+  const handleChatClick = useCallback((dialogId: string) => () => {
+    // Save dialog_id to localStorage for free-chat
+    localStorage.setItem('free_chat_dialog_id', dialogId);
+    // Navigate to free-chat
+    navigate(Routes.FreeChat);
+  }, [navigate]);
 
   return (
     <>
@@ -31,7 +41,7 @@ export function ChatList() {
             title: x.name,
             update_time: x.update_time,
           }}
-          onClick={navigateToChat(x.id)}
+          onClick={handleChatClick(x.id)}
           moreDropdown={
             <ChatDropdown chat={x} showChatRenameModal={showChatRenameModal}>
               <MoreButton></MoreButton>

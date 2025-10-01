@@ -38,13 +38,20 @@ export const useFreeChat = (controller: AbortController) => {
 
   const [dialogId, setDialogId] = useState<string>('');
 
-  // Load or prompt for dialog ID
+  // Load dialog ID from localStorage
   useEffect(() => {
     const savedDialogId = localStorage.getItem('free_chat_dialog_id');
     if (savedDialogId) {
       setDialogId(savedDialogId);
     }
   }, []);
+
+  // Update localStorage when dialogId changes
+  useEffect(() => {
+    if (dialogId) {
+      localStorage.setItem('free_chat_dialog_id', dialogId);
+    }
+  }, [dialogId]);
 
   // SSE sending logic
   const { send, answer, done } = useSendMessageWithSse(

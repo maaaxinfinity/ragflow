@@ -9,158 +9,257 @@ Free Chat 是 RAGFlow 的高级对话功能,支持:
 3. **多对话会话管理**: 创建和管理多个独立的对话
 4. **完整对话历史**: 支持对话上下文和历史记录
 
-## 设置步骤
+## 新的使用流程
 
-### 1. 创建 Dialog (可选)
+### 架构说明
 
-如果您还没有任何 Dialog，需要先创建一个:
+RAGFlow 现在采用"配置-使用"分离的架构:
 
-1. 进入 **Chat** (对话) 页面
-2. 点击 **New Chat** 创建新对话
-3. 配置 Dialog:
-   - Name: 自定义名称（例如: `My Free Chat`）
-   - 选择默认的 LLM 模型
-   - 可以选择默认的知识库(可选,因为可以动态切换)
-4. 保存 Dialog
+```
+┌─────────────────────────────────────────────┐
+│    /next-chats (Bot/助手配置中心)           │
+│  ✓ 创建和配置对话助手(Dialog)               │
+│  ✓ 设置LLM模型、提示词、知识库等            │
+│  ✓ 管理所有Bot                              │
+│  ✓ 点击Bot卡片 → 跳转到Free Chat对话       │
+└─────────────────────────────────────────────┘
+                    ↓ 点击Bot
+┌─────────────────────────────────────────────┐
+│         /free-chat (对话界面)               │
+│  ✓ 自动加载选中的Bot                        │
+│  ✓ 动态调整参数和知识库                     │
+│  ✓ 管理多个对话会话                         │
+│  ✓ 完整的对话历史                           │
+└─────────────────────────────────────────────┘
+```
 
-### 2. 访问 Free Chat
+### 使用步骤
 
-在浏览器中访问: `http://your-ragflow-url/free-chat`
+#### 1. 创建/配置 Bot (在 /next-chats)
 
-### 3. 选择 Dialog
+1. 访问 **`/next-chats`** (Chat Apps 页面)
+2. 点击 **"Create Chat"** 创建新的 Bot
+3. 配置 Bot:
+   - **Name**: Bot名称（例如: "技术助手"、"写作助手"等）
+   - **Description**: Bot描述
+   - **LLM Model**: 选择使用的大语言模型
+   - **System Prompt**: 设置Bot的人格和行为
+   - **Knowledge Bases**: 选择默认的知识库（可选）
+   - **其他参数**: top_n、rerank等高级设置
 
-在右侧控制面板顶部，从下拉菜单中选择要使用的 Dialog。
+#### 2. 开始对话 (在 /free-chat)
 
-- 如果列表为空，说明您还没有创建任何 Dialog，请先按照步骤1创建
-- 选择后会自动保存，下次访问会记住您的选择
-- Dialog 提供基础的 LLM 配置，但您仍然可以通过右侧面板动态调整参数和知识库
+**方法一：从 next-chats 跳转**
+- 在 `/next-chats` 页面，点击任意 Bot 卡片
+- 自动跳转到 `/free-chat` 并加载该 Bot
 
-## 功能使用
+**方法二：直接访问 free-chat**
+- 访问 `/free-chat`
+- 在右侧控制面板顶部的下拉菜单中选择Bot
 
-### 对话会话管理
+#### 3. 对话中的动态调整
 
-- **新建对话**: 点击左侧 "New Chat" 按钮
-- **切换对话**: 点击左侧对话列表中的任意对话
-- **删除对话**: 鼠标悬停在对话上,点击垃圾桶图标
+在 Free Chat 对话过程中，可以随时:
 
-### 动态参数调整
+**切换Bot**
+- 右侧面板顶部下拉菜单选择不同的Bot
+- 切换后新对话会使用新Bot的配置
 
-在右侧控制面板中:
+**调整模型参数**
+- Temperature: 控制回答的创造性
+- Top P: 核心采样阈值
+- Frequency Penalty: 减少重复词汇
+- Presence Penalty: 鼓励新话题
+- Max Tokens: 控制回答长度
 
-1. **Temperature** (0-1): 控制回答的随机性
-   - 较低值 (0.1-0.3): 更保守、确定性的回答
-   - 较高值 (0.7-0.9): 更有创意、多样性的回答
+**切换知识库**
+- 选择要使用的知识库（可多选）
+- "Select All" 全选
+- "Clear" 清除所有选择
+- 选择后下一条消息生效
 
-2. **Top P** (0-1): 核心采样阈值
-   - 控制词汇选择的范围
+**管理会话**
+- 左侧面板: 查看所有对话会话
+- "New Chat": 创建新会话
+- 点击会话切换
+- 悬停删除按钮删除会话
 
-3. **Frequency Penalty** (0-1): 词频惩罚
-   - 减少重复使用相同词汇的倾向
-
-4. **Presence Penalty** (0-1): 存在惩罚
-   - 鼓励讨论新话题
-
-5. **Max Tokens** (100-8000): 最大回答长度
-
-### 动态知识库选择
-
-在右侧 "Knowledge Bases" 部分:
-
-1. 选择要使用的知识库(可多选)
-2. 使用 "Select All" 全选或 "Clear" 清除所有选择
-3. 选择后会在下一条消息中生效
-
-### 参数生效提示
-
-当你调整参数或切换知识库后,界面会显示黄色提示:
-> "Parameters have been updated and will take effect in the next message."
-
-## 技术实现细节
+## 技术实现
 
 ### 后端修改
 
-在 `api/apps/conversation_app.py` 的 `completion` 函数中添加了对 `kb_ids` 的支持:
+**`api/apps/conversation_app.py`** 的 `completion` 函数:
 
 ```python
-# Support dynamic knowledge base selection
+# Line 183-185: 提取 kb_ids 参数
 kb_ids = req.get("kb_ids", [])
 req.pop("kb_ids", None)
 
-# ...
-
-# Temporarily override dialog's kb_ids if provided
+# Line 223-225: 临时覆盖 dialog.kb_ids
 if kb_ids:
     dia.kb_ids = kb_ids
 ```
 
-这使得每次请求可以临时覆盖 Dialog 的知识库配置,而不影响 Dialog 本身的配置。
+这使得每次请求可以临时覆盖 Dialog 的知识库配置,实现动态切换。
 
 ### 前端架构
 
-1. **use-free-chat-session.ts**: 管理多个对话会话
-2. **use-free-chat.ts**: 核心对话逻辑,整合参数、知识库、会话管理
-3. **use-dynamic-params.ts**: 管理模型参数,持久化到 localStorage
-4. **use-kb-toggle.ts**: 管理知识库选择,持久化到 localStorage
+**路由跳转逻辑**
 
-### API 调用
+1. **`web/src/pages/next-chats/chat-card.tsx`**
+   ```typescript
+   // 点击Bot卡片时:
+   localStorage.setItem('free_chat_dialog_id', data.id);
+   navigate(Routes.FreeChat);
+   ```
 
-每次发送消息时,会调用 `/conversation/completion` API,传递:
+2. **`web/src/pages/home/chat-list.tsx`**
+   ```typescript
+   // 首页Bot卡片同样跳转到free-chat
+   ```
+
+3. **`web/src/pages/free-chat/hooks/use-free-chat.ts`**
+   ```typescript
+   // 自动加载localStorage中的dialogId
+   useEffect(() => {
+     const savedDialogId = localStorage.getItem('free_chat_dialog_id');
+     if (savedDialogId) {
+       setDialogId(savedDialogId);
+     }
+   }, []);
+   ```
+
+**核心Hooks**
+
+- `use-free-chat-session.ts`: 管理多个对话会话
+- `use-free-chat.ts`: 核心对话逻辑
+- `use-dynamic-params.ts`: 管理模型参数
+- `use-kb-toggle.ts`: 管理知识库选择
+
+**API调用**
+
+每次发送消息时调用 `/api/conversation/completion`:
+
 ```typescript
 {
   conversation_id: string,
   messages: Message[],
-  // 动态参数
+  // 动态参数 (会临时覆盖Dialog默认值)
   temperature?: number,
   top_p?: number,
   frequency_penalty?: number,
   presence_penalty?: number,
   max_tokens?: number,
-  // 动态知识库
+  // 动态知识库 (会临时覆盖Dialog默认知识库)
   kb_ids?: string[]
 }
 ```
 
+## Dialog 的作用
+
+### 为什么需要Dialog？
+
+Dialog 不仅仅是配置，它提供:
+
+1. **LLM配置** (`llm_id`) - 决定使用哪个模型
+2. **租户信息** (`tenant_id`) - 权限验证和计费
+3. **系统提示词** (`prompt_config`) - Bot的人格和行为
+4. **默认知识库** (`kb_ids`) - 可被动态覆盖
+5. **检索配置** (`top_n`, `rerank_id`等) - 影响知识库检索质量
+
+### Dialog vs 动态参数
+
+| 配置项 | 来源 | 可否动态覆盖 |
+|--------|------|--------------|
+| LLM模型 | Dialog | ✅ 可以 (通过llm_id参数) |
+| 租户ID | Dialog | ❌ 不可以 (安全限制) |
+| 系统提示词 | Dialog | ❌ 不可以 |
+| 知识库 | Dialog | ✅ 可以 (通过kb_ids参数) |
+| Temperature等 | Dialog | ✅ 可以 (直接传参) |
+
 ## 数据持久化
 
-所有数据都保存在 localStorage 中:
+所有数据保存在 localStorage:
 
+- `free_chat_dialog_id`: 当前选中的Dialog ID
 - `free_chat_sessions`: 所有对话会话
-- `free_chat_current_session`: 当前活动会话 ID
+- `free_chat_current_session`: 当前会话ID
 - `free_chat_model_params`: 模型参数设置
 - `free_chat_enabled_kbs`: 选中的知识库
-- `free_chat_dialog_id`: Dialog ID 配置
-
-## 注意事项
-
-1. **Dialog 必须存在**: Free Chat 依赖一个已存在的 Dialog,请确保先创建 Dialog
-2. **参数范围**: 所有参数都有有效范围,超出范围可能导致错误
-3. **知识库权限**: 只能选择有访问权限的知识库
-4. **会话独立**: 每个会话有独立的 conversation_id,互不影响
 
 ## 故障排除
 
-### "Please select a Dialog..." 提示
+### Bot列表为空
 
-- 原因: 未选择 Dialog
-- 解决: 在右侧控制面板顶部的下拉菜单中选择一个 Dialog
-- 如果下拉菜单为空，需要先在 Chat 页面创建 Dialog
+**原因**: 还没有创建任何Bot
+**解决**: 访问 `/next-chats` 创建Bot
+
+### 无法选择Dialog
+
+**原因**: DialogSelector组件加载失败
+**解决**:
+1. 检查 `/api/dialog/list` API是否正常
+2. 查看浏览器控制台错误信息
 
 ### 消息发送失败
 
-- 检查 Dialog ID 是否正确
-- 检查网络连接
+**检查项**:
+- Dialog是否存在且有效
+- 网络连接是否正常
 - 查看浏览器控制台错误信息
+- 确认LLM服务是否可用
 
 ### 知识库检索无效
 
-- 确认知识库已正确选中(右侧面板显示数量)
-- 确认知识库包含相关内容
-- 检查知识库是否已完成文档解析
+**检查项**:
+- 确认右侧面板显示已选中知识库数量
+- 知识库是否包含相关内容
+- 知识库文档是否已完成解析
 
-## 未来改进
+## 与传统Chat的区别
 
-1. 对话导出功能
-2. 对话收藏/标签功能
-3. 参数预设模板
-4. 知识库组合预设
-5. 对话分享功能
+### 传统模式 (/next-chat/:id)
+
+- 一个Dialog = 一个专属对话页面
+- 固定的Bot配置
+- 无法动态切换参数和知识库
+
+### Free Chat模式 (/free-chat)
+
+- 可以选择任意Bot进行对话
+- 动态调整参数和知识库
+- 管理多个独立会话
+- 更灵活的对话体验
+
+## 最佳实践
+
+### 1. Bot设计
+
+**创建专门用途的Bot**:
+- 技术助手: 配置技术文档知识库
+- 客服Bot: 配置产品手册知识库
+- 写作助手: 设置创造性的system prompt
+- 代码助手: 配置代码库和API文档
+
+### 2. 参数调整
+
+**根据场景调整**:
+- 事实性任务: 低Temperature (0.1-0.3)
+- 创造性任务: 高Temperature (0.7-0.9)
+- 长文本生成: 增加Max Tokens
+
+### 3. 知识库使用
+
+**按需选择**:
+- 通用问题: 不选择知识库
+- 专业问题: 选择相关知识库
+- 跨领域问题: 多选知识库
+
+## 未来规划
+
+- [ ] 对话导出功能
+- [ ] 对话分享功能
+- [ ] 参数预设模板
+- [ ] 知识库组合预设
+- [ ] Bot使用统计
+- [ ] 对话收藏和标签
