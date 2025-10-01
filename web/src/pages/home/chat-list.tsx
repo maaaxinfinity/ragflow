@@ -25,10 +25,8 @@ export function ChatList() {
   } = useRenameChat();
 
   const handleChatClick = useCallback((dialogId: string) => () => {
-    // Save dialog_id to localStorage for free-chat
-    localStorage.setItem('free_chat_dialog_id', dialogId);
-    // Navigate to free-chat
-    navigate(Routes.FreeChat);
+    // Navigate to next-chat/:id
+    navigate(`${Routes.Chat}/${dialogId}`);
   }, [navigate]);
 
   return (

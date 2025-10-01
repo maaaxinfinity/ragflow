@@ -16,10 +16,8 @@ export function ChatCard({ data, showChatRenameModal }: IProps) {
   const navigate = useNavigate();
 
   const handleClick = useCallback(() => {
-    // Save dialog_id to localStorage for free-chat
-    localStorage.setItem('free_chat_dialog_id', data.id);
-    // Navigate to free-chat
-    navigate(Routes.FreeChat);
+    // Navigate to next-chat/:id
+    navigate(`${Routes.Chat}/${data.id}`);
   }, [data.id, navigate]);
 
   return (

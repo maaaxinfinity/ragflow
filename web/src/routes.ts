@@ -15,6 +15,7 @@ export enum Routes {
   SearchShare = '/next-search/share',
   Chats = '/next-chats',
   Chat = '/next-chat',
+  NextChat = '/nextchat',
   Files = '/files',
   ProfileSetting = '/profile-setting',
   Profile = '/profile',
@@ -428,6 +429,11 @@ const routes = [
     path: Routes.FreeChat,
     layout: false,
     component: `@/pages${Routes.FreeChat}`,
+  },
+  {
+    path: Routes.NextChat,
+    layout: false,
+    component: `@/pages/nextchat`,
   },
 ];
 
