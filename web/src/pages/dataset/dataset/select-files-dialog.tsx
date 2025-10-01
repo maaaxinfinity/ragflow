@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useTranslation } from 'react-i18next';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useFetchPureFileList } from '@/hooks/file-manager-hooks';
 import { File, Folder, Search } from 'lucide-react';
 import {
@@ -55,6 +55,14 @@ export function SelectFilesDialog({
     { id: '', name: t('fileManager.files') },
   ]);
   const [files, setFiles] = useState<FileItem[]>([]);
+  // Cache folder file IDs to avoid repeated API calls
+  const [folderFilesCache, setFolderFilesCache] = useState<
+    Map<string, string[]>
+  >(new Map());
+  // Track which folders have all their files selected
+  const [fullySelectedFolders, setFullySelectedFolders] = useState<Set<string>>(
+    new Set(),
+  );
 
   const { loading: fetchLoading, fetchList } = useFetchPureFileList();
 
@@ -74,6 +82,46 @@ export function SelectFilesDialog({
       });
     }
   }, [currentFolderId, visible, fetchList]);
+
+  // Recursively get all file IDs from a folder (with caching)
+  const getFileIdsRecursively = useCallback(
+    async (folderId: string): Promise<string[]> => {
+      // Check cache first
+      if (folderFilesCache.has(folderId)) {
+        return folderFilesCache.get(folderId)!;
+      }
+
+      const result = await fetchList(folderId);
+      if (result?.code !== 0 || !result?.data?.files) {
+        return [];
+      }
+
+      const files: FileItem[] = result.data.files;
+      let allFileIds: string[] = [];
+
+      for (const file of files) {
+        // Skip .knowledgebase folder
+        if (file.name === '.knowledgebase') {
+          continue;
+        }
+
+        if (file.type === 'folder') {
+          // Recursively get files from subfolder
+          const subFileIds = await getFileIdsRecursively(file.id);
+          allFileIds = allFileIds.concat(subFileIds);
+        } else {
+          // Add file ID
+          allFileIds.push(file.id);
+        }
+      }
+
+      // Cache the result
+      setFolderFilesCache((prev) => new Map(prev).set(folderId, allFileIds));
+
+      return allFileIds;
+    },
+    [fetchList, folderFilesCache],
+  );
 
   const filteredFiles = useMemo(() => {
     if (!searchString) return files;
@@ -95,16 +143,47 @@ export function SelectFilesDialog({
     setSearchString('');
   };
 
-  const handleFileSelect = (fileId: string, isFolder: boolean) => {
-    if (isFolder) {
-      return;
-    }
+  const handleFileSelect = async (fileId: string, file: FileItem) => {
+    const isFolder = file.type === 'folder';
 
-    setSelectedFileIds((prev) =>
-      prev.includes(fileId)
-        ? prev.filter((id) => id !== fileId)
-        : [...prev, fileId],
-    );
+    if (isFolder) {
+      // Get all files from folder recursively
+      const folderFileIds = await getFileIdsRecursively(fileId);
+
+      // Check if folder is currently fully selected
+      const isFolderFullySelected = fullySelectedFolders.has(fileId);
+
+      if (isFolderFullySelected) {
+        // Remove folder mark and all its files
+        setFullySelectedFolders((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(fileId);
+          return newSet;
+        });
+        setSelectedFileIds((prev) =>
+          prev.filter((id) => !folderFileIds.includes(id)),
+        );
+      } else {
+        // Add folder mark and all its files
+        setFullySelectedFolders((prev) => new Set(prev).add(fileId));
+        setSelectedFileIds((prev) => {
+          const newIds = [...prev];
+          folderFileIds.forEach((id) => {
+            if (!newIds.includes(id)) {
+              newIds.push(id);
+            }
+          });
+          return newIds;
+        });
+      }
+    } else {
+      // Toggle single file selection
+      setSelectedFileIds((prev) =>
+        prev.includes(fileId)
+          ? prev.filter((id) => id !== fileId)
+          : [...prev, fileId],
+      );
+    }
   };
 
   const handleOk = () => {
@@ -115,9 +194,11 @@ export function SelectFilesDialog({
   const handleClose = () => {
     setCurrentFolderId('');
     setSelectedFileIds([]);
+    setFullySelectedFolders(new Set());
     setSearchString('');
     setFolderPath([{ id: '', name: t('fileManager.files') }]);
     setFiles([]);
+    setFolderFilesCache(new Map());
     onCancel();
   };
 
@@ -180,35 +261,37 @@ export function SelectFilesDialog({
                 <div className="space-y-1">
                   {filteredFiles.map((file) => {
                     const isFolder = file.type === 'folder';
-                    const isSelected = selectedFileIds.includes(file.id);
+                    const isSelected = isFolder
+                      ? fullySelectedFolders.has(file.id)
+                      : selectedFileIds.includes(file.id);
 
                     return (
                       <div
                         key={file.id}
-                        className={`flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer ${
-                          isSelected && !isFolder ? 'bg-accent' : ''
+                        className={`flex items-center gap-3 p-2 rounded-md hover:bg-accent ${
+                          isSelected ? 'bg-accent' : ''
                         }`}
-                        onClick={() =>
-                          isFolder
-                            ? handleFolderClick(file)
-                            : handleFileSelect(file.id, isFolder)
-                        }
                       >
-                        {!isFolder && (
-                          <Checkbox
-                            checked={isSelected}
-                            onClick={(e) => e.stopPropagation()}
-                            onCheckedChange={() =>
-                              handleFileSelect(file.id, isFolder)
-                            }
-                          />
-                        )}
+                        <Checkbox
+                          checked={isSelected}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={() =>
+                            handleFileSelect(file.id, file)
+                          }
+                        />
                         {isFolder ? (
                           <Folder className="h-4 w-4 text-blue-500" />
                         ) : (
                           <File className="h-4 w-4 text-gray-500" />
                         )}
-                        <span className="flex-1 truncate">{file.name}</span>
+                        <span
+                          className="flex-1 truncate cursor-pointer"
+                          onClick={() =>
+                            isFolder && handleFolderClick(file)
+                          }
+                        >
+                          {file.name}
+                        </span>
                       </div>
                     );
                   })}
