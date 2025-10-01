@@ -1,83 +1,24 @@
-import ListFilterBar from '@/components/list-filter-bar';
-import { RenameDialog } from '@/components/rename-dialog';
-import { Button } from '@/components/ui/button';
-import { RAGFlowPagination } from '@/components/ui/ragflow-pagination';
-import { useFetchDialogList } from '@/hooks/use-chat-request';
-import { pick } from 'lodash';
-import { Plus } from 'lucide-react';
-import { useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
-import { ChatCard } from './chat-card';
-import { useRenameChat } from './hooks/use-rename-chat';
+import { useState } from 'react';
+import { BotManagementPanel } from './components/bot-management-panel';
+import { FreeChatListPanel } from './components/freechat-list-panel';
 
-export default function ChatList() {
-  const { data, setPagination, pagination, handleInputChange, searchString } =
-    useFetchDialogList();
-  const { t } = useTranslation();
-  const {
-    initialChatName,
-    chatRenameVisible,
-    showChatRenameModal,
-    hideChatRenameModal,
-    onChatRenameOk,
-    chatRenameLoading,
-  } = useRenameChat();
-
-  const handlePageChange = useCallback(
-    (page: number, pageSize?: number) => {
-      setPagination({ page, pageSize });
-    },
-    [setPagination],
-  );
-
-  const handleShowCreateModal = useCallback(() => {
-    showChatRenameModal();
-  }, [showChatRenameModal]);
+export default function NextChat() {
+  const [selectedDialogId, setSelectedDialogId] = useState<string>('');
 
   return (
-    <section className="flex flex-col w-full flex-1">
-      <div className="px-8 pt-8">
-        <ListFilterBar
-          title={t('chat.chatApps')}
-          icon="chat"
-          onSearchChange={handleInputChange}
-          searchString={searchString}
-        >
-          <Button onClick={handleShowCreateModal}>
-            <Plus className="size-2.5" />
-            {t('chat.createChat')}
-          </Button>
-        </ListFilterBar>
+    <div className="flex flex-col h-screen">
+      {/* Upper Half: Bot Management */}
+      <div className="h-1/2 border-b overflow-auto">
+        <BotManagementPanel
+          onSelectBot={setSelectedDialogId}
+          selectedBotId={selectedDialogId}
+        />
       </div>
-      <div className="flex-1 overflow-auto">
-        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 max-h-[calc(100dvh-280px)] overflow-auto px-8">
-          {data.dialogs.map((x) => {
-            return (
-              <ChatCard
-                key={x.id}
-                data={x}
-                showChatRenameModal={showChatRenameModal}
-              ></ChatCard>
-            );
-          })}
-        </div>
+
+      {/* Lower Half: FreeChat Session List */}
+      <div className="h-1/2 overflow-auto">
+        <FreeChatListPanel dialogId={selectedDialogId} />
       </div>
-      <div className="mt-8 px-8 pb-8">
-        <RAGFlowPagination
-          {...pick(pagination, 'current', 'pageSize')}
-          total={pagination.total}
-          onChange={handlePageChange}
-        ></RAGFlowPagination>
-      </div>
-      {chatRenameVisible && (
-        <RenameDialog
-          hideModal={hideChatRenameModal}
-          onOk={onChatRenameOk}
-          initialName={initialChatName}
-          loading={chatRenameLoading}
-          title={initialChatName || t('chat.createChat')}
-        ></RenameDialog>
-      )}
-    </section>
+    </div>
   );
 }
