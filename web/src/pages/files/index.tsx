@@ -114,7 +114,7 @@ export default function Files() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setFolderUploadVisible(true)}>
               <FolderOpen className="mr-2 h-4 w-4" />
-              Upload Folder
+              {t('fileManager.uploadFolder')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={showFolderCreateModal}>
@@ -161,7 +161,7 @@ export default function Files() {
 
       {/* Folder Upload Modal */}
       <Modal
-        title="Upload Folder"
+        title={t('fileManager.uploadFolder')}
         open={folderUploadVisible}
         onCancel={() => setFolderUploadVisible(false)}
         footer={null}

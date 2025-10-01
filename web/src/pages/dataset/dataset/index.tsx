@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useRowSelection } from '@/hooks/logic-hooks/use-row-selection';
 import { useFetchDocumentList } from '@/hooks/use-document-request';
-import { Upload } from 'lucide-react';
+import { Upload, FolderOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DatasetTable } from './dataset-table';
 import Generate from './generate';
@@ -20,6 +20,8 @@ import { useBulkOperateDataset } from './use-bulk-operate-dataset';
 import { useCreateEmptyDocument } from './use-create-empty-document';
 import { useSelectDatasetFilters } from './use-select-filters';
 import { useHandleUploadDocument } from './use-upload-document';
+import { SelectFilesDialog } from './select-files-dialog';
+import { useSelectFilesFromManager } from './use-select-files-from-manager';
 
 export default function Dataset() {
   const { t } = useTranslation();
@@ -50,6 +52,14 @@ export default function Dataset() {
     hideCreateModal,
     showCreateModal,
   } = useCreateEmptyDocument();
+
+  const {
+    fileSelectorVisible,
+    showFileSelectorModal,
+    hideFileSelectorModal,
+    onFileSelectorOk,
+    fileSelectorLoading,
+  } = useSelectFilesFromManager();
 
   const { rowSelection, rowSelectionIsEmpty, setRowSelection, selectedCount } =
     useRowSelection();
@@ -93,6 +103,10 @@ export default function Dataset() {
               <DropdownMenuItem onClick={showDocumentUploadModal}>
                 {t('fileManager.uploadFile')}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={showFileSelectorModal}>
+                <FolderOpen className="mr-2 h-4 w-4" />
+                {t('knowledgeDetails.selectFromFileManager')}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={showCreateModal}>
                 {t('knowledgeDetails.emptyFiles')}
@@ -127,6 +141,12 @@ export default function Dataset() {
             title={'File Name'}
           ></RenameDialog>
         )}
+        <SelectFilesDialog
+          visible={fileSelectorVisible}
+          onCancel={hideFileSelectorModal}
+          onOk={onFileSelectorOk}
+          loading={fileSelectorLoading}
+        />
       </section>
     </>
   );
