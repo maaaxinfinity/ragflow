@@ -1,12 +1,25 @@
 import { Button } from '@/components/ui/button';
-import { useFetchDialogList, useSetDialog } from '@/hooks/use-chat-request';
-import { Plus, Check } from 'lucide-react';
-import { useCallback, useEffect, useRef, useMemo } from 'react';
+import { useFetchDialogList, useSetDialog, useRemoveDialog } from '@/hooks/use-chat-request';
+import { Plus, Check, Settings, Trash2, MessageSquare } from 'lucide-react';
+import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RenameDialog } from '@/components/rename-dialog';
 import { useSetModalState } from '@/hooks/common-hooks';
 import { useFetchTenantInfo } from '@/hooks/use-user-setting-request';
 import { IDialog } from '@/interfaces/database/chat';
+import { BotConfigDialog } from './bot-config-dialog';
+import { Routes } from '@/routes';
+import { useNavigate } from 'umi';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface BotManagementPanelProps {
   onSelectBot: (dialogId: string) => void;
@@ -20,8 +33,13 @@ export function BotManagementPanel({
   const { data, refetch } = useFetchDialogList();
   const { t } = useTranslation();
   const { setDialog, loading: chatRenameLoading } = useSetDialog();
+  const { removeDialog, loading: deleteLoading } = useRemoveDialog();
   const tenantInfo = useFetchTenantInfo();
   const previousDialogCountRef = useRef(data.dialogs.length);
+  const navigate = useNavigate();
+
+  const [editingBot, setEditingBot] = useState<IDialog | null>(null);
+  const [deletingBotId, setDeletingBotId] = useState<string | null>(null);
 
   const {
     visible: chatRenameVisible,
@@ -66,7 +84,6 @@ export function BotManagementPanel({
 
       if (ret === 0) {
         hideChatRenameModal();
-        // Refetch to get the new bot list
         await refetch();
       }
     },
@@ -76,7 +93,6 @@ export function BotManagementPanel({
   // Auto-select newly created bot
   useEffect(() => {
     const currentDialogCount = data.dialogs.length;
-    // If dialog count increased, select the newest one
     if (currentDialogCount > previousDialogCountRef.current) {
       const sortedDialogs = [...data.dialogs].sort(
         (a, b) =>
@@ -101,6 +117,49 @@ export function BotManagementPanel({
     [onSelectBot],
   );
 
+  const handleEditBot = useCallback(
+    (e: React.MouseEvent, dialog: IDialog) => {
+      e.stopPropagation();
+      setEditingBot(dialog);
+    },
+    [],
+  );
+
+  const handleDeleteBot = useCallback(
+    (e: React.MouseEvent, dialogId: string) => {
+      e.stopPropagation();
+      setDeletingBotId(dialogId);
+    },
+    [],
+  );
+
+  const confirmDelete = useCallback(async () => {
+    if (deletingBotId) {
+      await removeDialog([deletingBotId]);
+      setDeletingBotId(null);
+      await refetch();
+      // If deleted bot was selected, clear selection
+      if (selectedBotId === deletingBotId) {
+        onSelectBot('');
+      }
+    }
+  }, [deletingBotId, removeDialog, refetch, selectedBotId, onSelectBot]);
+
+  const handleConfigSuccess = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
+  const handleEnterChat = useCallback(
+    (e: React.MouseEvent, dialogId: string) => {
+      e.stopPropagation();
+      // Save dialog_id to localStorage for FreeChat to pick up
+      localStorage.setItem('free_chat_dialog_id', dialogId);
+      // Navigate to FreeChat
+      navigate(Routes.FreeChat);
+    },
+    [navigate],
+  );
+
   return (
     <section className="flex flex-col h-full p-6">
       {/* Header */}
@@ -108,7 +167,7 @@ export function BotManagementPanel({
         <div>
           <h2 className="text-xl font-bold">{t('chat.chatApps')}</h2>
           <p className="text-sm text-muted-foreground">
-            Create and manage your chat bots
+            {t('chat.botManagementDescription')}
           </p>
         </div>
         <Button onClick={handleShowCreateModal}>
@@ -126,7 +185,7 @@ export function BotManagementPanel({
               onClick={() => handleBotClick(dialog)}
               className={`
                 relative p-4 border rounded-lg cursor-pointer
-                transition-all hover:shadow-md
+                transition-all hover:shadow-md group
                 ${
                   selectedBotId === dialog.id
                     ? 'border-primary bg-primary/5'
@@ -141,8 +200,28 @@ export function BotManagementPanel({
                 </div>
               )}
 
+              {/* Action Buttons */}
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  onClick={(e) => handleEditBot(e, dialog)}
+                >
+                  <Settings className="size-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                  onClick={(e) => handleDeleteBot(e, dialog.id)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+
               {/* Bot Info */}
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 mb-3">
                 {dialog.icon && (
                   <div className="size-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                     <span className="text-lg">{dialog.icon}</span>
@@ -157,6 +236,17 @@ export function BotManagementPanel({
                   )}
                 </div>
               </div>
+
+              {/* Enter Chat Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={(e) => handleEnterChat(e, dialog.id)}
+              >
+                <MessageSquare className="size-4 mr-2" />
+                {t('chat.enterChat')}
+              </Button>
             </div>
           ))}
         </div>
@@ -172,6 +262,37 @@ export function BotManagementPanel({
           title={t('chat.createChat')}
         />
       )}
+
+      {/* Edit Bot Config Dialog */}
+      {editingBot && (
+        <BotConfigDialog
+          visible={!!editingBot}
+          onClose={() => setEditingBot(null)}
+          bot={editingBot}
+          onSuccess={handleConfigSuccess}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!deletingBotId}
+        onOpenChange={() => setDeletingBotId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('chat.deleteBot')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('chat.deleteBotConfirm')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={deleteLoading}>
+              {t('common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

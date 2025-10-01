@@ -643,6 +643,25 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       },
       cancel: 'Cancel',
       chatSetting: 'Chat setting',
+      // Bot Management
+      botManagement: 'Bot Management',
+      botManagementDescription: 'Create and manage your chat bots',
+      selectBotToViewSessions: 'Select a Bot above to view FreeChat sessions',
+      noBotsYet: 'No bots created yet',
+      createFirstBot: 'Create your first bot',
+      editBot: 'Edit Bot',
+      deleteBot: 'Delete Bot',
+      deleteBotConfirm: 'Are you sure you want to delete this bot? This action cannot be undone.',
+      enterChat: 'Enter Chat',
+      // FreeChat Sessions
+      freechatSessions: 'FreeChat Sessions',
+      freechatSessionsDescription: 'Chat sessions for the selected bot',
+      selectBotPrompt: 'Select a bot to view sessions',
+      noSessionsYet: 'No chat sessions yet',
+      createFirstChat: 'Create First Chat',
+      untitledChat: 'Untitled Chat',
+      updated: 'Updated',
+      unknownUser: 'Unknown User',
       // Free Chat
       modelParameters: 'Model Parameters',
       parametersWillTakeEffectInNextMessage:

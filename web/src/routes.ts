@@ -185,7 +185,13 @@ const routes = [
   {
     path: Routes.Chats,
     layout: false,
-    component: `@/pages/next-chats`,
+    component: '@/layouts/next',
+    routes: [
+      {
+        path: Routes.Chats,
+        component: `@/pages${Routes.Chats}`,
+      },
+    ],
   },
   {
     path: Routes.Chat + '/:id',
