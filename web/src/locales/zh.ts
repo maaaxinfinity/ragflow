@@ -635,6 +635,13 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       chatSetting: '聊天设置',
       avatarHidden: '隐藏头像',
       locale: '地区',
+      // Free Chat
+      modelParameters: '模型参数',
+      parametersWillTakeEffectInNextMessage: '参数将在下一条消息中生效',
+      knowledgeBasesEnabled: '个知识库已启用',
+      noKnowledgeBasesEnabled: '未启用知识库',
+      noKnowledgeBasesAvailable: '暂无可用知识库',
+      knowledgeBaseWillBeUsedInNextMessage: '知识库选择将在下一条消息中生效',
     },
     setting: {
       profile: '概要',

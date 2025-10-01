@@ -643,6 +643,15 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       },
       cancel: 'Cancel',
       chatSetting: 'Chat setting',
+      // Free Chat
+      modelParameters: 'Model Parameters',
+      parametersWillTakeEffectInNextMessage:
+        'Parameters will take effect in the next message',
+      knowledgeBasesEnabled: 'knowledge bases enabled',
+      noKnowledgeBasesEnabled: 'No knowledge bases enabled',
+      noKnowledgeBasesAvailable: 'No knowledge bases available',
+      knowledgeBaseWillBeUsedInNextMessage:
+        'Knowledge base selection will take effect in the next message',
     },
     setting: {
       profile: 'Profile',

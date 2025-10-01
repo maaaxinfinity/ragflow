@@ -86,9 +86,14 @@ export function SelectFilesDialog({
   // Recursively get all file IDs from a folder (with caching)
   const getFileIdsRecursively = useCallback(
     async (folderId: string): Promise<string[]> => {
-      // Check cache first
-      if (folderFilesCache.has(folderId)) {
-        return folderFilesCache.get(folderId)!;
+      // Check cache first using functional update to access latest cache
+      let cachedResult: string[] | undefined;
+      setFolderFilesCache((prev) => {
+        cachedResult = prev.get(folderId);
+        return prev;
+      });
+      if (cachedResult) {
+        return cachedResult;
       }
 
       const result = await fetchList(folderId);
@@ -120,7 +125,7 @@ export function SelectFilesDialog({
 
       return allFileIds;
     },
-    [fetchList, folderFilesCache],
+    [fetchList],
   );
 
   const filteredFiles = useMemo(() => {
@@ -178,11 +183,27 @@ export function SelectFilesDialog({
       }
     } else {
       // Toggle single file selection
-      setSelectedFileIds((prev) =>
-        prev.includes(fileId)
-          ? prev.filter((id) => id !== fileId)
-          : [...prev, fileId],
-      );
+      const newSelectedFileIds = selectedFileIds.includes(fileId)
+        ? selectedFileIds.filter((id) => id !== fileId)
+        : [...selectedFileIds, fileId];
+
+      setSelectedFileIds(newSelectedFileIds);
+
+      // Check all folders and update their fully-selected status
+      // Remove folders from fullySelectedFolders if not all their files are selected
+      const updatedFullySelectedFolders = new Set(fullySelectedFolders);
+      for (const folderId of fullySelectedFolders) {
+        const folderFiles = folderFilesCache.get(folderId);
+        if (folderFiles) {
+          const allFilesSelected = folderFiles.every((id) =>
+            newSelectedFileIds.includes(id),
+          );
+          if (!allFilesSelected) {
+            updatedFullySelectedFolders.delete(folderId);
+          }
+        }
+      }
+      setFullySelectedFolders(updatedFullySelectedFolders);
     }
   };
 

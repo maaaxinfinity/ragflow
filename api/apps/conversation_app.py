@@ -180,6 +180,10 @@ def completion():
     chat_model_id = req.get("llm_id", "")
     req.pop("llm_id", None)
 
+    # Support dynamic knowledge base selection
+    kb_ids = req.get("kb_ids", [])
+    req.pop("kb_ids", None)
+
     chat_model_config = {}
     for model_config in [
         "temperature",
@@ -215,6 +219,10 @@ def completion():
                 return get_data_error_result(message=f"Cannot use specified model {chat_model_id}.")
             dia.llm_id = chat_model_id
             dia.llm_setting = chat_model_config
+
+        # Temporarily override dialog's kb_ids if provided
+        if kb_ids:
+            dia.kb_ids = kb_ids
 
         is_embedded = bool(chat_model_id)
         def stream():
