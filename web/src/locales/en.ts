@@ -696,6 +696,17 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       freeChatWelcomeMessage: 'Adjust model parameters and select knowledge bases in the right panel. Changes will apply to your next message.',
       resetToDefaults: 'Reset to defaults',
       chunks: 'chunks',
+      // Error messages
+      noDialogIdError: 'No dialog ID set for Free Chat',
+      failedToCreateConversation: 'Failed to create conversation',
+      conversationNotFound: 'Conversation not found',
+      sessionDataCorrupted: 'Session data may be corrupted',
+      invalidSessionsDataFormat: 'Invalid sessions data format, resetting...',
+      localStorageQuotaExceeded: 'LocalStorage quota exceeded. Session data may not be saved.',
+      failedToLoadSessions: 'Failed to load sessions',
+      failedToSaveSessions: 'Failed to save sessions',
+      failedToParseSavedParams: 'Failed to parse saved model parameters',
+      failedToParseSavedKBIds: 'Failed to parse saved knowledge base IDs',
     },
     setting: {
       profile: 'Profile',

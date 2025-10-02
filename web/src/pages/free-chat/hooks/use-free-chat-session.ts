@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { Message } from '@/interfaces/database/chat';
 import { DynamicModelParams } from '../types';
+import { logError, logWarn } from '../utils/error-handler';
 
 export interface IFreeChatSession {
   id: string;
@@ -25,7 +26,7 @@ const loadSessions = (): IFreeChatSession[] => {
     const parsed = JSON.parse(saved);
     // Validate the data structure
     if (!Array.isArray(parsed)) {
-      console.error('Invalid sessions data format, resetting...');
+      logError('invalidSessionsDataFormat', 'useFreeChatSession.loadSessions');
       localStorage.removeItem(STORAGE_KEY);
       return [];
     }
@@ -36,12 +37,18 @@ const loadSessions = (): IFreeChatSession[] => {
     );
 
     if (validSessions.length !== parsed.length) {
-      console.warn(`Filtered out ${parsed.length - validSessions.length} invalid sessions`);
+      logWarn(
+        `Filtered out ${parsed.length - validSessions.length} invalid sessions`,
+        'useFreeChatSession.loadSessions'
+      );
     }
 
     return validSessions;
   } catch (e) {
-    console.error('Failed to load sessions, data may be corrupted:', e);
+    logError(
+      e instanceof Error ? e : 'sessionDataCorrupted',
+      'useFreeChatSession.loadSessions'
+    );
     // Clear corrupted data
     localStorage.removeItem(STORAGE_KEY);
     return [];
@@ -53,10 +60,18 @@ const saveSessions = (sessions: IFreeChatSession[]) => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
   } catch (e) {
-    console.error('Failed to save sessions:', e);
     // Notify user if storage quota exceeded
     if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-      console.error('LocalStorage quota exceeded. Session data may not be saved.');
+      logError(
+        'localStorageQuotaExceeded',
+        'useFreeChatSession.saveSessions',
+        true
+      );
+    } else {
+      logError(
+        e instanceof Error ? e : 'failedToSaveSessions',
+        'useFreeChatSession.saveSessions'
+      );
     }
   }
 };

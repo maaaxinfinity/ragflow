@@ -1,6 +1,7 @@
 import { useFetchKnowledgeList } from '@/hooks/knowledge-hooks';
 import { DocumentParserType } from '@/constants/knowledge';
 import { useCallback, useState, useEffect } from 'react';
+import { logError } from '../utils/error-handler';
 
 const STORAGE_KEY = 'free_chat_enabled_kbs';
 
@@ -23,7 +24,10 @@ export const useKBToggle = () => {
         const kbIds = JSON.parse(saved);
         setEnabledKBs(new Set(kbIds));
       } catch (e) {
-        console.error('Failed to parse saved KB IDs:', e);
+        logError(
+          e instanceof Error ? e : 'failedToParseSavedKBIds',
+          'useKBToggle.loadKBs'
+        );
       }
     }
   }, []);

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useTranslation } from 'react-i18next';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useFetchPureFileList } from '@/hooks/file-manager-hooks';
 import { File, Folder, Search } from 'lucide-react';
 import {
@@ -55,10 +55,9 @@ export function SelectFilesDialog({
     { id: '', name: t('fileManager.files') },
   ]);
   const [files, setFiles] = useState<FileItem[]>([]);
+  // BUG FIX #7: Use ref for cache to avoid dependency issues in useCallback
   // Cache folder file IDs to avoid repeated API calls
-  const [folderFilesCache, setFolderFilesCache] = useState<
-    Map<string, string[]>
-  >(new Map());
+  const folderFilesCacheRef = useRef<Map<string, string[]>>(new Map());
   // Track which folders have all their files selected
   const [fullySelectedFolders, setFullySelectedFolders] = useState<Set<string>>(
     new Set(),
@@ -86,14 +85,10 @@ export function SelectFilesDialog({
   // Recursively get all file IDs from a folder (with caching)
   const getFileIdsRecursively = useCallback(
     async (folderId: string): Promise<string[]> => {
-      // Check cache first using functional update to access latest cache
-      let cachedResult: string[] | undefined;
-      setFolderFilesCache((prev) => {
-        cachedResult = prev.get(folderId);
-        return prev;
-      });
-      if (cachedResult) {
-        return cachedResult;
+      // Check cache first
+      const cache = folderFilesCacheRef.current;
+      if (cache.has(folderId)) {
+        return cache.get(folderId)!;
       }
 
       const result = await fetchList(folderId);
@@ -121,7 +116,7 @@ export function SelectFilesDialog({
       }
 
       // Cache the result
-      setFolderFilesCache((prev) => new Map(prev).set(folderId, allFileIds));
+      cache.set(folderId, allFileIds);
 
       return allFileIds;
     },
@@ -219,7 +214,7 @@ export function SelectFilesDialog({
     setSearchString('');
     setFolderPath([{ id: '', name: t('fileManager.files') }]);
     setFiles([]);
-    setFolderFilesCache(new Map());
+    folderFilesCacheRef.current = new Map();
     onCancel();
   };
 

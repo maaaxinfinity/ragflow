@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect } from 'react';
 import { DynamicModelParams } from '../types';
+import { logError } from '../utils/error-handler';
 
 const DEFAULT_PARAMS: DynamicModelParams = {
   temperature: 0.7,
@@ -22,7 +23,10 @@ export const useDynamicParams = () => {
       try {
         setParams(JSON.parse(saved));
       } catch (e) {
-        console.error('Failed to parse saved params:', e);
+        logError(
+          e instanceof Error ? e : 'failedToParseSavedParams',
+          'useDynamicParams.loadParams'
+        );
       }
     }
   }, []);
@@ -58,17 +62,13 @@ export const useDynamicParams = () => {
     [saveParams],
   );
 
-  // BUG FIX #5: Reset should clear the changed flag after notifying user
+  // BUG FIX #5 & #6: Reset should NOT set changed flag - resetting means no changes
   // 重置参数
   const resetParams = useCallback(() => {
     setParams(DEFAULT_PARAMS);
     saveParams(DEFAULT_PARAMS);
-    // Set changed flag temporarily to notify user, then clear it
-    setParamsChanged(true);
-    // Clear the flag after a short delay to allow UI to show the notification
-    setTimeout(() => {
-      setParamsChanged(false);
-    }, 100);
+    // Reset means no changes, so clear the flag
+    setParamsChanged(false);
   }, [saveParams]);
 
   // 清除参数变化标记

@@ -15,12 +15,11 @@ import { useDynamicParams } from './use-dynamic-params';
 import { useKBToggle } from './use-kb-toggle';
 import { useFreeChatSession } from './use-free-chat-session';
 import { useUpdateConversation } from '@/hooks/use-chat-request';
-
-// Free Chat uses a special dialog_id
-// User needs to create a "Free Chat" dialog first
-const FREE_CHAT_DIALOG_ID = 'free_chat_default';
+import { logError, logInfo } from '../utils/error-handler';
+import { useTranslate } from '@/hooks/common-hooks';
 
 export const useFreeChat = (controller: AbortController) => {
+  const { t } = useTranslate('chat');
   const { params, paramsChanged, clearChangedFlag } = useDynamicParams();
   const { enabledKBs } = useKBToggle();
   const { handleInputChange, value, setValue } = useHandleMessageInputChange();
@@ -89,7 +88,12 @@ export const useFreeChat = (controller: AbortController) => {
   const sendMessage = useCallback(
     async (message: Message, customParams?: DynamicModelParams) => {
       if (!dialogId) {
-        console.error('No dialog ID set for Free Chat');
+        logError(
+          t('noDialogIdError'),
+          'useFreeChat.sendMessage',
+          true,
+          t('noDialogIdError')
+        );
         return;
       }
 
@@ -116,22 +120,38 @@ export const useFreeChat = (controller: AbortController) => {
             updateSession(currentSession.id, { conversation_id: conversationId });
           }
         } else {
-          console.error('Failed to create conversation');
+          logError(
+            t('failedToCreateConversation'),
+            'useFreeChat.sendMessage',
+            true,
+            t('failedToCreateConversation')
+          );
           removeLatestMessage();
           return;
         }
       }
 
-      // BUG FIX #7: Ensure kb_ids from enabledKBs has priority over params
+      // BUG FIX #7 & #12: Ensure kb_ids from enabledKBs has priority over params
       const baseParams = customParams || params;
+      const kbIdsArray = Array.from(enabledKBs);
       const requestBody = {
         conversation_id: conversationId,
         messages: [...derivedMessages, message],
         // Dynamic parameters
         ...baseParams,
-        // Dynamic knowledge base (overrides any kb_ids in params)
-        ...(enabledKBs.size > 0 && { kb_ids: Array.from(enabledKBs) }),
+        // Dynamic knowledge base (always include, overrides any kb_ids in params)
+        kb_ids: kbIdsArray,
       };
+
+      // Log for debugging knowledge base selection
+      if (kbIdsArray.length > 0) {
+        logInfo(
+          `Sending message with ${kbIdsArray.length} knowledge base(s): ${kbIdsArray.join(', ')}`,
+          'useFreeChat.sendMessage'
+        );
+      } else {
+        logInfo('Sending message without knowledge bases', 'useFreeChat.sendMessage');
+      }
 
       const res = await send(requestBody, controller);
 
@@ -161,6 +181,7 @@ export const useFreeChat = (controller: AbortController) => {
       clearChangedFlag,
       updateConversation,
       updateSession,
+      t,
     ],
   );
 

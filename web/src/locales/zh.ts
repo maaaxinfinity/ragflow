@@ -686,6 +686,17 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       freeChatWelcomeMessage: '在右侧面板调整模型参数并选择知识库。更改将在您的下一条消息中生效。',
       resetToDefaults: '重置为默认值',
       chunks: '个块',
+      // Error messages
+      noDialogIdError: '未设置对话ID',
+      failedToCreateConversation: '创建会话失败',
+      conversationNotFound: '会话不存在',
+      sessionDataCorrupted: '会话数据可能已损坏',
+      invalidSessionsDataFormat: '会话数据格式无效，正在重置...',
+      localStorageQuotaExceeded: '本地存储配额已满，会话数据可能无法保存',
+      failedToLoadSessions: '加载会话失败',
+      failedToSaveSessions: '保存会话失败',
+      failedToParseSavedParams: '解析已保存的模型参数失败',
+      failedToParseSavedKBIds: '解析已保存的知识库ID失败',
     },
     setting: {
       profile: '概要',
