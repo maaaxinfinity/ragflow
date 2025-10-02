@@ -70,14 +70,15 @@ export const useFreeChat = (controller: AbortController) => {
     removeAllMessages,
   } = useSelectDerivedMessages();
 
-  // Sync messages from current session
+  // BUG FIX #10: Only sync when currentSessionId changes, not when currentSession object changes
+  // This prevents overwriting derivedMessages when session is updated
   useEffect(() => {
     if (currentSession) {
       setDerivedMessages(currentSession.messages || []);
     } else {
       setDerivedMessages([]);
     }
-  }, [currentSessionId, currentSession, setDerivedMessages]);
+  }, [currentSessionId, setDerivedMessages]); // Remove currentSession from deps
 
   // Stop output
   const stopOutputMessage = useCallback(() => {
@@ -164,16 +165,18 @@ export const useFreeChat = (controller: AbortController) => {
   );
 
   // BUG FIX #2: Handle session creation and message sending properly
+  // Store pending message content when session is being created
+  const pendingMessageRef = useRef<string | null>(null);
+
   const handleSendMessage = useCallback(
     async (content: string) => {
       if (trim(content) === '') return;
 
-      // Create session if not exists and defer message sending
+      // Create session if not exists and mark message as pending
       if (!currentSession) {
-        const newSession = createSession(content.slice(0, 30));
-        // The message will be sent after session is created and effect runs
-        // Store the pending message
-        setValue(content);
+        createSession(content.slice(0, 30));
+        // Store pending message to be sent after session is created
+        pendingMessageRef.current = content;
         return;
       }
 
@@ -194,6 +197,28 @@ export const useFreeChat = (controller: AbortController) => {
     },
     [currentSession, createSession, addNewestQuestion, done, setValue, sendMessage],
   );
+
+  // Send pending message when session becomes available
+  useEffect(() => {
+    if (currentSession && pendingMessageRef.current) {
+      const content = pendingMessageRef.current;
+      pendingMessageRef.current = null; // Clear pending
+
+      const id = uuid();
+      const message: Message = {
+        id,
+        content: content.trim(),
+        role: MessageType.User,
+      };
+
+      addNewestQuestion(message);
+
+      if (done) {
+        setValue('');
+        sendMessage(message);
+      }
+    }
+  }, [currentSession, addNewestQuestion, done, setValue, sendMessage]);
 
   // Press Enter to send
   const handlePressEnter = useCallback(() => {
@@ -222,13 +247,23 @@ export const useFreeChat = (controller: AbortController) => {
     }
   }, [answer, addNewestAnswer]);
 
-  // BUG FIX #1: Properly sync derivedMessages to session storage
-  // Use a ref to track if we're syncing to prevent infinite loop
+  // BUG FIX #1 & #9: Properly sync derivedMessages to session storage
+  // Use ref to store session ID to avoid dependency on currentSession object
+  const currentSessionIdRef = useRef(currentSessionId);
   const isSyncingRef = useRef(false);
+
   useEffect(() => {
-    if (currentSession && derivedMessages.length > 0 && !isSyncingRef.current) {
-      // Check if messages actually changed to prevent unnecessary updates
-      const currentMessages = currentSession.messages || [];
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
+  useEffect(() => {
+    const sessionId = currentSessionIdRef.current;
+    if (sessionId && derivedMessages.length > 0 && !isSyncingRef.current) {
+      // Find the current session from the messages to compare
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) return;
+
+      const currentMessages = session.messages || [];
       const messagesChanged =
         derivedMessages.length !== currentMessages.length ||
         derivedMessages.some((msg, idx) => {
@@ -238,7 +273,7 @@ export const useFreeChat = (controller: AbortController) => {
 
       if (messagesChanged) {
         isSyncingRef.current = true;
-        updateSession(currentSession.id, {
+        updateSession(sessionId, {
           messages: derivedMessages,
         });
         // Reset flag after a tick to allow next update
@@ -247,7 +282,7 @@ export const useFreeChat = (controller: AbortController) => {
         }, 0);
       }
     }
-  }, [derivedMessages, currentSession, updateSession]);
+  }, [derivedMessages, sessions, updateSession]); // Use sessions instead of currentSession
 
   return {
     // Message related

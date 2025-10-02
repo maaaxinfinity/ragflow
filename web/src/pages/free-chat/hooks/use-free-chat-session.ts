@@ -150,12 +150,15 @@ export const useFreeChatSession = () => {
     }
   }, [currentSessionId]);
 
-  // Switch session
+  // BUG FIX #11: Switch session without closure dependency
   const switchSession = useCallback((sessionId: string) => {
-    if (sessions.find(s => s.id === sessionId)) {
-      setCurrentSessionId(sessionId);
-    }
-  }, [sessions]);
+    setSessions(prevSessions => {
+      if (prevSessions.find(s => s.id === sessionId)) {
+        setCurrentSessionId(sessionId);
+      }
+      return prevSessions; // No change to sessions
+    });
+  }, []);
 
   // Clear all sessions
   const clearAllSessions = useCallback(() => {
