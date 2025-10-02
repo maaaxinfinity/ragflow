@@ -9,6 +9,7 @@ import { CheckCheck, X } from 'lucide-react';
 
 export function KnowledgeBaseSelector() {
   const { t } = useTranslate('chat');
+  const { t: tCommon } = useTranslate('common');
   const { enabledKBs, availableKBs, loading, toggleKB, toggleAll, clearKBs, isAllSelected } =
     useKBToggle();
 
@@ -16,7 +17,7 @@ export function KnowledgeBaseSelector() {
     return (
       <div className="space-y-2">
         <Label>{t('knowledgeBases')}</Label>
-        <div className="text-sm text-muted-foreground">{t('common.loading')}</div>
+        <div className="text-sm text-muted-foreground">{tCommon('loading')}</div>
       </div>
     );
   }
@@ -34,7 +35,7 @@ export function KnowledgeBaseSelector() {
               className="h-7 px-2"
             >
               <X className="h-3 w-3 mr-1" />
-              {t('common.clear')}
+              {tCommon('clear')}
             </Button>
           )}
           <Button
@@ -44,7 +45,7 @@ export function KnowledgeBaseSelector() {
             className="h-7 px-2"
           >
             <CheckCheck className="h-3 w-3 mr-1" />
-            {isAllSelected ? t('common.deselectAll') : t('common.selectAll')}
+            {isAllSelected ? tCommon('deselectAll') : tCommon('selectAll')}
           </Button>
         </div>
       </div>
@@ -75,7 +76,7 @@ export function KnowledgeBaseSelector() {
                 <div className="text-sm font-medium truncate">{kb.name}</div>
                 {kb.chunk_num > 0 && (
                   <div className="text-xs text-muted-foreground">
-                    {kb.chunk_num} {t('chunk.chunks')}
+                    {kb.chunk_num} {t('chunks')}
                   </div>
                 )}
               </div>

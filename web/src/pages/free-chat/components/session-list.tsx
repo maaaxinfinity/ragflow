@@ -10,10 +10,10 @@ const formatTimeAgo = (timestamp: number, t: any) => {
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
 
-  if (minutes < 1) return t('chat.justNow');
-  if (minutes < 60) return `${minutes}${t('chat.minutesAgo')}`;
-  if (hours < 24) return `${hours}${t('chat.hoursAgo')}`;
-  return `${days}${t('chat.daysAgo')}`;
+  if (minutes < 1) return t('justNow');
+  if (minutes < 60) return `${minutes}${t('minutesAgo')}`;
+  if (hours < 24) return `${hours}${t('hoursAgo')}`;
+  return `${days}${t('daysAgo')}`;
 };
 
 interface SessionListProps {

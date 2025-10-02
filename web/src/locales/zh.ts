@@ -685,6 +685,7 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       startFreeChat: '开始自由聊天',
       freeChatWelcomeMessage: '在右侧面板调整模型参数并选择知识库。更改将在您的下一条消息中生效。',
       resetToDefaults: '重置为默认值',
+      chunks: '个块',
     },
     setting: {
       profile: '概要',

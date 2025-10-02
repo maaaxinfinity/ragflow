@@ -695,6 +695,7 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       startFreeChat: 'Start a Free Chat',
       freeChatWelcomeMessage: 'Adjust model parameters and select knowledge bases in the right panel. Changes will apply to your next message.',
       resetToDefaults: 'Reset to defaults',
+      chunks: 'chunks',
     },
     setting: {
       profile: 'Profile',
