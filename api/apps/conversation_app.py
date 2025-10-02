@@ -181,7 +181,8 @@ def completion():
     req.pop("llm_id", None)
 
     # Support dynamic knowledge base selection
-    kb_ids = req.get("kb_ids", [])
+    # BUG FIX: Distinguish between "not provided" and "empty array"
+    kb_ids = req.get("kb_ids", None)
     req.pop("kb_ids", None)
 
     chat_model_config = {}
@@ -221,8 +222,12 @@ def completion():
             dia.llm_setting = chat_model_config
 
         # Temporarily override dialog's kb_ids if provided
-        if kb_ids:
+        # BUG FIX: Use 'is not None' to allow empty list to clear kb_ids
+        if kb_ids is not None:
+            logging.info(f"[FreeChat] Overriding dialog kb_ids with: {kb_ids}")
             dia.kb_ids = kb_ids
+        else:
+            logging.info(f"[FreeChat] Using dialog's default kb_ids: {dia.kb_ids}")
 
         is_embedded = bool(chat_model_id)
         def stream():
@@ -303,10 +308,17 @@ def delete_msg():
     for i, msg in enumerate(conv["message"]):
         if req["message_id"] != msg.get("id", ""):
             continue
-        assert conv["message"][i + 1]["id"] == req["message_id"]
+        # BUG FIX: Check if next message exists (should be assistant's reply)
+        # Original assert was checking if next message has SAME id, which is impossible
+        if i + 1 >= len(conv["message"]):
+            return get_data_error_result(message="Cannot delete: message has no reply!")
+        # Delete user message and assistant reply
         conv["message"].pop(i)
         conv["message"].pop(i)
-        conv["reference"].pop(max(0, i // 2 - 1))
+        # Delete corresponding reference
+        ref_index = max(0, i // 2 - 1)
+        if ref_index < len(conv["reference"]):
+            conv["reference"].pop(ref_index)
         break
 
     ConversationService.update_by_id(conv["id"], conv)

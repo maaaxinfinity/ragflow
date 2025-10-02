@@ -146,11 +146,14 @@ export const useFreeChat = (controller: AbortController) => {
       // Log for debugging knowledge base selection
       if (kbIdsArray.length > 0) {
         logInfo(
-          `Sending message with ${kbIdsArray.length} knowledge base(s): ${kbIdsArray.join(', ')}`,
+          `Sending message with ${kbIdsArray.length} knowledge base(s): [${kbIdsArray.join(', ')}]`,
           'useFreeChat.sendMessage'
         );
       } else {
-        logInfo('Sending message without knowledge bases', 'useFreeChat.sendMessage');
+        logInfo(
+          'Sending message with kb_ids: [] (explicitly clearing knowledge bases)',
+          'useFreeChat.sendMessage'
+        );
       }
 
       const res = await send(requestBody, controller);
@@ -268,9 +271,10 @@ export const useFreeChat = (controller: AbortController) => {
     }
   }, [answer, addNewestAnswer]);
 
-  // BUG FIX #1 & #9: Properly sync derivedMessages to session storage
-  // Use ref to store session ID to avoid dependency on currentSession object
+  // BUG FIX #1, #9 & #13: Properly sync derivedMessages to session storage
+  // Use refs to avoid circular dependency issues
   const currentSessionIdRef = useRef(currentSessionId);
+  const sessionsRef = useRef(sessions);
   const isSyncingRef = useRef(false);
 
   useEffect(() => {
@@ -278,10 +282,14 @@ export const useFreeChat = (controller: AbortController) => {
   }, [currentSessionId]);
 
   useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
+
+  useEffect(() => {
     const sessionId = currentSessionIdRef.current;
     if (sessionId && derivedMessages.length > 0 && !isSyncingRef.current) {
-      // Find the current session from the messages to compare
-      const session = sessions.find(s => s.id === sessionId);
+      // Find the current session from the ref to avoid circular dependency
+      const session = sessionsRef.current.find(s => s.id === sessionId);
       if (!session) return;
 
       const currentMessages = session.messages || [];
@@ -297,13 +305,13 @@ export const useFreeChat = (controller: AbortController) => {
         updateSession(sessionId, {
           messages: derivedMessages,
         });
-        // Reset flag after a tick to allow next update
-        setTimeout(() => {
+        // Use Promise.resolve() instead of setTimeout for more reliable microtask scheduling
+        Promise.resolve().then(() => {
           isSyncingRef.current = false;
-        }, 0);
+        });
       }
     }
-  }, [derivedMessages, sessions, updateSession]); // Use sessions instead of currentSession
+  }, [derivedMessages, updateSession]); // BUG FIX: Remove sessions dependency to avoid circular updates
 
   return {
     // Message related

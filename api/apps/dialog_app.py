@@ -64,9 +64,12 @@ def set_dialog():
     meta_data_filter = req.get("meta_data_filter", {})
     prompt_config = req["prompt_config"]
 
+    # BUG FIX: Allow {knowledge} placeholder even without default kb_ids
+    # Reason: kb_ids can be dynamically specified in completion API requests
+    # The {knowledge} placeholder will be filled with empty string when no KB is used
     if not is_create:
-        if not req.get("kb_ids", []) and not prompt_config.get("tavily_api_key") and "{knowledge}" in prompt_config['system']:
-            return get_data_error_result(message="Please remove `{knowledge}` in system prompt since no knowledge base / Tavily used here.")
+        # Skip this validation - {knowledge} is valid even without default kb_ids
+        pass
 
         for p in prompt_config["parameters"]:
             if p["optional"]:
@@ -83,7 +86,7 @@ def set_dialog():
         embd_ids = [TenantLLMService.split_model_name_and_factory(kb.embd_id)[0] for kb in kbs]  # remove vendor suffix for comparison
         embd_count = len(set(embd_ids))
         if embd_count > 1:
-            return get_data_error_result(message=f'Datasets use different embedding models: {[kb.embd_id for kb in kbs]}"')
+            return get_data_error_result(message=f'Datasets use different embedding models: {[kb.embd_id for kb in kbs]}')
 
         llm_id = req.get("llm_id", tenant.llm_id)
         if not dialog_id:

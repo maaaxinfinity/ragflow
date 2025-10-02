@@ -71,6 +71,7 @@ export const useKBToggle = () => {
   }, [saveEnabledKBs]);
 
   // 全选/取消全选
+  // BUG FIX #14: Don't depend on enabledKBs.size directly, use enabledKBs object
   const toggleAll = useCallback(() => {
     if (enabledKBs.size === availableKBs.length) {
       clearKBs();
@@ -78,7 +79,7 @@ export const useKBToggle = () => {
       const allIds = availableKBs.map((kb) => kb.id);
       setKBs(allIds);
     }
-  }, [enabledKBs.size, availableKBs, clearKBs, setKBs]);
+  }, [enabledKBs, availableKBs, clearKBs, setKBs]);
 
   return {
     enabledKBs,

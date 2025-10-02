@@ -187,15 +187,18 @@ def chat_solo(dialog, messages, stream=True):
     if prompt_config.get("tts"):
         tts_mdl = LLMBundle(dialog.tenant_id, LLMType.TTS)
     msg = [{"role": m["role"], "content": re.sub(r"##\d+\$\$", "", m["content"])} for m in messages if m["role"] != "system"]
+    # BUG FIX #5: Initialize answer to avoid NameError if stream is empty
     if stream:
         last_ans = ""
         delta_ans = ""
+        answer = ""  # Initialize in case stream is empty
         for ans in chat_mdl.chat_streamly(prompt_config.get("system", ""), msg, dialog.llm_setting):
             answer = ans
             delta_ans = ans[len(last_ans):]
+            # BUG FIX: Update last_ans even when skipping to maintain correct delta calculation
+            last_ans = answer
             if num_tokens_from_string(delta_ans) < 16:
                 continue
-            last_ans = answer
             yield {"answer": answer, "reference": {}, "audio_binary": tts(tts_mdl, delta_ans), "prompt": "", "created_at": time.time()}
             delta_ans = ""
         if delta_ans:
