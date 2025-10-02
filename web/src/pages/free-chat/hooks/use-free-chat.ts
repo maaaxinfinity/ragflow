@@ -134,6 +134,11 @@ export const useFreeChat = (controller: AbortController) => {
       // BUG FIX #7 & #12: Ensure kb_ids from enabledKBs has priority over params
       const baseParams = customParams || params;
       const kbIdsArray = Array.from(enabledKBs);
+
+      // DEBUG: Log enabledKBs state
+      console.log('[FreeChat] enabledKBs Set:', enabledKBs);
+      console.log('[FreeChat] kbIdsArray:', kbIdsArray);
+
       const requestBody = {
         conversation_id: conversationId,
         messages: [...derivedMessages, message],
@@ -142,6 +147,9 @@ export const useFreeChat = (controller: AbortController) => {
         // Dynamic knowledge base (always include, overrides any kb_ids in params)
         kb_ids: kbIdsArray,
       };
+
+      // DEBUG: Log full request body
+      console.log('[FreeChat] Full request body:', JSON.stringify(requestBody, null, 2));
 
       // Log for debugging knowledge base selection
       if (kbIdsArray.length > 0) {

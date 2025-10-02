@@ -223,9 +223,11 @@ def completion():
 
         # Temporarily override dialog's kb_ids if provided
         # BUG FIX: Use 'is not None' to allow empty list to clear kb_ids
+        logging.info(f"[FreeChat] Before override - dialog.kb_ids: {dia.kb_ids}, received kb_ids: {kb_ids}")
         if kb_ids is not None:
-            logging.info(f"[FreeChat] Overriding dialog kb_ids with: {kb_ids}")
+            logging.info(f"[FreeChat] Overriding dialog kb_ids from {dia.kb_ids} to {kb_ids}")
             dia.kb_ids = kb_ids
+            logging.info(f"[FreeChat] After override - dialog.kb_ids is now: {dia.kb_ids}, type: {type(dia.kb_ids)}")
         else:
             logging.info(f"[FreeChat] Using dialog's default kb_ids: {dia.kb_ids}")
 

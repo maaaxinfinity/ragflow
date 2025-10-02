@@ -340,10 +340,18 @@ def meta_filter(metas: dict, filters: list[dict]):
 
 def chat(dialog, messages, stream=True, **kwargs):
     assert messages[-1]["role"] == "user", "The last content of this conversation is not from user."
+    # BUG FIX: Add logging to debug kb_ids
+    logging.info(f"[chat] Entering chat function - dialog.kb_ids: {dialog.kb_ids}, type: {type(dialog.kb_ids)}")
+    logging.info(f"[chat] tavily_api_key present: {bool(dialog.prompt_config.get('tavily_api_key'))}")
+    logging.info(f"[chat] Condition check - not dialog.kb_ids: {not dialog.kb_ids}")
+
     if not dialog.kb_ids and not dialog.prompt_config.get("tavily_api_key"):
+        logging.info(f"[chat] Entering chat_solo mode (no KB)")
         for ans in chat_solo(dialog, messages, stream):
             yield ans
         return
+
+    logging.info(f"[chat] Entering RAG mode with kb_ids: {dialog.kb_ids}")
 
     chat_start_ts = timer()
 
