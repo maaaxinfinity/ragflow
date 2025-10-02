@@ -29,10 +29,12 @@ export function FreeChatListPanel({ dialogId }: FreeChatListPanelProps) {
     queryKey: ['freechat-conversations', dialogId],
     enabled: !!dialogId && dialogId !== '',
     refetchOnWindowFocus: false,
-    queryFn: async () => {
-      if (!dialogId || dialogId === '') return [];
+    queryFn: async ({ queryKey }) => {
+      // Use dialogId from queryKey to avoid closure issues
+      const [, currentDialogId] = queryKey;
+      if (!currentDialogId || currentDialogId === '') return [];
       const { data } = await chatService.listConversation({
-        params: { dialog_id: dialogId },
+        params: { dialog_id: currentDialogId },
       });
       if (data.code === 0) {
         return data.data;
