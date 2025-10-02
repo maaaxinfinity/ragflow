@@ -15,13 +15,35 @@ export interface IFreeChatSession {
 const STORAGE_KEY = 'free_chat_sessions';
 const CURRENT_SESSION_KEY = 'free_chat_current_session';
 
+// BUG FIX #8: Improved localStorage error handling with user notification
 // Load sessions from localStorage
 const loadSessions = (): IFreeChatSession[] => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved);
+    // Validate the data structure
+    if (!Array.isArray(parsed)) {
+      console.error('Invalid sessions data format, resetting...');
+      localStorage.removeItem(STORAGE_KEY);
+      return [];
+    }
+
+    // Validate each session has required fields
+    const validSessions = parsed.filter(s =>
+      s.id && s.name && s.created_at && s.updated_at
+    );
+
+    if (validSessions.length !== parsed.length) {
+      console.warn(`Filtered out ${parsed.length - validSessions.length} invalid sessions`);
+    }
+
+    return validSessions;
   } catch (e) {
-    console.error('Failed to load sessions:', e);
+    console.error('Failed to load sessions, data may be corrupted:', e);
+    // Clear corrupted data
+    localStorage.removeItem(STORAGE_KEY);
     return [];
   }
 };
@@ -32,6 +54,10 @@ const saveSessions = (sessions: IFreeChatSession[]) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
   } catch (e) {
     console.error('Failed to save sessions:', e);
+    // Notify user if storage quota exceeded
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+      console.error('LocalStorage quota exceeded. Session data may not be saved.');
+    }
   }
 };
 
@@ -63,50 +89,66 @@ export const useFreeChatSession = () => {
   // Get current session
   const currentSession = sessions.find(s => s.id === currentSessionId);
 
+  // BUG FIX #3: Use functional setState to avoid closure issues
   // Create new session
   const createSession = useCallback((name?: string) => {
-    const newSession: IFreeChatSession = {
-      id: uuid(),
-      name: name || `Chat ${sessions.length + 1}`,
-      messages: [],
-      created_at: Date.now(),
-      updated_at: Date.now(),
-    };
+    let newSession: IFreeChatSession;
 
-    const updatedSessions = [newSession, ...sessions];
-    setSessions(updatedSessions);
-    saveSessions(updatedSessions);
-    setCurrentSessionId(newSession.id);
+    setSessions(prevSessions => {
+      newSession = {
+        id: uuid(),
+        name: name || `Chat ${prevSessions.length + 1}`,
+        messages: [],
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      };
+      const updatedSessions = [newSession, ...prevSessions];
+      saveSessions(updatedSessions);
+      return updatedSessions;
+    });
 
-    return newSession;
-  }, [sessions]);
+    setCurrentSessionId(newSession!.id);
+    return newSession!;
+  }, []);
 
   // Update session
   const updateSession = useCallback((sessionId: string, updates: Partial<IFreeChatSession>) => {
-    const updatedSessions = sessions.map(s =>
-      s.id === sessionId
-        ? { ...s, ...updates, updated_at: Date.now() }
-        : s
-    );
-    setSessions(updatedSessions);
-    saveSessions(updatedSessions);
-  }, [sessions]);
+    setSessions(prevSessions => {
+      const updatedSessions = prevSessions.map(s =>
+        s.id === sessionId
+          ? { ...s, ...updates, updated_at: Date.now() }
+          : s
+      );
+      saveSessions(updatedSessions);
+      return updatedSessions;
+    });
+  }, []);
 
   // Delete session
   const deleteSession = useCallback((sessionId: string) => {
-    const updatedSessions = sessions.filter(s => s.id !== sessionId);
-    setSessions(updatedSessions);
-    saveSessions(updatedSessions);
+    let shouldUpdateCurrentId = false;
+    let newCurrentId = '';
 
-    // If deleting current session, switch to another
-    if (sessionId === currentSessionId) {
-      if (updatedSessions.length > 0) {
-        setCurrentSessionId(updatedSessions[0].id);
-      } else {
-        setCurrentSessionId('');
+    setSessions(prevSessions => {
+      const updatedSessions = prevSessions.filter(s => s.id !== sessionId);
+      saveSessions(updatedSessions);
+
+      // Check if we need to update current session ID
+      if (sessionId === currentSessionId) {
+        shouldUpdateCurrentId = true;
+        if (updatedSessions.length > 0) {
+          newCurrentId = updatedSessions[0].id;
+        }
       }
+
+      return updatedSessions;
+    });
+
+    // Update current session ID if needed
+    if (shouldUpdateCurrentId) {
+      setCurrentSessionId(newCurrentId);
     }
-  }, [sessions, currentSessionId]);
+  }, [currentSessionId]);
 
   // Switch session
   const switchSession = useCallback((sessionId: string) => {

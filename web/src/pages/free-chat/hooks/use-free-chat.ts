@@ -8,7 +8,7 @@ import { Message } from '@/interfaces/database/chat';
 import api from '@/utils/api';
 import { buildMessageUuid } from '@/utils/chat';
 import { trim } from 'lodash';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { DynamicModelParams } from '../types';
 import { useDynamicParams } from './use-dynamic-params';
@@ -121,15 +121,15 @@ export const useFreeChat = (controller: AbortController) => {
         }
       }
 
+      // BUG FIX #7: Ensure kb_ids from enabledKBs has priority over params
+      const baseParams = customParams || params;
       const requestBody = {
         conversation_id: conversationId,
         messages: [...derivedMessages, message],
         // Dynamic parameters
-        ...(customParams || params),
-        // Dynamic knowledge base
-        ...(enabledKBs.size > 0
-          ? { kb_ids: Array.from(enabledKBs) }
-          : {}),
+        ...baseParams,
+        // Dynamic knowledge base (overrides any kb_ids in params)
+        ...(enabledKBs.size > 0 && { kb_ids: Array.from(enabledKBs) }),
       };
 
       const res = await send(requestBody, controller);
@@ -137,14 +137,9 @@ export const useFreeChat = (controller: AbortController) => {
       if (res && (res?.response.status !== 200 || res?.data?.code !== 0)) {
         setValue(message.content);
         removeLatestMessage();
-      } else {
-        // Update session messages
-        if (currentSession) {
-          updateSession(currentSession.id, {
-            messages: [...derivedMessages, message],
-          });
-        }
       }
+      // BUG FIX #1: Remove duplicate session update here
+      // The session will be updated by the derivedMessages sync effect
 
       // Clear parameter change flag
       if (paramsChanged) {
@@ -168,14 +163,17 @@ export const useFreeChat = (controller: AbortController) => {
     ],
   );
 
-  // Handle send
+  // BUG FIX #2: Handle session creation and message sending properly
   const handleSendMessage = useCallback(
     async (content: string) => {
       if (trim(content) === '') return;
 
-      // Create session if not exists
+      // Create session if not exists and defer message sending
       if (!currentSession) {
-        createSession(content.slice(0, 30));
+        const newSession = createSession(content.slice(0, 30));
+        // The message will be sent after session is created and effect runs
+        // Store the pending message
+        setValue(content);
         return;
       }
 
@@ -224,14 +222,32 @@ export const useFreeChat = (controller: AbortController) => {
     }
   }, [answer, addNewestAnswer]);
 
-  // Update session messages when derivedMessages change
+  // BUG FIX #1: Properly sync derivedMessages to session storage
+  // Use a ref to track if we're syncing to prevent infinite loop
+  const isSyncingRef = useRef(false);
   useEffect(() => {
-    if (currentSession && derivedMessages.length > 0) {
-      updateSession(currentSession.id, {
-        messages: derivedMessages,
-      });
+    if (currentSession && derivedMessages.length > 0 && !isSyncingRef.current) {
+      // Check if messages actually changed to prevent unnecessary updates
+      const currentMessages = currentSession.messages || [];
+      const messagesChanged =
+        derivedMessages.length !== currentMessages.length ||
+        derivedMessages.some((msg, idx) => {
+          const current = currentMessages[idx];
+          return !current || msg.id !== current.id || msg.content !== current.content;
+        });
+
+      if (messagesChanged) {
+        isSyncingRef.current = true;
+        updateSession(currentSession.id, {
+          messages: derivedMessages,
+        });
+        // Reset flag after a tick to allow next update
+        setTimeout(() => {
+          isSyncingRef.current = false;
+        }, 0);
+      }
     }
-  }, [derivedMessages]);
+  }, [derivedMessages, currentSession, updateSession]);
 
   return {
     // Message related

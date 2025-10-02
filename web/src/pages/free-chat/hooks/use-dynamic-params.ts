@@ -58,11 +58,17 @@ export const useDynamicParams = () => {
     [saveParams],
   );
 
+  // BUG FIX #5: Reset should clear the changed flag after notifying user
   // 重置参数
   const resetParams = useCallback(() => {
     setParams(DEFAULT_PARAMS);
     saveParams(DEFAULT_PARAMS);
+    // Set changed flag temporarily to notify user, then clear it
     setParamsChanged(true);
+    // Clear the flag after a short delay to allow UI to show the notification
+    setTimeout(() => {
+      setParamsChanged(false);
+    }, 100);
   }, [saveParams]);
 
   // 清除参数变化标记
