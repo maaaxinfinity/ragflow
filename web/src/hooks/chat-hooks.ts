@@ -252,11 +252,15 @@ export const useFetchNextConversationList = () => {
     initialData: [],
     gcTime: 0,
     refetchOnWindowFocus: false,
-    enabled: !!dialogId && dialogId !== '',
-    queryFn: async () => {
-      if (!dialogId || dialogId === '') return [];
+    enabled: Boolean(dialogId && typeof dialogId === 'string' && dialogId.trim().length > 0),
+    queryFn: async ({ queryKey }) => {
+      const [, currentDialogId] = queryKey as [string, string];
+      if (!currentDialogId || typeof currentDialogId !== 'string' || currentDialogId.trim() === '') {
+        console.warn('useFetchNextConversationList called with invalid dialogId:', currentDialogId);
+        return [];
+      }
       const { data } = await chatService.listConversation({
-        params: { dialog_id: dialogId },
+        params: { dialog_id: currentDialogId },
       });
       if (data.code === 0) {
         if (data.data.length > 0) {

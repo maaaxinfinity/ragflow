@@ -27,12 +27,20 @@ export function FreeChatListPanel({ dialogId }: FreeChatListPanelProps) {
     refetch,
   } = useQuery<IConversation[]>({
     queryKey: ['freechat-conversations', dialogId],
-    enabled: !!dialogId && dialogId !== '',
+    enabled: Boolean(dialogId && dialogId.trim().length > 0),
     refetchOnWindowFocus: false,
+    staleTime: 0,
+    gcTime: 0,
     queryFn: async ({ queryKey }) => {
       // Use dialogId from queryKey to avoid closure issues
-      const [, currentDialogId] = queryKey;
-      if (!currentDialogId || currentDialogId === '') return [];
+      const [, currentDialogId] = queryKey as [string, string];
+
+      // Double check before making API call
+      if (!currentDialogId || typeof currentDialogId !== 'string' || currentDialogId.trim() === '') {
+        console.warn('listConversation called with invalid dialogId:', currentDialogId);
+        return [];
+      }
+
       const { data } = await chatService.listConversation({
         params: { dialog_id: currentDialogId },
       });

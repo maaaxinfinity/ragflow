@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { useFetchDialogList, useSetDialog, useRemoveDialog } from '@/hooks/use-chat-request';
-import { Plus, Check, Settings, Trash2, MessageSquare } from 'lucide-react';
+import { Plus, Settings, Trash2, MessageSquare } from 'lucide-react';
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RenameDialog } from '@/components/rename-dialog';
@@ -8,6 +8,7 @@ import { useSetModalState } from '@/hooks/common-hooks';
 import { useFetchTenantInfo } from '@/hooks/use-user-setting-request';
 import { IDialog } from '@/interfaces/database/chat';
 import { BotConfigDialog } from './bot-config-dialog';
+import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import { Routes } from '@/routes';
 import { useNavigate } from 'umi';
 import {
@@ -184,22 +185,15 @@ export function BotManagementPanel({
               key={dialog.id}
               onClick={() => handleBotClick(dialog)}
               className={`
-                relative p-4 border rounded-lg cursor-pointer
+                relative p-4 rounded-lg cursor-pointer
                 transition-all hover:shadow-md group
                 ${
                   selectedBotId === dialog.id
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/50'
+                    ? 'border-2 border-primary bg-primary/5'
+                    : 'border border-border hover:border-primary/50'
                 }
               `}
             >
-              {/* Selected Indicator */}
-              {selectedBotId === dialog.id && (
-                <div className="absolute top-2 right-2">
-                  <Check className="size-5 text-primary" />
-                </div>
-              )}
-
               {/* Action Buttons */}
               <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button
@@ -222,11 +216,11 @@ export function BotManagementPanel({
 
               {/* Bot Info */}
               <div className="flex items-start gap-3 mb-3">
-                {dialog.icon && (
-                  <div className="size-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg">{dialog.icon}</span>
-                  </div>
-                )}
+                <RAGFlowAvatar
+                  className="size-10"
+                  avatar={dialog.icon}
+                  name={dialog.name}
+                />
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold truncate">{dialog.name}</h3>
                   {dialog.description && (

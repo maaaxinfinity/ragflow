@@ -248,16 +248,20 @@ export const useFetchConversationList = () => {
     initialData: [],
     gcTime: 0,
     refetchOnWindowFocus: false,
-    enabled: !!id && id !== '',
+    enabled: Boolean(id && typeof id === 'string' && id.trim().length > 0),
     select(data) {
       return searchString
         ? data.filter((x) => x.name.includes(searchString))
         : data;
     },
-    queryFn: async () => {
-      if (!id || id === '') return [];
+    queryFn: async ({ queryKey }) => {
+      const [, currentId] = queryKey as [string, string];
+      if (!currentId || typeof currentId !== 'string' || currentId.trim() === '') {
+        console.warn('useFetchConversationList called with invalid id:', currentId);
+        return [];
+      }
       const { data } = await chatService.listConversation(
-        { params: { dialog_id: id } },
+        { params: { dialog_id: currentId } },
         true,
       );
       if (data.code === 0) {
