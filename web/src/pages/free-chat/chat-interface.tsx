@@ -7,6 +7,7 @@ import { Message } from '@/interfaces/database/chat';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTranslate } from '@/hooks/common-hooks';
 
 interface ChatInterfaceProps {
   messages: Message[];
@@ -42,15 +43,16 @@ export function ChatInterface({
   dialogId,
 }: ChatInterfaceProps) {
   const { data: userInfo } = useFetchUserInfo();
+  const { t } = useTranslate('chat');
 
   return (
     <section className="flex flex-col p-5 h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 pb-4 border-b">
         <div>
-          <h1 className="text-2xl font-bold">Free Chat</h1>
+          <h1 className="text-2xl font-bold">{t('freeChat')}</h1>
           <p className="text-sm text-muted-foreground">
-            Dynamic parameters & knowledge base control
+            {t('freeChatDescription')}
           </p>
         </div>
         {messages.length > 0 && (
@@ -61,7 +63,7 @@ export function ChatInterface({
             disabled={sendLoading}
           >
             <Trash2 className="h-4 w-4 mr-2" />
-            Clear All
+            {t('clearAll')}
           </Button>
         )}
       </div>
@@ -70,7 +72,7 @@ export function ChatInterface({
       {!dialogId && (
         <Alert className="mb-4">
           <AlertDescription>
-            Please select a Dialog from the right panel to start chatting. If no dialogs are available, create one in the Chat section first.
+            {t('selectDialogToStartChatting')}
           </AlertDescription>
         </Alert>
       )}
@@ -79,8 +81,7 @@ export function ChatInterface({
       {paramsChanged && (
         <Alert className="mb-4">
           <AlertDescription>
-            Parameters have been updated and will take effect in the next
-            message.
+            {t('parametersWillTakeEffectInNextMessage')}
           </AlertDescription>
         </Alert>
       )}
@@ -91,10 +92,9 @@ export function ChatInterface({
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-4">
-                <h2 className="text-xl font-semibold">Start a Free Chat</h2>
+                <h2 className="text-xl font-semibold">{t('startFreeChat')}</h2>
                 <p className="text-muted-foreground max-w-md">
-                  Adjust model parameters and select knowledge bases in the
-                  right panel. Changes will apply to your next message.
+                  {t('freeChatWelcomeMessage')}
                 </p>
               </div>
             </div>

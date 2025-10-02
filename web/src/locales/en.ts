@@ -39,6 +39,8 @@ export default {
       pleaseInput: 'Please input',
       submit: 'Submit',
       clear: 'Clear',
+      deselectAll: 'Deselect All',
+      loading: 'Loading...',
       embedIntoSite: 'Embed into webpage',
       previousPage: 'Previous',
       nextPage: 'Next',
@@ -458,6 +460,7 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
     },
     chunk: {
       chunk: 'Chunk',
+      chunks: 'chunks',
       bulk: 'Bulk',
       selectAll: 'Select All',
       enabledSelected: 'Enable selected',
@@ -676,6 +679,22 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       noKnowledgeBasesAvailable: 'No knowledge bases available',
       knowledgeBaseWillBeUsedInNextMessage:
         'Knowledge base selection will take effect in the next message',
+      // Time formatting
+      justNow: 'just now',
+      minutesAgo: 'm ago',
+      hoursAgo: 'h ago',
+      daysAgo: 'd ago',
+      // Session list
+      noConversationsYet: 'No conversations yet',
+      messages: 'messages',
+      // Chat interface
+      freeChat: 'Free Chat',
+      freeChatDescription: 'Dynamic parameters & knowledge base control',
+      clearAll: 'Clear All',
+      selectDialogToStartChatting: 'Please select a Dialog from the right panel to start chatting. If no dialogs are available, create one in the Chat section first.',
+      startFreeChat: 'Start a Free Chat',
+      freeChatWelcomeMessage: 'Adjust model parameters and select knowledge bases in the right panel. Changes will apply to your next message.',
+      resetToDefaults: 'Reset to defaults',
     },
     setting: {
       profile: 'Profile',

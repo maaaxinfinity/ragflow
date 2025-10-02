@@ -38,6 +38,8 @@ export default {
       pleaseInput: '请输入',
       submit: '提交',
       clear: '清空',
+      deselectAll: '取消全选',
+      loading: '加载中...',
       embedIntoSite: '嵌入网站',
       previousPage: '上一页',
       nextPage: '下一页',
@@ -451,6 +453,7 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
     },
     chunk: {
       chunk: '解析块',
+      chunks: '个块',
       bulk: '批量',
       selectAll: '选择所有',
       enabledSelected: '启用选定的',
@@ -666,6 +669,22 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       noKnowledgeBasesEnabled: '未启用知识库',
       noKnowledgeBasesAvailable: '暂无可用知识库',
       knowledgeBaseWillBeUsedInNextMessage: '知识库选择将在下一条消息中生效',
+      // Time formatting
+      justNow: '刚刚',
+      minutesAgo: '分钟前',
+      hoursAgo: '小时前',
+      daysAgo: '天前',
+      // Session list
+      noConversationsYet: '还没有会话',
+      messages: '条消息',
+      // Chat interface
+      freeChat: '自由聊天',
+      freeChatDescription: '动态参数和知识库控制',
+      clearAll: '全部清除',
+      selectDialogToStartChatting: '请从右侧面板选择一个对话以开始聊天。如果没有可用的对话，请先在聊天部分创建一个。',
+      startFreeChat: '开始自由聊天',
+      freeChatWelcomeMessage: '在右侧面板调整模型参数并选择知识库。更改将在您的下一条消息中生效。',
+      resetToDefaults: '重置为默认值',
     },
     setting: {
       profile: '概要',

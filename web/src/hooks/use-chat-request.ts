@@ -248,13 +248,14 @@ export const useFetchConversationList = () => {
     initialData: [],
     gcTime: 0,
     refetchOnWindowFocus: false,
-    enabled: !!id,
+    enabled: !!id && id !== '',
     select(data) {
       return searchString
         ? data.filter((x) => x.name.includes(searchString))
         : data;
     },
     queryFn: async () => {
+      if (!id || id === '') return [];
       const { data } = await chatService.listConversation(
         { params: { dialog_id: id } },
         true,

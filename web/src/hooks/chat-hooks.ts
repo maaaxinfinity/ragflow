@@ -252,9 +252,12 @@ export const useFetchNextConversationList = () => {
     initialData: [],
     gcTime: 0,
     refetchOnWindowFocus: false,
-    enabled: !!dialogId,
+    enabled: !!dialogId && dialogId !== '',
     queryFn: async () => {
-      const { data } = await chatService.listConversation({ dialogId });
+      if (!dialogId || dialogId === '') return [];
+      const { data } = await chatService.listConversation({
+        params: { dialog_id: dialogId },
+      });
       if (data.code === 0) {
         if (data.data.length > 0) {
           handleClickConversation(data.data[0].id, '');

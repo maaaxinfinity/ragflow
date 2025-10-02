@@ -1,18 +1,19 @@
 import { Button } from '@/components/ui/button';
 import { MessageSquarePlus, MoreVertical, Trash2 } from 'lucide-react';
 import { IFreeChatSession } from '../hooks/use-free-chat-session';
+import { useTranslate } from '@/hooks/common-hooks';
 
-const formatTimeAgo = (timestamp: number) => {
+const formatTimeAgo = (timestamp: number, t: any) => {
   const now = Date.now();
   const diff = now - timestamp;
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
 
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return `${days}d ago`;
+  if (minutes < 1) return t('chat.justNow');
+  if (minutes < 60) return `${minutes}${t('chat.minutesAgo')}`;
+  if (hours < 24) return `${hours}${t('chat.hoursAgo')}`;
+  return `${days}${t('chat.daysAgo')}`;
 };
 
 interface SessionListProps {
@@ -30,6 +31,8 @@ export function SessionList({
   onSessionDelete,
   onNewSession,
 }: SessionListProps) {
+  const { t } = useTranslate('chat');
+
   return (
     <div className="w-64 border-r flex flex-col h-full bg-background">
       {/* Header */}
@@ -40,7 +43,7 @@ export function SessionList({
           size="sm"
         >
           <MessageSquarePlus className="h-4 w-4 mr-2" />
-          New Chat
+          {t('newChat')}
         </Button>
       </div>
 
@@ -48,7 +51,7 @@ export function SessionList({
       <div className="flex-1 overflow-y-auto">
         {sessions.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
-            No conversations yet
+            {t('noConversationsYet')}
           </div>
         ) : (
           sessions.map((session) => (
@@ -65,10 +68,10 @@ export function SessionList({
                     {session.name}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {session.messages.length} messages
+                    {session.messages.length} {t('messages')}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {formatTimeAgo(session.updated_at)}
+                    {formatTimeAgo(session.updated_at, t)}
                   </div>
                 </div>
                 <Button

@@ -34,7 +34,7 @@ export function ControlPanel({ dialogId, onDialogChange }: ControlPanelProps) {
           variant="ghost"
           size="icon"
           onClick={resetParams}
-          title="Reset to defaults"
+          title={t('resetToDefaults')}
         >
           <RotateCcw className="h-4 w-4" />
         </Button>

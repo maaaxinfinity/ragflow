@@ -16,7 +16,7 @@ export function KnowledgeBaseSelector() {
     return (
       <div className="space-y-2">
         <Label>{t('knowledgeBases')}</Label>
-        <div className="text-sm text-muted-foreground">Loading...</div>
+        <div className="text-sm text-muted-foreground">{t('common.loading')}</div>
       </div>
     );
   }
@@ -34,7 +34,7 @@ export function KnowledgeBaseSelector() {
               className="h-7 px-2"
             >
               <X className="h-3 w-3 mr-1" />
-              Clear
+              {t('common.clear')}
             </Button>
           )}
           <Button
@@ -44,7 +44,7 @@ export function KnowledgeBaseSelector() {
             className="h-7 px-2"
           >
             <CheckCheck className="h-3 w-3 mr-1" />
-            {isAllSelected ? 'Deselect All' : 'Select All'}
+            {isAllSelected ? t('common.deselectAll') : t('common.selectAll')}
           </Button>
         </div>
       </div>
@@ -75,7 +75,7 @@ export function KnowledgeBaseSelector() {
                 <div className="text-sm font-medium truncate">{kb.name}</div>
                 {kb.chunk_num > 0 && (
                   <div className="text-xs text-muted-foreground">
-                    {kb.chunk_num} chunks
+                    {kb.chunk_num} {t('chunk.chunks')}
                   </div>
                 )}
               </div>
