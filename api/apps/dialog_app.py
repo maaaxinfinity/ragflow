@@ -33,6 +33,11 @@ from api.utils.api_utils import get_json_result
 @login_required
 def set_dialog():
     req = request.json
+    # BUG FIX: Remove fields that are not part of Dialog model but added by JOIN queries
+    # These fields come from User table when fetching dialog lists
+    for field in ["nickname", "tenant_avatar", "operator_permission"]:
+        req.pop(field, None)
+
     dialog_id = req.get("dialog_id", "")
     is_create = not dialog_id
     name = req.get("name", "New Dialog")
