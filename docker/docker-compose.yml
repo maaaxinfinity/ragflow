@@ -8,7 +8,8 @@ services:
         condition: service_healthy
     image: ${RAGFLOW_IMAGE}
     # Example configuration to set up an MCP server:
-    # command:
+    command:
+      - --workers=10
     #   - --enable-mcpserver
     #   - --mcp-host=0.0.0.0
     #   - --mcp-port=9382
