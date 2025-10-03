@@ -2,11 +2,12 @@
 
 ## 功能概述
 
-提供三个Python脚本用于批量管理RAGFlow知识库的文档解析状态：
+提供四个Python脚本用于批量管理RAGFlow知识库：
 
 1. **`resolve.py`** - 批量触发解析（切片）
 2. **`cancel_parse.py`** - 批量取消解析（删除chunks）
-3. **`cleanup_tasks.py`** - 清理MySQL中的遗留task记录
+3. **`delete_kb.py`** - 批量删除知识库中的所有文档
+4. **`cleanup_tasks.py`** - 清理MySQL和Redis中的遗留task记录
 
 ## 环境准备
 
@@ -26,6 +27,7 @@ RAGFLOW_API_KEY=your_api_key_here
 CONCURRENCY=8
 PARSE_BATCH_SIZE=50
 CANCEL_BATCH_SIZE=50
+DELETE_BATCH_SIZE=50
 KB_NAME_PREFIX=
 KB_NAME_SUFFIX=
 ```
@@ -162,6 +164,89 @@ python cancel_parse.py --names "法律法规测试" --parsed-only
 python cancel_parse.py --all --exclude 重要 --exclude 生产
 ```
 
+## delete_kb.py - 批量删除文档工具
+
+### 功能说明
+
+批量删除指定知识库中的所有文档和文件。
+
+**危险操作：会永久删除文档和文件，无法恢复！建议先备份！**
+
+### 基本用法
+
+```bash
+# 方式1: 指定知识库名称
+python delete_kb.py --names "测试库1,测试库2"
+
+# 方式2: 按关键词过滤
+python delete_kb.py --only 测试
+
+# 方式3: 反选（排除）
+python delete_kb.py --all --exclude 生产 --exclude 重要
+
+# 方式4: 从manifest文件读取
+python delete_kb.py --from-manifest kb_manifest.json
+
+# 方式5: 预览模式
+python delete_kb.py --only 测试 --dry-run
+```
+
+### 参数说明
+
+| 参数 | 说明 | 示例 |
+|-----|------|------|
+| `base_url` | API地址（可选，覆盖.env） | `http://localhost:9380` |
+| `api_key` | API密钥（可选，覆盖.env） | `ragflow-xxx` |
+| `--names` | 精确指定知识库名称（逗号分隔） | `--names "库1,库2"` |
+| `--only` | 包含关键词的知识库（可多次） | `--only 测试` |
+| `--exclude` | 排除关键词的知识库（反选，可多次） | `--exclude 生产 --exclude 重要` |
+| `--from-manifest` | 从JSON文件读取知识库列表 | `--from-manifest list.json` |
+| `--all` | 处理所有知识库 | `--all` |
+| `--dry-run` | 仅显示计划，不执行 | `--dry-run` |
+| `--batch` | 单批处理文档数 | `--batch 100` |
+
+### 使用示例
+
+```bash
+# 1. 测试运行（不实际删除）
+python delete_kb.py --only 测试 --dry-run
+
+# 2. 删除特定知识库的所有文档
+python delete_kb.py --names "测试库1"
+
+# 3. 删除所有测试库，但保留生产库
+python delete_kb.py --all --exclude 生产
+
+# 4. 从manifest文件批量删除
+python delete_kb.py --from-manifest kb_manifest.json
+
+# 5. 使用更大的批次提高速度
+python delete_kb.py --names "大型测试库" --batch 100
+```
+
+### 典型场景
+
+1. **清空测试数据**
+   ```bash
+   # 删除所有测试库的文档
+   python delete_kb.py --only 测试 --dry-run  # 先预览
+   python delete_kb.py --only 测试            # 确认后执行
+   ```
+
+2. **重置知识库**
+   ```bash
+   # 删除知识库所有文档，然后重新上传解析
+   python delete_kb.py --names "法律法规库"
+   # 然后重新上传文档并解析
+   python resolve.py --names "法律法规库"
+   ```
+
+3. **批量清理**
+   ```bash
+   # 清理所有过期的测试库，保留重要数据
+   python delete_kb.py --all --exclude 生产 --exclude 重要 --exclude 正式
+   ```
+
 ## 高级用法
 
 ### 1. 前缀/后缀过滤
@@ -202,27 +287,33 @@ python cancel_parse.py --all --exclude 重要 --exclude 生产 --exclude 正式
 ### 4. 批量操作流程
 
 ```bash
-# 步骤1: 查看待处理的知识库
-python resolve.py --only 测试 --dry-run
+# 流程1: 首次解析
+python resolve.py --only 测试 --dry-run  # 查看待处理
+python resolve.py --only 测试            # 执行解析
 
-# 步骤2: 执行解析
-python resolve.py --only 测试
+# 流程2: 重置并重新解析（保留文档）
+python cancel_parse.py --only 测试       # 取消解析
+python resolve.py --only 测试 --force    # 重新解析
 
-# 步骤3: 如果需要重置，取消解析
-python cancel_parse.py --only 测试
+# 流程3: 完全重置（删除文档）
+python delete_kb.py --only 测试 --dry-run  # 预览
+python delete_kb.py --only 测试            # 删除所有文档
+# 然后重新上传文档并解析
 
-# 步骤4: 重新解析
-python resolve.py --only 测试 --force
+# 流程4: 清理遗留任务
+sudo python cleanup_tasks.py --clean-orphaned  # 清理孤立task
+sudo python cleanup_tasks.py --clean-stream    # 清理队列积压
 ```
 
 ## 注意事项
 
 1. **权限要求**：需要有效的RAGFlow API密钥和相应知识库的操作权限
 2. **并发控制**：通过 `.env` 中的 `CONCURRENCY` 控制并发数，避免服务器压力过大
-3. **批次大小**：`PARSE_BATCH_SIZE` 和 `CANCEL_BATCH_SIZE` 控制单次请求的文档数量
+3. **批次大小**：`PARSE_BATCH_SIZE`、`CANCEL_BATCH_SIZE`、`DELETE_BATCH_SIZE` 控制单次请求的文档数量
 4. **Dry-run模式**：执行重要操作前建议先用 `--dry-run` 预览
-5. **反选功能**：`--exclude` 参数仅在 `cancel_parse.py` 中可用，用于安全排除重要知识库
-6. **API兼容性**：脚本基于RAGFlow API v1，确保API版本兼容
+5. **反选功能**：`--exclude` 参数在 `cancel_parse.py` 和 `delete_kb.py` 中可用，用于安全排除重要知识库
+6. **删除不可恢复**：`delete_kb.py` 会永久删除文档和文件，请谨慎使用
+7. **API兼容性**：脚本基于RAGFlow API v1，确保API版本兼容
 
 ## 常见问题
 
@@ -244,6 +335,17 @@ A:
 
 ### Q: 并发太高导致服务器压力大？
 A: 调整 `.env` 中的 `CONCURRENCY` 值（建议4-8）
+
+### Q: 如何清空知识库但保留知识库本身？
+A: 使用 `delete_kb.py` 删除所有文档：
+```bash
+python delete_kb.py --names "知识库名称"
+```
+
+### Q: 删除文档和取消解析有什么区别？
+A:
+- `cancel_parse.py`：删除chunks（解析结果），保留文档和文件
+- `delete_kb.py`：永久删除文档和文件，包括chunks
 
 ## cleanup_tasks.py - 数据库清理工具
 
@@ -390,6 +492,10 @@ sudo python cleanup_tasks.py --clean-orphaned
 
 ## 更新日志
 
+- **v1.5** - 新增批量删除文档工具
+  - 新增 `delete_kb.py` 脚本，批量删除知识库中的所有文档
+  - 支持tqdm进度显示和并发处理
+  - 支持 `--exclude` 反选和 `--dry-run` 预览
 - **v1.4** - 完善Redis Stream队列清理
   - `cleanup_tasks.py` 新增 `--clean-stream` 参数清理任务队列积压
   - 所有清理操作自动清理MySQL + Redis cancel标记 + Redis Stream
