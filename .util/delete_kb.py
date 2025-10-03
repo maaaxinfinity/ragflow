@@ -20,13 +20,7 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
-# 优先从 ../docker/.env 加载配置
-docker_env = Path(__file__).parent.parent / "docker" / ".env"
-if docker_env.exists():
-    load_dotenv(docker_env)
-else:
-    # 否则从当前目录加载
-    load_dotenv()
+load_dotenv()
 
 # 配置：从环境变量读取，或通过命令行参数传入
 BASE_URL = os.environ.get("RAGFLOW_BASE_URL") or None
@@ -69,10 +63,19 @@ def list_all_datasets() -> List[Dict]:
         if resp.status_code != 200:
             print(f"[ERROR] 获取知识库列表失败: {resp.status_code} {resp.text}")
             break
-        data = resp.json().get("data", {})
-        items = data.get("datasets", [])
-        results.extend(items)
-        if len(items) < page_size:
+        data = resp.json()
+        # 兼容两种结构：{code:0,data:[...]} 或直接 [...]
+        if isinstance(data, dict):
+            if data.get("code") == 0:
+                batch = data.get("data", [])
+            else:
+                batch = []
+        else:
+            batch = data or []
+        if not batch:
+            break
+        results.extend(batch)
+        if len(batch) < page_size:
             break
         page += 1
     return results
