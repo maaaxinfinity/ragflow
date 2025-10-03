@@ -186,7 +186,10 @@ export const useFetchNextDialog = () => {
     enabled: !!dialogId,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const { data } = await chatService.getDialog({ dialogId });
+      const { data } = await chatService.getDialog(
+        { params: { dialog_id: dialogId } },
+        true,
+      );
 
       return data?.data ?? ({} as IDialog);
     },
@@ -204,7 +207,10 @@ export const useFetchManualDialog = () => {
     mutationKey: ['fetchManualDialog'],
     gcTime: 0,
     mutationFn: async (dialogId: string) => {
-      const { data } = await chatService.getDialog({ dialogId });
+      const { data } = await chatService.getDialog(
+        { params: { dialog_id: dialogId } },
+        true,
+      );
 
       return data;
     },
@@ -259,9 +265,10 @@ export const useFetchNextConversationList = () => {
         console.warn('useFetchNextConversationList called with invalid dialogId:', currentDialogId);
         return [];
       }
-      const { data } = await chatService.listConversation({
-        params: { dialog_id: currentDialogId },
-      });
+      const { data } = await chatService.listConversation(
+        { params: { dialog_id: currentDialogId } },
+        true,
+      );
       if (data.code === 0) {
         if (data.data.length > 0) {
           handleClickConversation(data.data[0].id, '');
@@ -294,9 +301,12 @@ export const useFetchNextConversation = () => {
         isNew !== 'true' &&
         isConversationIdExist(sharedId || conversationId)
       ) {
-        const { data } = await chatService.getConversation({
-          conversationId: conversationId || sharedId,
-        });
+        const { data } = await chatService.getConversation(
+          {
+            params: { conversation_id: conversationId || sharedId },
+          },
+          true,
+        );
 
         const conversation = data?.data ?? {};
 
@@ -347,7 +357,10 @@ export const useFetchManualConversation = () => {
     mutationKey: ['fetchManualConversation'],
     gcTime: 0,
     mutationFn: async (conversationId: string) => {
-      const { data } = await chatService.getConversation({ conversationId });
+      const { data } = await chatService.getConversation(
+        { params: { conversation_id: conversationId } },
+        true,
+      );
 
       return data;
     },
@@ -491,7 +504,7 @@ export const useFetchTokenList = (params: Record<string, any>) => {
     initialData: [],
     gcTime: 0,
     queryFn: async () => {
-      const { data } = await chatService.listToken(params);
+      const { data } = await chatService.listToken({ params }, true);
 
       return data?.data ?? [];
     },
@@ -539,10 +552,15 @@ export const useFetchNextStats = () => {
     gcTime: 0,
     queryFn: async () => {
       if (Array.isArray(pickerValue) && pickerValue[0]) {
-        const { data } = await chatService.getStats({
-          fromDate: getDay(pickerValue[0]),
-          toDate: getDay(pickerValue[1] ?? dayjs()),
-        });
+        const { data } = await chatService.getStats(
+          {
+            params: {
+              from_date: getDay(pickerValue[0]),
+              to_date: getDay(pickerValue[1] ?? dayjs()),
+            },
+          },
+          true,
+        );
         return data?.data ?? {};
       }
       return {};

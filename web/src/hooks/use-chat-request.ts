@@ -201,7 +201,7 @@ export const useFetchDialog = () => {
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const { data } = await chatService.getDialog(
-        { params: { dialogId: id } },
+        { params: { dialog_id: id } },
         true,
       );
 
@@ -299,7 +299,7 @@ export const useFetchConversation = () => {
         const { data } = await chatService.getConversation(
           {
             params: {
-              conversationId: conversationId || sharedId,
+              conversation_id: conversationId || sharedId,
             },
           },
           true,

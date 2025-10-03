@@ -822,6 +822,10 @@ def stop_parsing(tenant_id, dataset_id):
         info = {"run": "2", "progress": 0, "chunk_num": 0}
         DocumentService.update_by_id(id, info)
         settings.docStoreConn.delete({"doc_id": doc[0].id}, search.index_name(tenant_id), dataset_id)
+
+        # BUG FIX: Clean up tasks from MySQL database
+        TaskService.filter_delete([Task.doc_id == id])
+
         success_count += 1
     if duplicate_messages:
         if success_count > 0:

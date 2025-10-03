@@ -41,9 +41,10 @@ export function FreeChatListPanel({ dialogId }: FreeChatListPanelProps) {
         return [];
       }
 
-      const { data } = await chatService.listConversation({
-        params: { dialog_id: currentDialogId },
-      });
+      const { data } = await chatService.listConversation(
+        { params: { dialog_id: currentDialogId } },
+        true,
+      );
       if (data.code === 0) {
         return data.data;
       }
