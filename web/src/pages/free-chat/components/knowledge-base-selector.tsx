@@ -4,14 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import { useTranslate } from '@/hooks/common-hooks';
-import { useKBToggle } from '../hooks/use-kb-toggle';
+import { useKBContext } from '../contexts/kb-context';
 import { CheckCheck, X } from 'lucide-react';
 
 export function KnowledgeBaseSelector() {
   const { t } = useTranslate('chat');
   const { t: tCommon } = useTranslate('common');
   const { enabledKBs, availableKBs, loading, toggleKB, toggleAll, clearKBs, isAllSelected } =
-    useKBToggle();
+    useKBContext();
 
   if (loading) {
     return (

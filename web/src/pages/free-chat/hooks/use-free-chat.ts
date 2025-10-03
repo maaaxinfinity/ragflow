@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { DynamicModelParams } from '../types';
 import { useDynamicParams } from './use-dynamic-params';
-import { useKBToggle } from './use-kb-toggle';
+import { useKBContext } from '../contexts/kb-context';
 import { useFreeChatSession } from './use-free-chat-session';
 import { useUpdateConversation } from '@/hooks/use-chat-request';
 import { logError, logInfo } from '../utils/error-handler';
@@ -21,7 +21,7 @@ import { useTranslate } from '@/hooks/common-hooks';
 export const useFreeChat = (controller: AbortController) => {
   const { t } = useTranslate('chat');
   const { params, paramsChanged, clearChangedFlag } = useDynamicParams();
-  const { enabledKBs } = useKBToggle();
+  const { enabledKBs } = useKBContext();
   const { handleInputChange, value, setValue } = useHandleMessageInputChange();
   const { updateConversation } = useUpdateConversation();
 
