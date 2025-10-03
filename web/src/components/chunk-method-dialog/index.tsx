@@ -36,6 +36,7 @@ import { ExcelToHtmlFormField } from '../excel-to-html-form-field';
 import { FormContainer } from '../form-container';
 import { LayoutRecognizeFormField } from '../layout-recognize-form-field';
 import { MaxTokenNumberFormField } from '../max-token-number-from-field';
+import { OverlappedPercentFormField } from '../overlapped-percent-form-field';
 import {
   UseGraphRagFormField,
   showGraphRagItems,
@@ -111,6 +112,7 @@ export function ChunkMethodDialog({
       layout_recognize: z.string().optional(),
       chunk_token_num: z.coerce.number().optional(),
       delimiter: z.string().optional(),
+      overlapped_percent: z.coerce.number().optional(),
       auto_keywords: z.coerce.number().optional(),
       auto_questions: z.coerce.number().optional(),
       html4excel: z.boolean().optional(),
@@ -294,6 +296,7 @@ export function ChunkMethodDialog({
                     }
                   ></MaxTokenNumberFormField>
                   <DelimiterFormField></DelimiterFormField>
+                  <OverlappedPercentFormField></OverlappedPercentFormField>
                 </>
               )}
             </FormContainer>

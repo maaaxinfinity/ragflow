@@ -254,6 +254,7 @@ A: 调整 `.env` 中的 `CONCURRENCY` 值（建议4-8）
 **清理内容：**
 - MySQL `task` 表中的task记录
 - Redis中的 `{task_id}-cancel` 标记
+- Redis Stream `rag_flow_svr_queue` 任务队列
 
 **危险操作：请谨慎使用，建议先备份数据库！**
 
@@ -280,7 +281,13 @@ sudo python cleanup_tasks.py --clean-canceled
 # 6. 清理指定知识库的所有task
 sudo python cleanup_tasks.py --clean-dataset <dataset_id>
 
-# 7. 不使用Docker直接连接MySQL（无需sudo）
+# 7. 清理Redis Stream任务队列（清空积压消息）
+sudo python cleanup_tasks.py --clean-stream
+
+# 8. 预览Stream队列状态
+sudo python cleanup_tasks.py --clean-stream --dry-run
+
+# 9. 不使用Docker直接连接MySQL（无需sudo）
 python cleanup_tasks.py --list-orphaned --no-docker
 ```
 
@@ -290,9 +297,10 @@ python cleanup_tasks.py --list-orphaned --no-docker
 |-----|------|
 | `--list-orphaned` | 列出所有孤立的task记录 |
 | `--list-by-dataset` | 按知识库统计task数量 |
-| `--clean-orphaned` | 清理孤立的task记录 |
-| `--clean-canceled` | 清理已取消文档的task |
-| `--clean-dataset <id>` | 清理指定知识库的task |
+| `--clean-orphaned` | 清理孤立的task记录（含MySQL+Redis+Stream） |
+| `--clean-canceled` | 清理已取消文档的task（含MySQL+Redis+Stream） |
+| `--clean-dataset <id>` | 清理指定知识库的task（含MySQL+Redis+Stream） |
+| `--clean-stream` | 仅清理Redis Stream任务队列 |
 | `--dry-run` | 预览模式，不实际删除 |
 | `--no-docker` | 不使用Docker，直接连接MySQL |
 
@@ -339,6 +347,13 @@ REDIS_PASSWORD=infini_rag_flow
    python resolve.py --names "知识库名称" --force
    ```
 
+4. **任务队列积压清理**
+   ```bash
+   # 前端显示大量lag时，清理Stream队列
+   sudo python cleanup_tasks.py --clean-stream --dry-run  # 先查看
+   sudo python cleanup_tasks.py --clean-stream            # 确认后执行
+   ```
+
 ## 完整工作流程
 
 ### 场景1: 重置知识库并清理task
@@ -375,6 +390,10 @@ sudo python cleanup_tasks.py --clean-orphaned
 
 ## 更新日志
 
+- **v1.4** - 完善Redis Stream队列清理
+  - `cleanup_tasks.py` 新增 `--clean-stream` 参数清理任务队列积压
+  - 所有清理操作自动清理MySQL + Redis cancel标记 + Redis Stream
+  - 修复大量lag导致的任务失败问题
 - **v1.3** - 完善Redis清理功能
   - `cleanup_tasks.py` 新增Redis cancel标记清理
   - `stop_parsing` API 同时清理MySQL task和Redis cancel标记

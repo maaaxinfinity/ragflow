@@ -229,6 +229,9 @@ export default {
       delimiter: `Delimiter for text`,
       delimiterTip:
         'A delimiter or separator can consist of one or multiple special characters. If it is multiple characters, ensure they are enclosed in backticks( ``). For example, if you configure your delimiters like this: \\n`##`;, then your texts will be separated at line breaks, double hash symbols (##), and semicolons.',
+      overlappedPercent: 'Overlapped Percent',
+      overlappedPercentTip:
+        'Percentage of overlapping content between adjacent chunks (0-100%). Higher values improve context continuity but increase storage. For example, with 20% overlap, the last 20% of each chunk will be repeated at the beginning of the next chunk, ensuring semantic coherence across chunks. Recommended values: Legal documents 15-20%, Technical docs 10-15%, General articles 0-10%.',
       html4excel: 'Excel to HTML',
       html4excelTip: `Use with the General chunking method. When disabled, spreadsheets (XLSX or XLS(Excel 97-2003)) in the knowledge base will be parsed into key-value pairs. When enabled, they will be parsed into HTML tables, splitting every 12 rows if the original table has more than 12 rows. See https://ragflow.io/docs/dev/enable_excel2html for details.`,
       autoKeywords: 'Auto-keyword',
@@ -1732,6 +1735,14 @@ This delimiter is used to split the input text into several text pieces echo of 
     pagination: {
       total: 'Total {{total}}',
       page: '{{page}} /Page',
+    },
+    knowledge: {
+      parserConfigChangedTitle: 'Parser Configuration Updated',
+      parserConfigChangedContent:
+        'Parser configuration changes detected. There are {{count}} completed documents that need to be reparsed to apply the new configuration.\n\nWould you like to reparse all documents now?',
+      reparseNow: 'Reparse Now',
+      reparseLater: 'Reparse Later',
+      reparseSubmitted: '{{count}} documents submitted for reparsing',
     },
     dataflowParser: {
       parseSummary: 'Parse Summary',

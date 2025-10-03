@@ -112,6 +112,16 @@ def update():
             return get_data_error_result(
                 message="Duplicated knowledgebase name.")
 
+        # Check if parser_config changed
+        parser_config_changed = False
+        docs_to_reparse_count = 0
+        if "parser_config" in req and req["parser_config"] != kb.parser_config:
+            parser_config_changed = True
+            # Count documents that need to be reparsed (only completed documents)
+            from api.db.services.document_service import DocumentService
+            docs = DocumentService.query(kb_id=kb.id, run=TaskStatus.DONE.value, status="1")
+            docs_to_reparse_count = len(docs)
+
         del req["kb_id"]
         if not KnowledgebaseService.update_by_id(kb.id, req):
             return get_data_error_result()
@@ -131,6 +141,10 @@ def update():
                 message="Database error (Knowledgebase rename)!")
         kb = kb.to_dict()
         kb.update(req)
+
+        # Add parser_config change notification
+        kb["parser_config_changed"] = parser_config_changed
+        kb["docs_to_reparse_count"] = docs_to_reparse_count
 
         return get_json_result(data=kb)
     except Exception as e:

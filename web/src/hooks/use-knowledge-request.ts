@@ -14,6 +14,7 @@ import kbService, {
   listDataset,
 } from '@/services/knowledge-service';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Modal } from 'antd';
 import { useDebounce } from 'ahooks';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'umi';
@@ -223,6 +224,64 @@ export const useUpdateKnowledge = (shouldFetchList = false) => {
       });
       if (data.code === 0) {
         message.success(i18n.t(`message.updated`));
+
+        // Check if parser_config changed and prompt user to reparse documents
+        const kbData = data.data || {};
+        if (kbData.parser_config_changed && kbData.docs_to_reparse_count > 0) {
+          Modal.confirm({
+            title: i18n.t('knowledge.parserConfigChangedTitle', '切片配置已更新'),
+            content: i18n.t(
+              'knowledge.parserConfigChangedContent',
+              `检测到您修改了切片配置，当前有 ${kbData.docs_to_reparse_count} 个已完成的文档需要重新解析才能应用新配置。\n\n是否立即重新解析所有文档？`,
+              { count: kbData.docs_to_reparse_count }
+            ),
+            okText: i18n.t('knowledge.reparseNow', '立即重新解析'),
+            cancelText: i18n.t('knowledge.reparseLater', '稍后手动解析'),
+            width: 520,
+            onOk: async () => {
+              try {
+                // Fetch all completed documents
+                const { data: listData } = await kbService.document_list({
+                  kb_id: params?.kb_id || knowledgeBaseId,
+                  page: 1,
+                  page_size: 9999,
+                });
+
+                if (listData?.data?.docs) {
+                  // Filter only completed documents (run === '0' means DONE)
+                  const completedDocIds = listData.data.docs
+                    .filter((doc: any) => doc.run === '0')
+                    .map((doc: any) => doc.id);
+
+                  if (completedDocIds.length > 0) {
+                    // Batch reparse all completed documents
+                    const { data: runData } = await kbService.document_run({
+                      doc_ids: completedDocIds,
+                      run: 2, // 2 = running
+                      delete: true, // Delete old chunks
+                    });
+
+                    if (runData?.code === 0) {
+                      message.success(
+                        i18n.t(
+                          'knowledge.reparseSubmitted',
+                          `已提交 ${completedDocIds.length} 个文档重新解析`,
+                          { count: completedDocIds.length }
+                        )
+                      );
+                    } else {
+                      message.error(runData?.message || i18n.t('message.operationFailed'));
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error('Reparse documents failed:', error);
+                message.error(i18n.t('message.operationFailed'));
+              }
+            },
+          });
+        }
+
         if (shouldFetchList) {
           queryClient.invalidateQueries({
             queryKey: [KnowledgeApiAction.FetchKnowledgeListByPage],

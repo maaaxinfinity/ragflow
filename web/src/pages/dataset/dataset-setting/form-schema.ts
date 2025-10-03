@@ -17,6 +17,7 @@ export const formSchema = z.object({
       layout_recognize: z.string(),
       chunk_token_num: z.number(),
       delimiter: z.string(),
+      overlapped_percent: z.number().optional(),
       auto_keywords: z.number().optional(),
       auto_questions: z.number().optional(),
       html4excel: z.boolean(),

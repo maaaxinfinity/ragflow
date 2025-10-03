@@ -41,6 +41,7 @@ export default function DatasetSettings() {
         layout_recognize: DocumentType.DeepDOC,
         chunk_token_num: 512,
         delimiter: `\n`,
+        overlapped_percent: 0,
         auto_keywords: 0,
         auto_questions: 0,
         html4excel: false,

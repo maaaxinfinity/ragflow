@@ -217,6 +217,54 @@ def clean_redis_cancel_markers(task_ids: List[str], dry_run: bool = False) -> in
     return cleaned
 
 
+def clean_redis_stream_queue(dry_run: bool = False) -> int:
+    """清理Redis Stream队列中的消息"""
+    r = get_redis_connection()
+    if not r:
+        print("跳过Redis Stream清理（连接失败）")
+        return 0
+
+    stream_key = "rag_flow_svr_queue"
+
+    try:
+        # 获取stream长度
+        stream_len = r.xlen(stream_key)
+
+        if stream_len == 0:
+            print("Redis Stream队列为空，无需清理")
+            return 0
+
+        # 获取消费者组信息
+        try:
+            groups = r.xinfo_groups(stream_key)
+            if groups:
+                group_info = groups[0]
+                lag = group_info.get('lag', 0)
+                print(f"发现 Redis Stream: {stream_key}")
+                print(f"  总消息数: {stream_len}")
+                print(f"  Lag: {lag}")
+                print(f"  消费者组: {group_info.get('name')}")
+        except Exception:
+            print(f"发现 Redis Stream: {stream_key}, 消息数: {stream_len}")
+
+        if dry_run:
+            print(f"[DRY-RUN] 将删除 {stream_len} 条Stream消息")
+            return 0
+
+        # 删除stream
+        result = r.delete(stream_key)
+        if result:
+            print(f"成功删除 Redis Stream: {stream_key} ({stream_len} 条消息)")
+            return stream_len
+        else:
+            print("删除 Redis Stream 失败")
+            return 0
+
+    except Exception as e:
+        print(f"清理 Redis Stream 失败: {e}")
+        return 0
+
+
 def main():
     import argparse
 
@@ -227,6 +275,7 @@ def main():
     parser.add_argument("--clean-orphaned", action="store_true", help="清理所有孤立的task记录")
     parser.add_argument("--clean-canceled", action="store_true", help="清理已取消文档的task记录")
     parser.add_argument("--clean-dataset", help="清理指定知识库的所有task记录（需提供dataset_id）")
+    parser.add_argument("--clean-stream", action="store_true", help="清理Redis Stream任务队列")
     parser.add_argument("--dry-run", action="store_true", help="预览模式，不实际删除")
     parser.add_argument("--no-docker", action="store_true", help="不使用Docker，直接连接MySQL")
 
@@ -280,12 +329,15 @@ def main():
                 if len(task_ids) > 10:
                     print(f"  ... 还有 {len(task_ids) - 10} 条")
                 clean_redis_cancel_markers(task_ids, dry_run=True)
+                clean_redis_stream_queue(dry_run=True)
             else:
                 confirm = input(f"确认删除这 {len(task_ids)} 条task记录？(yes/no): ")
                 if confirm.lower() == 'yes':
-                    # 先清理Redis
+                    # 先清理Redis cancel标记
                     clean_redis_cancel_markers(task_ids, dry_run=False)
-                    # 再删除MySQL记录
+                    # 清理Redis Stream队列
+                    clean_redis_stream_queue(dry_run=False)
+                    # 最后删除MySQL记录
                     deleted = delete_tasks_by_ids(task_ids, use_docker, args.dry_run)
                     print(f"成功删除 {deleted} 条task记录")
                 else:
@@ -323,12 +375,15 @@ def main():
             if args.dry_run:
                 print(f"[DRY-RUN] 将删除这些文档的task记录")
                 clean_redis_cancel_markers(task_ids, dry_run=True)
+                clean_redis_stream_queue(dry_run=True)
             else:
                 confirm = input(f"确认删除？(yes/no): ")
                 if confirm.lower() == 'yes':
-                    # 先清理Redis
+                    # 先清理Redis cancel标记
                     clean_redis_cancel_markers(task_ids, dry_run=False)
-                    # 再删除MySQL记录
+                    # 清理Redis Stream队列
+                    clean_redis_stream_queue(dry_run=False)
+                    # 最后删除MySQL记录
                     deleted = delete_tasks_by_doc_ids(doc_ids, use_docker, args.dry_run)
                     print(f"成功删除 {deleted} 条task记录")
                 else:
@@ -368,18 +423,28 @@ def main():
             if args.dry_run:
                 print(f"[DRY-RUN] 将删除这些task记录")
                 clean_redis_cancel_markers(task_ids, dry_run=True)
+                clean_redis_stream_queue(dry_run=True)
             else:
                 confirm = input(f"确认删除知识库 {dataset_id} 的所有task记录？(yes/no): ")
                 if confirm.lower() == 'yes':
-                    # 先清理Redis
+                    # 先清理Redis cancel标记
                     clean_redis_cancel_markers(task_ids, dry_run=False)
-                    # 再删除MySQL记录
+                    # 清理Redis Stream队列
+                    clean_redis_stream_queue(dry_run=False)
+                    # 最后删除MySQL记录
                     deleted = delete_tasks_by_doc_ids(doc_ids, use_docker, args.dry_run)
                     print(f"成功删除 {deleted} 条task记录")
                 else:
                     print("已取消操作")
         else:
             print(f"知识库 {dataset_id} 没有task记录")
+
+    elif args.clean_stream:
+        print("正在清理Redis Stream任务队列...")
+        if args.dry_run:
+            clean_redis_stream_queue(dry_run=True)
+        else:
+            clean_redis_stream_queue(dry_run=False)
 
     else:
         parser.print_help()
@@ -398,6 +463,9 @@ def main():
         print("")
         print("  # 清理已取消文档的task")
         print("  python cleanup_tasks.py --clean-canceled")
+        print("")
+        print("  # 清理Redis Stream任务队列")
+        print("  python cleanup_tasks.py --clean-stream")
 
 
 if __name__ == "__main__":

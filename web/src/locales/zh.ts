@@ -213,6 +213,9 @@ export default {
       delimiter: `文本分段标识符`,
       delimiterTip:
         '支持多字符作为分隔符，多字符用两个反引号 \\`\\` 分隔符包裹。若配置成：\\n`##`; 系统将首先使用换行符、两个#号以及分号先对文本进行分割，随后再对分得的小文本块按照「建议文本块大小」设定的大小进行拼装。在设置文本分段标识符前请确保理解上述文本分段切片机制。',
+      overlappedPercent: '重叠百分比',
+      overlappedPercentTip:
+        '相邻文本块之间的重叠百分比（0-100%）。更高的值能提高上下文连贯性，但会增加存储空间。例如，设置为 20% 时，每个文本块的末尾 20% 内容会重复出现在下一个文本块的开头，确保跨块的语义不会被切断。推荐值：法律文书 15-20%，技术文档 10-15%，普通文章 0-10%。',
       html4excel: '表格转HTML',
       html4excelTip: `与 General 切片方法配合使用。未开启状态下，表格文件（XLSX、XLS（Excel 97-2003））会按行解析为键值对。开启后，表格文件会被解析为 HTML 表格。若原始表格超过 12 行，系统会自动按每 12 行拆分为多个 HTML 表格。欲了解更多详情，请参阅 https://ragflow.io/docs/dev/enable_excel2html。`,
       autoKeywords: '自动关键词提取',
@@ -1640,6 +1643,14 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
     pagination: {
       total: '总共 {{total}} 条',
       page: '{{page}}条/页',
+    },
+    knowledge: {
+      parserConfigChangedTitle: '切片配置已更新',
+      parserConfigChangedContent:
+        '检测到您修改了切片配置，当前有 {{count}} 个已完成的文档需要重新解析才能应用新配置。\n\n是否立即重新解析所有文档？',
+      reparseNow: '立即重新解析',
+      reparseLater: '稍后手动解析',
+      reparseSubmitted: '已提交 {{count}} 个文档重新解析',
     },
     dataflowParser: {
       parseSummary: '解析摘要',
