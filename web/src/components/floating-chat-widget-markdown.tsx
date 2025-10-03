@@ -33,6 +33,7 @@ const FloatingChatWidgetMarkdown = ({
   reference,
   clickDocumentButton,
   content,
+  loading,
 }: {
   content: string;
   loading: boolean;

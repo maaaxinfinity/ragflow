@@ -45,6 +45,7 @@ function MarkdownContent({
   reference,
   clickDocumentButton,
   content,
+  loading,
 }: {
   content: string;
   loading: boolean;
