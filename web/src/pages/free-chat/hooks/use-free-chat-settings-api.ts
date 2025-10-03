@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { IFreeChatSession } from './use-free-chat-session';
 import { DynamicModelParams } from '../types';
 import api from '@/utils/api';
-import { request, history } from 'umi';
+import request from '@/utils/request';
+import { history } from 'umi';
 import { logError, logInfo } from '../utils/error-handler';
 import { Routes } from '@/routes';
 
