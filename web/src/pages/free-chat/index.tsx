@@ -5,7 +5,8 @@ import { ChatInterface } from './chat-interface';
 import { SessionList } from './components/session-list';
 import { KBProvider } from './contexts/kb-context';
 
-export default function FreeChat() {
+// BUG FIX: Separate component to use hooks inside KBProvider
+function FreeChatContent() {
   const controller = useRef(new AbortController());
 
   const {
@@ -36,43 +37,49 @@ export default function FreeChat() {
   };
 
   return (
-    <KBProvider>
-      <div className="flex h-screen">
-        {/* Session List */}
-        <SessionList
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          onSessionSelect={switchSession}
-          onSessionDelete={deleteSession}
-          onNewSession={handleNewSession}
-        />
+    <div className="flex h-screen">
+      {/* Session List */}
+      <SessionList
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSessionSelect={switchSession}
+        onSessionDelete={deleteSession}
+        onNewSession={handleNewSession}
+      />
 
-        {/* Chat Interface */}
-        <div className="flex-1 flex flex-col">
-          <ChatInterface
-            messages={derivedMessages}
-            onSendMessage={handlePressEnter}
-            onInputChange={handleInputChange}
-            inputValue={value}
-            setInputValue={setValue}
-            sendLoading={sendLoading}
-            scrollRef={scrollRef}
-            messageContainerRef={messageContainerRef}
-            stopOutputMessage={stopOutputMessage}
-            removeMessageById={removeMessageById}
-            removeAllMessages={removeAllMessages}
-            regenerateMessage={regenerateMessage}
-            paramsChanged={paramsChanged}
-            dialogId={dialogId}
-          />
-        </div>
-
-        {/* Control Panel */}
-        <ControlPanel
+      {/* Chat Interface */}
+      <div className="flex-1 flex flex-col">
+        <ChatInterface
+          messages={derivedMessages}
+          onSendMessage={handlePressEnter}
+          onInputChange={handleInputChange}
+          inputValue={value}
+          setInputValue={setValue}
+          sendLoading={sendLoading}
+          scrollRef={scrollRef}
+          messageContainerRef={messageContainerRef}
+          stopOutputMessage={stopOutputMessage}
+          removeMessageById={removeMessageById}
+          removeAllMessages={removeAllMessages}
+          regenerateMessage={regenerateMessage}
+          paramsChanged={paramsChanged}
           dialogId={dialogId}
-          onDialogChange={setDialogId}
         />
       </div>
+
+      {/* Control Panel */}
+      <ControlPanel
+        dialogId={dialogId}
+        onDialogChange={setDialogId}
+      />
+    </div>
+  );
+}
+
+export default function FreeChat() {
+  return (
+    <KBProvider>
+      <FreeChatContent />
     </KBProvider>
   );
 }
