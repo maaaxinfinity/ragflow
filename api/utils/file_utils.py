@@ -20,8 +20,10 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
+import zipfile
 from io import BytesIO
 
 import pdfplumber
@@ -148,6 +150,70 @@ def rewrite_json_file(filepath, json_data):
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(json_data, f, indent=4, separators=(",", ": "))
     f.close()
+
+
+def is_archive_file(filename):
+    """Check if file is an archive (tar, tar.gz, tgz, zip)"""
+    filename = filename.lower()
+    return re.match(r".*\.(tar|tar\.gz|tgz|tar\.bz2|tbz2|zip)$", filename) is not None
+
+
+def extract_archive(blob, filename):
+    """
+    Extract archive file and return list of (file_path, file_content, file_size)
+    Supports: .tar, .tar.gz, .tgz, .tar.bz2, .tbz2, .zip
+    """
+    filename = filename.lower()
+    extracted_files = []
+
+    try:
+        # Create temporary file to save blob
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:
+            temp_file.write(blob)
+            temp_path = temp_file.name
+
+        try:
+            # Handle tar archives
+            if re.match(r".*\.(tar|tar\.gz|tgz|tar\.bz2|tbz2)$", filename):
+                with tarfile.open(temp_path, 'r:*') as tar:
+                    for member in tar.getmembers():
+                        if member.isfile():  # Only extract files, skip directories
+                            file_obj = tar.extractfile(member)
+                            if file_obj:
+                                content = file_obj.read()
+                                # Normalize path separators
+                                file_path = member.name.replace('\\', '/')
+                                extracted_files.append({
+                                    'path': file_path,
+                                    'name': os.path.basename(file_path),
+                                    'content': content,
+                                    'size': len(content)
+                                })
+
+            # Handle zip archives
+            elif filename.endswith('.zip'):
+                with zipfile.ZipFile(temp_path, 'r') as zip_ref:
+                    for member in zip_ref.namelist():
+                        if not member.endswith('/'):  # Skip directories
+                            content = zip_ref.read(member)
+                            # Normalize path separators
+                            file_path = member.replace('\\', '/')
+                            extracted_files.append({
+                                'path': file_path,
+                                'name': os.path.basename(file_path),
+                                'content': content,
+                                'size': len(content)
+                            })
+
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    except Exception as e:
+        raise Exception(f"Failed to extract archive {filename}: {str(e)}")
+
+    return extracted_files
 
 
 def filename_type(filename):

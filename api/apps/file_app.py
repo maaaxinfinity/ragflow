@@ -31,7 +31,7 @@ from api.db.services import duplicate_name
 from api.db.services.file_service import FileService
 from api import settings
 from api.utils.api_utils import get_json_result
-from api.utils.file_utils import filename_type
+from api.utils.file_utils import filename_type, is_archive_file, extract_archive
 from api.utils.web_utils import CONTENT_TYPE_MAP
 from rag.utils.storage_factory import STORAGE_IMPL
 
@@ -91,29 +91,104 @@ def upload():
                 last_folder = FileService.create_folder(file, file_id_list[len_id_list - 2], file_obj_names,
                                                         len_id_list)
 
-            # file type
-            filetype = filename_type(file_obj_names[file_len - 1])
-            location = file_obj_names[file_len - 1]
-            while STORAGE_IMPL.obj_exist(last_folder.id, location):
-                location += "_"
+            # Read file content
             blob = file_obj.read()
-            filename = duplicate_name(
-                FileService.query,
-                name=file_obj_names[file_len - 1],
-                parent_id=last_folder.id)
-            STORAGE_IMPL.put(last_folder.id, location, blob)
-            file = {
-                "id": get_uuid(),
-                "parent_id": last_folder.id,
-                "tenant_id": current_user.id,
-                "created_by": current_user.id,
-                "type": filetype,
-                "name": filename,
-                "location": location,
-                "size": len(blob),
-            }
-            file = FileService.insert(file)
-            file_res.append(file.to_json())
+            original_filename = file_obj_names[file_len - 1]
+
+            # Check if it's an archive file
+            if is_archive_file(original_filename):
+                # Extract archive and upload all files
+                try:
+                    extracted_files = extract_archive(blob, original_filename)
+
+                    for extracted in extracted_files:
+                        # Create folder structure for each file
+                        file_path_parts = extracted['path'].split('/')
+
+                        # Build folder hierarchy
+                        current_folder = last_folder
+                        current_folder_id = last_folder.id
+
+                        # Create intermediate folders if path contains directories
+                        if len(file_path_parts) > 1:
+                            for folder_name in file_path_parts[:-1]:
+                                # Check if folder exists
+                                existing_folder = FileService.query(
+                                    name=folder_name,
+                                    parent_id=current_folder_id,
+                                    type=FileType.FOLDER.value
+                                )
+
+                                if existing_folder:
+                                    current_folder = existing_folder[0]
+                                    current_folder_id = current_folder.id
+                                else:
+                                    # Create new folder
+                                    new_folder = FileService.insert({
+                                        "id": get_uuid(),
+                                        "parent_id": current_folder_id,
+                                        "tenant_id": current_user.id,
+                                        "created_by": current_user.id,
+                                        "name": folder_name,
+                                        "location": "",
+                                        "size": 0,
+                                        "type": FileType.FOLDER.value
+                                    })
+                                    current_folder_id = new_folder.id
+
+                        # Upload the extracted file
+                        filetype = filename_type(extracted['name'])
+                        location = extracted['name']
+                        while STORAGE_IMPL.obj_exist(current_folder_id, location):
+                            location += "_"
+
+                        final_filename = duplicate_name(
+                            FileService.query,
+                            name=extracted['name'],
+                            parent_id=current_folder_id
+                        )
+
+                        STORAGE_IMPL.put(current_folder_id, location, extracted['content'])
+
+                        file = {
+                            "id": get_uuid(),
+                            "parent_id": current_folder_id,
+                            "tenant_id": current_user.id,
+                            "created_by": current_user.id,
+                            "type": filetype,
+                            "name": final_filename,
+                            "location": location,
+                            "size": extracted['size'],
+                        }
+                        file = FileService.insert(file)
+                        file_res.append(file.to_json())
+
+                except Exception as e:
+                    return get_data_error_result(message=f"Failed to extract archive: {str(e)}")
+            else:
+                # Normal file upload
+                filetype = filename_type(original_filename)
+                location = original_filename
+                while STORAGE_IMPL.obj_exist(last_folder.id, location):
+                    location += "_"
+
+                filename = duplicate_name(
+                    FileService.query,
+                    name=original_filename,
+                    parent_id=last_folder.id)
+                STORAGE_IMPL.put(last_folder.id, location, blob)
+                file = {
+                    "id": get_uuid(),
+                    "parent_id": last_folder.id,
+                    "tenant_id": current_user.id,
+                    "created_by": current_user.id,
+                    "type": filetype,
+                    "name": filename,
+                    "location": location,
+                    "size": len(blob),
+                }
+                file = FileService.insert(file)
+                file_res.append(file.to_json())
         return get_json_result(data=file_res)
     except Exception as e:
         return server_error_response(e)
