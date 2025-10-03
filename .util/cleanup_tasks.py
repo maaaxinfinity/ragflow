@@ -27,6 +27,12 @@ MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD", "infini_rag_flow")
 MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE", "rag_flow")
 DOCKER_CONTAINER = os.environ.get("DOCKER_CONTAINER", "ragflow-mysql")
 
+# Redis配置
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+REDIS_DB = int(os.environ.get("REDIS_DB", "1"))
+REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "infini_rag_flow")
+
 
 def execute_mysql_query(query: str, use_docker: bool = True) -> List[Dict]:
     """执行MySQL查询"""
@@ -166,6 +172,51 @@ def delete_tasks_by_doc_ids(doc_ids: List[str], use_docker: bool = True, dry_run
     return deleted
 
 
+def get_redis_connection():
+    """获取Redis连接"""
+    try:
+        import redis
+        r = redis.Redis(
+            host=REDIS_HOST,
+            port=REDIS_PORT,
+            db=REDIS_DB,
+            password=REDIS_PASSWORD,
+            decode_responses=True
+        )
+        r.ping()
+        return r
+    except Exception as e:
+        print(f"Redis连接失败: {e}")
+        return None
+
+
+def clean_redis_cancel_markers(task_ids: List[str], dry_run: bool = False) -> int:
+    """清理Redis中的task cancel标记"""
+    if not task_ids:
+        return 0
+
+    r = get_redis_connection()
+    if not r:
+        print("跳过Redis清理（连接失败）")
+        return 0
+
+    if dry_run:
+        print(f"[DRY-RUN] 将清理 {len(task_ids)} 个Redis cancel标记")
+        return 0
+
+    cleaned = 0
+    for task_id in task_ids:
+        try:
+            key = f"{task_id}-cancel"
+            if r.delete(key):
+                cleaned += 1
+        except Exception as e:
+            print(f"清理Redis标记失败 {task_id}: {e}")
+
+    print(f"清理了 {cleaned} 个Redis cancel标记")
+    return cleaned
+
+
 def main():
     import argparse
 
@@ -228,9 +279,13 @@ def main():
                     print(f"  - {tid}")
                 if len(task_ids) > 10:
                     print(f"  ... 还有 {len(task_ids) - 10} 条")
+                clean_redis_cancel_markers(task_ids, dry_run=True)
             else:
                 confirm = input(f"确认删除这 {len(task_ids)} 条task记录？(yes/no): ")
                 if confirm.lower() == 'yes':
+                    # 先清理Redis
+                    clean_redis_cancel_markers(task_ids, dry_run=False)
+                    # 再删除MySQL记录
                     deleted = delete_tasks_by_ids(task_ids, use_docker, args.dry_run)
                     print(f"成功删除 {deleted} 条task记录")
                 else:
@@ -240,25 +295,40 @@ def main():
 
     elif args.clean_canceled:
         print("正在清理已取消文档的task记录...")
-        query = f"""
+        # 先获取task IDs用于Redis清理
+        query_tasks = f"""
+        USE {MYSQL_DATABASE};
+        SELECT t.id
+        FROM task t
+        JOIN document d ON t.doc_id = d.id
+        WHERE d.run = '2';
+        """
+        task_results = execute_mysql_query(query_tasks, use_docker)
+        task_ids = [row[0] for row in task_results if len(row) > 0]
+
+        # 获取doc IDs用于删除
+        query_docs = f"""
         USE {MYSQL_DATABASE};
         SELECT DISTINCT t.doc_id
         FROM task t
         JOIN document d ON t.doc_id = d.id
         WHERE d.run = '2';
         """
-
-        results = execute_mysql_query(query, use_docker)
-        doc_ids = [row[0] for row in results if len(row) > 0]
+        doc_results = execute_mysql_query(query_docs, use_docker)
+        doc_ids = [row[0] for row in doc_results if len(row) > 0]
 
         if doc_ids:
             print(f"找到 {len(doc_ids)} 个已取消文档的task记录")
 
             if args.dry_run:
                 print(f"[DRY-RUN] 将删除这些文档的task记录")
+                clean_redis_cancel_markers(task_ids, dry_run=True)
             else:
                 confirm = input(f"确认删除？(yes/no): ")
                 if confirm.lower() == 'yes':
+                    # 先清理Redis
+                    clean_redis_cancel_markers(task_ids, dry_run=False)
+                    # 再删除MySQL记录
                     deleted = delete_tasks_by_doc_ids(doc_ids, use_docker, args.dry_run)
                     print(f"成功删除 {deleted} 条task记录")
                 else:
@@ -270,25 +340,40 @@ def main():
         dataset_id = args.clean_dataset
         print(f"正在清理知识库 {dataset_id} 的task记录...")
 
-        query = f"""
+        # 先获取task IDs用于Redis清理
+        query_tasks = f"""
+        USE {MYSQL_DATABASE};
+        SELECT t.id
+        FROM task t
+        JOIN document d ON t.doc_id = d.id
+        WHERE d.kb_id = '{dataset_id}';
+        """
+        task_results = execute_mysql_query(query_tasks, use_docker)
+        task_ids = [row[0] for row in task_results if len(row) > 0]
+
+        # 获取doc IDs用于删除
+        query_docs = f"""
         USE {MYSQL_DATABASE};
         SELECT t.doc_id
         FROM task t
         JOIN document d ON t.doc_id = d.id
         WHERE d.kb_id = '{dataset_id}';
         """
-
-        results = execute_mysql_query(query, use_docker)
-        doc_ids = [row[0] for row in results if len(row) > 0]
+        doc_results = execute_mysql_query(query_docs, use_docker)
+        doc_ids = [row[0] for row in doc_results if len(row) > 0]
 
         if doc_ids:
             print(f"找到 {len(doc_ids)} 个文档的task记录")
 
             if args.dry_run:
                 print(f"[DRY-RUN] 将删除这些task记录")
+                clean_redis_cancel_markers(task_ids, dry_run=True)
             else:
                 confirm = input(f"确认删除知识库 {dataset_id} 的所有task记录？(yes/no): ")
                 if confirm.lower() == 'yes':
+                    # 先清理Redis
+                    clean_redis_cancel_markers(task_ids, dry_run=False)
+                    # 再删除MySQL记录
                     deleted = delete_tasks_by_doc_ids(doc_ids, use_docker, args.dry_run)
                     print(f"成功删除 {deleted} 条task记录")
                 else:

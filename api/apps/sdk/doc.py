@@ -36,6 +36,7 @@ from api.db.services.llm_service import LLMBundle
 from api.db.services.tenant_llm_service import TenantLLMService
 from api.db.services.task_service import TaskService, queue_tasks
 from api.db.services.dialog_service import meta_filter, convert_conditions
+from rag.utils.redis_conn import REDIS_CONN
 from api.utils.api_utils import check_duplicate_ids, construct_json_result, get_error_data_result, get_parser_config, get_result, server_error_response, token_required
 from rag.app.qa import beAdoc, rmPrefix
 from rag.app.tag import label_question
@@ -823,7 +824,16 @@ def stop_parsing(tenant_id, dataset_id):
         DocumentService.update_by_id(id, info)
         settings.docStoreConn.delete({"doc_id": doc[0].id}, search.index_name(tenant_id), dataset_id)
 
-        # BUG FIX: Clean up tasks from MySQL database
+        # BUG FIX: Clean up tasks from MySQL database and Redis cancel markers
+        # First get all task IDs for this document to clean Redis
+        tasks = TaskService.query(doc_id=id)
+        for t in tasks:
+            try:
+                REDIS_CONN.delete(f"{t.id}-cancel")
+            except Exception as e:
+                logging.warning(f"Failed to delete Redis cancel marker for task {t.id}: {e}")
+
+        # Then delete tasks from MySQL
         TaskService.filter_delete([Task.doc_id == id])
 
         success_count += 1

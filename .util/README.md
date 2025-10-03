@@ -13,7 +13,7 @@
 ### 1. 安装依赖
 
 ```bash
-pip install requests tqdm python-dotenv
+pip install requests tqdm python-dotenv redis
 ```
 
 ### 2. 配置环境变量
@@ -249,7 +249,11 @@ A: 调整 `.env` 中的 `CONCURRENCY` 值（建议4-8）
 
 ### 功能说明
 
-清理MySQL数据库中的遗留task记录。当取消解析后，某些旧版本可能未正确清理task表，导致数据残留。
+清理MySQL数据库和Redis中的遗留task记录。当取消解析后，某些旧版本可能未正确清理task表和Redis cancel标记，导致数据残留。
+
+**清理内容：**
+- MySQL `task` 表中的task记录
+- Redis中的 `{task_id}-cancel` 标记
 
 **危险操作：请谨慎使用，建议先备份数据库！**
 
@@ -297,12 +301,19 @@ python cleanup_tasks.py --list-orphaned --no-docker
 在 `.env` 中添加：
 
 ```env
+# MySQL配置
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_USER=root
 MYSQL_PASSWORD=infini_rag_flow
 MYSQL_DATABASE=rag_flow
 DOCKER_CONTAINER=ragflow-mysql
+
+# Redis配置（用于清理cancel标记）
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=1
+REDIS_PASSWORD=infini_rag_flow
 ```
 
 ### 使用场景
@@ -364,6 +375,10 @@ sudo python cleanup_tasks.py --clean-orphaned
 
 ## 更新日志
 
+- **v1.3** - 完善Redis清理功能
+  - `cleanup_tasks.py` 新增Redis cancel标记清理
+  - `stop_parsing` API 同时清理MySQL task和Redis cancel标记
+  - 修复 `subprocess` 参数冲突bug
 - **v1.2** - 新增 `cleanup_tasks.py` 数据库清理工具
   - 支持清理孤立的task记录
   - 支持按知识库统计和清理
