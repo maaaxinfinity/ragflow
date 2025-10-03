@@ -54,7 +54,7 @@ def execute_mysql_query(query: str, use_docker: bool = True) -> List[Dict]:
         ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, stderr=subprocess.DEVNULL)
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
         lines = result.stdout.strip().split('\n')
         if not lines or not lines[0]:
             return []
