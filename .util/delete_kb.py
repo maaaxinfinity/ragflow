@@ -20,7 +20,13 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
-load_dotenv()
+# 优先从 ../docker/.env 加载配置
+docker_env = Path(__file__).parent.parent / "docker" / ".env"
+if docker_env.exists():
+    load_dotenv(docker_env)
+else:
+    # 否则从当前目录加载
+    load_dotenv()
 
 # 配置：从环境变量读取，或通过命令行参数传入
 BASE_URL = os.environ.get("RAGFLOW_BASE_URL") or None
