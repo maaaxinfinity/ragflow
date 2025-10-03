@@ -41,7 +41,8 @@ SESSION = requests.Session()
 def ensure_config():
     global BASE_URL, API_KEY
     # 允许通过命令行传入 base_url api_key（可选）
-    if len(sys.argv) >= 3 and (not BASE_URL or not API_KEY):
+    # 只有当第一个参数不是选项（不以--或-开头）时才从命令行读取
+    if len(sys.argv) >= 3 and not sys.argv[1].startswith('-') and (not BASE_URL or not API_KEY):
         BASE_URL = BASE_URL or sys.argv[1]
         API_KEY = API_KEY or sys.argv[2]
     if not BASE_URL or not API_KEY:
@@ -174,6 +175,9 @@ def process_dataset_deletion(
 def main():
     import argparse
 
+    # 先处理配置（从环境变量或命令行前两个参数）
+    ensure_config()
+
     parser = argparse.ArgumentParser(
         description="批量删除RAGFlow知识库中的文档",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -196,9 +200,6 @@ def main():
         """
     )
 
-    parser.add_argument("base_url", nargs="?", help="RAGFlow Base URL（可选，从.env读取）")
-    parser.add_argument("api_key", nargs="?", help="RAGFlow API Key（可选，从.env读取）")
-
     parser.add_argument("--names", help="精确指定知识库名称（逗号分隔），如 '库1,库2'")
     parser.add_argument("--only", action="append", help="仅处理包含此关键词的知识库（可多次指定）")
     parser.add_argument("--exclude", action="append", help="排除包含此关键词的知识库（可多次指定）")
@@ -208,8 +209,6 @@ def main():
     parser.add_argument("--batch", type=int, default=BATCH_SIZE, help=f"单批次删除文档数（默认 {BATCH_SIZE}）")
 
     args = parser.parse_args()
-
-    ensure_config()
 
     # 确定目标知识库
     target_datasets: List[Dict] = []
