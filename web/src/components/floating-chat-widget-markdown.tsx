@@ -1,5 +1,6 @@
 import Image from '@/components/image';
 import SvgIcon from '@/components/svg-icon';
+import ThinkingAnimation from '@/components/thinking-animation';
 import { useFetchDocumentThumbnailsByIds, useGetDocumentUrl } from '@/hooks/document-hooks';
 import { IReference, IReferenceChunk } from '@/interfaces/database/chat';
 import { preprocessLaTeX, replaceThinkToSection, showImage } from '@/utils/chat';
@@ -11,7 +12,7 @@ import DOMPurify from 'dompurify';
 import { omit } from 'lodash';
 import { pipe } from 'lodash/fp';
 import 'katex/dist/katex.min.css';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Markdown from 'react-markdown';
 import reactStringReplace from 'react-string-replace';
@@ -42,12 +43,24 @@ const FloatingChatWidgetMarkdown = ({
   const { setDocumentIds, data: fileThumbnails } = useFetchDocumentThumbnailsByIds();
   const getDocumentUrl = useGetDocumentUrl();
   const isDarkTheme = useIsDarkTheme();
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
+
+  // 提取 thinking 内容
+  const thinkingContent = useMemo(() => {
+    const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+    return thinkMatch ? thinkMatch[1] : null;
+  }, [content]);
+
+  const isSearching = content === '' || (loading && !thinkingContent);
+  const hasThinking = !!thinkingContent;
 
   const contentWithCursor = useMemo(() => {
-    let text = content === '' ? t('chat.searching') : content;
+    let text = content === '' ? ' ' : content; // 返回空格以触发渲染
+    // 移除 thinking 标签，因为我们会单独显示
+    text = text.replace(/<think>[\s\S]*?<\/think>/g, '');
     const nextText = replaceTextByOldReg(text);
     return pipe(replaceThinkToSection, preprocessLaTeX)(nextText);
-  }, [content, t]);
+  }, [content]);
 
   useEffect(() => {
     const docAggs = reference?.doc_aggs;
@@ -162,36 +175,74 @@ const FloatingChatWidgetMarkdown = ({
   }, [getPopoverContent, getReferenceInfo, handleDocumentButtonClick]);
 
   return (
-    <div className="floating-chat-widget">
-      <Markdown
-        rehypePlugins={[rehypeWrapReference, rehypeKatex, rehypeRaw]}
-        remarkPlugins={[remarkGfm, remarkMath]}
-        className="text-sm leading-relaxed space-y-2 prose-sm max-w-full"
-        components={{
-          'custom-typography': ({ children }: { children: string }) => renderReference(children),
-          code(props: any) {
-            const { children, className, node, ...rest } = props;
-            const match = /language-(\w+)/.exec(className || '');
-            return match ? (
-              <SyntaxHighlighter
-                {...omit(rest, 'inline')}
-                PreTag="div"
-                language={match[1]}
-                style={isDarkTheme ? oneDark : oneLight}
-                wrapLongLines
+    <div className="floating-chat-widget space-y-2">
+      {/* Thinking 动画和提示/按钮 */}
+      {(isSearching || hasThinking) && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 py-2">
+            <ThinkingAnimation size={50} completed={hasThinking} />
+            {isSearching && !hasThinking && (
+              <span className="text-xs italic opacity-80 text-gray-600 dark:text-gray-400">
+                {t('common.thinking')}...
+              </span>
+            )}
+            {hasThinking && (
+              <button
+                onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+                className="text-xs italic opacity-80 text-gray-600 dark:text-gray-400 hover:opacity-100 transition-opacity cursor-pointer"
               >
-                {String(children).replace(/\n$/, '')}
-              </SyntaxHighlighter>
-            ) : (
-              <code {...rest} className={classNames(className, 'text-wrap text-xs bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded')}>
-                {children}
-              </code>
-            );
-          },
-        } as any}
-      >
-        {contentWithCursor}
-      </Markdown>
+                {isThinkingExpanded ? t('common.collapseThinking') : t('common.expandThinking')} {isThinkingExpanded ? '∨' : '>'}
+              </button>
+            )}
+          </div>
+
+          {/* 展开的思考内容 */}
+          {hasThinking && isThinkingExpanded && thinkingContent && (
+            <div
+              className="ml-14 text-xs leading-relaxed opacity-80 text-gray-600 dark:text-gray-400 pl-3 border-l-2 border-gray-300 dark:border-gray-600"
+              style={{
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
+              }}
+            >
+              {thinkingContent}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 正常内容 */}
+      {!isSearching && (
+        <Markdown
+          rehypePlugins={[rehypeWrapReference, rehypeKatex, rehypeRaw]}
+          remarkPlugins={[remarkGfm, remarkMath]}
+          className="text-sm leading-relaxed space-y-2 prose-sm max-w-full"
+          components={{
+            'custom-typography': ({ children }: { children: string }) => renderReference(children),
+            code(props: any) {
+              const { children, className, node, ...rest } = props;
+              const match = /language-(\w+)/.exec(className || '');
+              return match ? (
+                <SyntaxHighlighter
+                  {...omit(rest, 'inline')}
+                  PreTag="div"
+                  language={match[1]}
+                  style={isDarkTheme ? oneDark : oneLight}
+                  wrapLongLines
+                >
+                  {String(children).replace(/\n$/, '')}
+                </SyntaxHighlighter>
+              ) : (
+                <code {...rest} className={classNames(className, 'text-wrap text-xs bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded')}>
+                  {children}
+                </code>
+              );
+            },
+          } as any}
+        >
+          {contentWithCursor}
+        </Markdown>
+      )}
     </div>
   );
 };

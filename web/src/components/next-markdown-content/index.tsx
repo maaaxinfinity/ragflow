@@ -1,10 +1,12 @@
 import Image from '@/components/image';
 import SvgIcon from '@/components/svg-icon';
+import ThinkingAnimation from '@/components/thinking-animation';
 import { IReferenceChunk, IReferenceObject } from '@/interfaces/database/chat';
 import { getExtension } from '@/utils/document-util';
 import DOMPurify from 'dompurify';
-import { memo, useCallback, useEffect, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
+import { useTranslation } from 'react-i18next';
 import reactStringReplace from 'react-string-replace';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import rehypeKatex from 'rehype-katex';
@@ -14,7 +16,6 @@ import remarkMath from 'remark-math';
 import { visitParents } from 'unist-util-visit-parents';
 
 import { useFetchDocumentThumbnailsByIds } from '@/hooks/document-hooks';
-import { useTranslation } from 'react-i18next';
 
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 
@@ -53,15 +54,28 @@ function MarkdownContent({
   const { t } = useTranslation();
   const { setDocumentIds, data: fileThumbnails } =
     useFetchDocumentThumbnailsByIds();
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
+
+  // 提取 thinking 内容
+  const thinkingContent = useMemo(() => {
+    const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+    return thinkMatch ? thinkMatch[1] : null;
+  }, [content]);
+
+  const isSearching = content === '' || (loading && !thinkingContent);
+  const hasThinking = !!thinkingContent;
+
   const contentWithCursor = useMemo(() => {
     // let text = DOMPurify.sanitize(content);
     let text = content;
     if (text === '') {
-      text = t('chat.searching');
+      text = ' '; // 返回空格以触发渲染
     }
+    // 移除 thinking 标签，因为我们会单独显示
+    text = text.replace(/<think>[\s\S]*?<\/think>/g, '');
     const nextText = replaceTextByOldReg(text);
     return pipe(replaceThinkToSection, preprocessLaTeX)(nextText);
-  }, [content, t]);
+  }, [content]);
 
   useEffect(() => {
     const docAggs = reference?.doc_aggs;
@@ -248,41 +262,81 @@ function MarkdownContent({
   );
 
   return (
-    <Markdown
-      rehypePlugins={[rehypeWrapReference, rehypeKatex, rehypeRaw]}
-      remarkPlugins={[remarkGfm, remarkMath]}
-      className={styles.markdownContentWrapper}
-      components={
-        {
-          'custom-typography': ({ children }: { children: string }) =>
-            renderReference(children),
-          code(props: any) {
-            const { children, className, ...rest } = props;
-            const restProps = omit(rest, 'node');
-            const match = /language-(\w+)/.exec(className || '');
-            return match ? (
-              <SyntaxHighlighter
-                {...restProps}
-                PreTag="div"
-                language={match[1]}
-                wrapLongLines
+    <div className="space-y-2">
+      {/* Thinking 动画和提示/按钮 */}
+      {(isSearching || hasThinking) && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 py-2">
+            <ThinkingAnimation size={60} completed={hasThinking} />
+            {isSearching && !hasThinking && (
+              <span className="text-sm italic opacity-80 text-gray-600 dark:text-gray-400">
+                {t('common.thinking')}...
+              </span>
+            )}
+            {hasThinking && (
+              <button
+                onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+                className="text-sm italic opacity-80 text-gray-600 dark:text-gray-400 hover:opacity-100 transition-opacity cursor-pointer"
               >
-                {String(children).replace(/\n$/, '')}
-              </SyntaxHighlighter>
-            ) : (
-              <code
-                {...restProps}
-                className={classNames(className, 'text-wrap')}
-              >
-                {children}
-              </code>
-            );
-          },
-        } as any
-      }
-    >
-      {contentWithCursor}
-    </Markdown>
+                {isThinkingExpanded ? t('common.collapseThinking') : t('common.expandThinking')} {isThinkingExpanded ? '∨' : '>'}
+              </button>
+            )}
+          </div>
+
+          {/* 展开的思考内容 */}
+          {hasThinking && isThinkingExpanded && thinkingContent && (
+            <div
+              className="ml-16 text-sm leading-relaxed opacity-80 text-gray-600 dark:text-gray-400 pl-4 border-l-2 border-gray-300 dark:border-gray-600"
+              style={{
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
+              }}
+            >
+              {thinkingContent}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 正常内容 */}
+      {!isSearching && (
+        <Markdown
+          rehypePlugins={[rehypeWrapReference, rehypeKatex, rehypeRaw]}
+          remarkPlugins={[remarkGfm, remarkMath]}
+          className={styles.markdownContentWrapper}
+          components={
+            {
+              'custom-typography': ({ children }: { children: string }) =>
+                renderReference(children),
+              code(props: any) {
+                const { children, className, ...rest } = props;
+                const restProps = omit(rest, 'node');
+                const match = /language-(\w+)/.exec(className || '');
+                return match ? (
+                  <SyntaxHighlighter
+                    {...restProps}
+                    PreTag="div"
+                    language={match[1]}
+                    wrapLongLines
+                  >
+                    {String(children).replace(/\n$/, '')}
+                  </SyntaxHighlighter>
+                ) : (
+                  <code
+                    {...restProps}
+                    className={classNames(className, 'text-wrap')}
+                  >
+                    {children}
+                  </code>
+                );
+              },
+            } as any
+          }
+        >
+          {contentWithCursor}
+        </Markdown>
+      )}
+    </div>
   );
 }
 

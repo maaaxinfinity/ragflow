@@ -50,6 +50,9 @@ export default {
       noDataFound: 'No data found.',
       noData: 'No data',
       promptPlaceholder: `Please input or use / to quickly insert variables.`,
+      thinking: 'Thinking',
+      expandThinking: 'Expand thinking process',
+      collapseThinking: 'Collapse thinking process',
       mcp: {
         namePlaceholder: 'My MCP Server',
         nameRequired:

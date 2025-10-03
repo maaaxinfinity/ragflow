@@ -49,6 +49,9 @@ export default {
       noDataFound: '没有找到数据。',
       noData: '暂无数据',
       promptPlaceholder: '请输入或使用 / 快速插入变量。',
+      thinking: '思考中',
+      expandThinking: '展开思考过程',
+      collapseThinking: '折叠思考过程',
     },
     login: {
       login: '登录',
