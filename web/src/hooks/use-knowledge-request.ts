@@ -227,6 +227,10 @@ export const useUpdateKnowledge = (shouldFetchList = false) => {
 
         // Check if parser_config changed and prompt user to reparse documents
         const kbData = data.data || {};
+        console.log('🔍 Parser config check:', {
+          parser_config_changed: kbData.parser_config_changed,
+          docs_to_reparse_count: kbData.docs_to_reparse_count,
+        });
         if (kbData.parser_config_changed && kbData.docs_to_reparse_count > 0) {
           Modal.confirm({
             title: i18n.t('knowledge.parserConfigChangedTitle', '切片配置已更新'),
@@ -248,16 +252,16 @@ export const useUpdateKnowledge = (shouldFetchList = false) => {
                 });
 
                 if (listData?.data?.docs) {
-                  // Filter only completed documents (run === '0' means DONE)
+                  // Filter only completed documents (run === '3' means DONE)
                   const completedDocIds = listData.data.docs
-                    .filter((doc: any) => doc.run === '0')
+                    .filter((doc: any) => doc.run === '3')
                     .map((doc: any) => doc.id);
 
                   if (completedDocIds.length > 0) {
                     // Batch reparse all completed documents
                     const { data: runData } = await kbService.document_run({
                       doc_ids: completedDocIds,
-                      run: 2, // 2 = running
+                      run: '1', // '1' = RUNNING
                       delete: true, // Delete old chunks
                     });
 

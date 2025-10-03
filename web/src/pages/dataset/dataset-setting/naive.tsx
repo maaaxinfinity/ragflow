@@ -1,3 +1,7 @@
+import { DelimiterFormField } from '@/components/delimiter-form-field';
+import { LayoutRecognizeFormField } from '@/components/layout-recognize-form-field';
+import { MaxTokenNumberFormField } from '@/components/max-token-number-from-field';
+import { OverlappedPercentFormField } from '@/components/overlapped-percent-form-field';
 import GraphRagItems from '@/components/parse-configuration/graph-rag-form-fields';
 import RaptorFormFields from '@/components/parse-configuration/raptor-form-fields';
 import {
@@ -13,21 +17,13 @@ export function NaiveConfiguration() {
       <ConfigurationFormContainer>
         <RaptorFormFields></RaptorFormFields>
       </ConfigurationFormContainer>
-      <EnableAutoGenerateItem />
-      {/* <ConfigurationFormContainer>
-        <ChunkMethodItem></ChunkMethodItem>
+      <ConfigurationFormContainer>
         <LayoutRecognizeFormField></LayoutRecognizeFormField>
-
         <MaxTokenNumberFormField initialValue={512}></MaxTokenNumberFormField>
         <DelimiterFormField></DelimiterFormField>
+        <OverlappedPercentFormField></OverlappedPercentFormField>
       </ConfigurationFormContainer>
-      <ConfigurationFormContainer>
-        <PageRankFormField></PageRankFormField>
-        <AutoKeywordsFormField></AutoKeywordsFormField>
-        <AutoQuestionsFormField></AutoQuestionsFormField>
-        <ExcelToHtmlFormField></ExcelToHtmlFormField>
-        <TagItems></TagItems>
-      </ConfigurationFormContainer> */}
+      <EnableAutoGenerateItem />
     </MainContainer>
   );
 }

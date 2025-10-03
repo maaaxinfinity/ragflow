@@ -142,7 +142,7 @@ def update():
         kb = kb.to_dict()
         kb.update(req)
 
-        # Add parser_config change notification
+        # Add parser_config change notification (must be after update to avoid being overwritten)
         kb["parser_config_changed"] = parser_config_changed
         kb["docs_to_reparse_count"] = docs_to_reparse_count
 
