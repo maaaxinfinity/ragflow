@@ -22,7 +22,6 @@ interface ChatInterfaceProps {
   removeMessageById: (messageId: string) => void;
   removeAllMessages: () => void;
   regenerateMessage: (message: Message) => void;
-  paramsChanged: boolean;
   dialogId: string;
 }
 
@@ -39,7 +38,6 @@ export function ChatInterface({
   removeMessageById,
   removeAllMessages,
   regenerateMessage,
-  paramsChanged,
   dialogId,
 }: ChatInterfaceProps) {
   const { data: userInfo } = useFetchUserInfo();
@@ -73,15 +71,6 @@ export function ChatInterface({
         <Alert className="mb-4">
           <AlertDescription>
             {t('selectDialogToStartChatting')}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Parameter Change Alert */}
-      {paramsChanged && (
-        <Alert className="mb-4">
-          <AlertDescription>
-            {t('parametersWillTakeEffectInNextMessage')}
           </AlertDescription>
         </Alert>
       )}

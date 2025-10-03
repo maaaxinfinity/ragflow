@@ -813,6 +813,18 @@ class Conversation(DataBaseModel):
         db_table = "conversation"
 
 
+class FreeChatUserSettings(DataBaseModel):
+    user_id = CharField(max_length=255, primary_key=True, help_text="external user ID for free chat")
+    dialog_id = CharField(max_length=32, null=False, default="", index=True, help_text="selected dialog ID")
+    model_params = JSONField(null=False, default={"temperature": 0.7, "top_p": 0.9})
+    kb_ids = ListField(null=False, default=[])
+    role_prompt = LongTextField(null=True, default="", help_text="custom system prompt")
+    sessions = JSONField(null=False, default=[], help_text="chat sessions data")
+
+    class Meta:
+        db_table = "free_chat_user_settings"
+
+
 class APIToken(DataBaseModel):
     tenant_id = CharField(max_length=32, null=False, index=True)
     token = CharField(max_length=255, null=False, index=True)

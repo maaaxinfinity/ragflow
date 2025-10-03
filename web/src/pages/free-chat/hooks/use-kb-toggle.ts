@@ -1,41 +1,40 @@
 import { useFetchKnowledgeList } from '@/hooks/knowledge-hooks';
 import { DocumentParserType } from '@/constants/knowledge';
 import { useCallback, useState, useEffect } from 'react';
-import { logError } from '../utils/error-handler';
 
-const STORAGE_KEY = 'free_chat_enabled_kbs';
+interface UseKBToggleProps {
+  initialKBs?: string[];
+  onKBsChange?: (kbIds: string[]) => void;
+}
 
-export const useKBToggle = () => {
-  const [enabledKBs, setEnabledKBs] = useState<Set<string>>(new Set());
+export const useKBToggle = (props?: UseKBToggleProps) => {
+  const { initialKBs, onKBsChange } = props || {};
+  const [enabledKBs, setEnabledKBs] = useState<Set<string>>(
+    new Set(initialKBs || []),
+  );
 
   // 使用现有的hook获取知识库列表
   const { list: knowledgeList, loading } = useFetchKnowledgeList(true);
 
-  // 过滤掉Tag类型的知识库（与next-chats保持一致）
-  const availableKBs = knowledgeList.filter(
-    (x) => x.parser_id !== DocumentParserType.Tag,
-  );
+  // 过滤掉Tag类型的知识库（与next-chats保持一致）并按名字排序
+  const availableKBs = knowledgeList
+    .filter((x) => x.parser_id !== DocumentParserType.Tag)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  // 从localStorage加载已启用的知识库
+  // Sync with external KB changes
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const kbIds = JSON.parse(saved);
-        setEnabledKBs(new Set(kbIds));
-      } catch (e) {
-        logError(
-          e instanceof Error ? e : 'failedToParseSavedKBIds',
-          'useKBToggle.loadKBs'
-        );
-      }
+    if (initialKBs) {
+      setEnabledKBs(new Set(initialKBs));
     }
-  }, []);
+  }, [initialKBs]);
 
-  // 保存到localStorage
-  const saveEnabledKBs = useCallback((kbSet: Set<string>) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(kbSet)));
-  }, []);
+  // Save callback
+  const saveEnabledKBs = useCallback(
+    (kbSet: Set<string>) => {
+      onKBsChange?.(Array.from(kbSet));
+    },
+    [onKBsChange],
+  );
 
   // 切换单个知识库
   const toggleKB = useCallback(

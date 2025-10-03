@@ -14,8 +14,18 @@ interface KBContextType {
 
 const KBContext = createContext<KBContextType | undefined>(undefined);
 
-export function KBProvider({ children }: { children: ReactNode }) {
-  const kbState = useKBToggle();
+interface KBProviderProps {
+  children: ReactNode;
+  initialKBs?: string[];
+  onKBsChange?: (kbIds: string[]) => void;
+}
+
+export function KBProvider({
+  children,
+  initialKBs,
+  onKBsChange,
+}: KBProviderProps) {
+  const kbState = useKBToggle({ initialKBs, onKBsChange });
 
   return <KBContext.Provider value={kbState}>{children}</KBContext.Provider>;
 }

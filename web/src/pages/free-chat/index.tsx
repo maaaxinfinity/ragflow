@@ -1,13 +1,28 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { useFreeChat } from './hooks/use-free-chat';
 import { ControlPanel } from './components/control-panel';
 import { ChatInterface } from './chat-interface';
 import { SessionList } from './components/session-list';
 import { KBProvider } from './contexts/kb-context';
+import { useFreeChatUserId } from './hooks/use-free-chat-user-id';
+import { useFreeChatSettingsApi } from './hooks/use-free-chat-settings-api';
+import { Spin } from 'antd';
+import { Helmet } from 'umi';
 
 // BUG FIX: Separate component to use hooks inside KBProvider
 function FreeChatContent() {
   const controller = useRef(new AbortController());
+  const userId = useFreeChatUserId();
+  const { settings, loading: settingsLoading, updateField } = useFreeChatSettingsApi(userId);
+
+  const handleSessionsChange = useCallback(
+    (sessions: any[]) => {
+      if (userId && settings) {
+        updateField('sessions', sessions);
+      }
+    },
+    [userId, settings, updateField],
+  );
 
   const {
     handlePressEnter,
@@ -22,19 +37,62 @@ function FreeChatContent() {
     scrollRef,
     messageContainerRef,
     stopOutputMessage,
-    paramsChanged,
     sessions,
     currentSessionId,
     createSession,
     switchSession,
     deleteSession,
+    clearAllSessions,
     dialogId,
     setDialogId,
-  } = useFreeChat(controller.current);
+  } = useFreeChat(controller.current, userId, settings, handleSessionsChange);
 
-  const handleNewSession = () => {
+  const handleNewSession = useCallback(() => {
     createSession();
-  };
+  }, [createSession]);
+
+  const handleDialogChange = useCallback(
+    (newDialogId: string) => {
+      // Check if dialog actually changed
+      if (dialogId && dialogId !== newDialogId) {
+        // Dialog changed - create new chat session
+        createSession();
+      }
+
+      setDialogId(newDialogId);
+      if (userId && settings) {
+        updateField('dialog_id', newDialogId);
+      }
+    },
+    [dialogId, createSession, setDialogId, userId, settings, updateField],
+  );
+
+  const handleRolePromptChange = useCallback(
+    (prompt: string) => {
+      if (userId && settings) {
+        updateField('role_prompt', prompt);
+      }
+    },
+    [userId, settings, updateField],
+  );
+
+  const handleModelParamsChange = useCallback(
+    (params: any) => {
+      if (userId && settings) {
+        updateField('model_params', params);
+      }
+    },
+    [userId, settings, updateField],
+  );
+
+  // Show loading state while settings are being loaded
+  if (settingsLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen">
@@ -45,6 +103,7 @@ function FreeChatContent() {
         onSessionSelect={switchSession}
         onSessionDelete={deleteSession}
         onNewSession={handleNewSession}
+        onClearAll={clearAllSessions}
       />
 
       {/* Chat Interface */}
@@ -62,7 +121,6 @@ function FreeChatContent() {
           removeMessageById={removeMessageById}
           removeAllMessages={removeAllMessages}
           regenerateMessage={regenerateMessage}
-          paramsChanged={paramsChanged}
           dialogId={dialogId}
         />
       </div>
@@ -70,16 +128,52 @@ function FreeChatContent() {
       {/* Control Panel */}
       <ControlPanel
         dialogId={dialogId}
-        onDialogChange={setDialogId}
+        onDialogChange={handleDialogChange}
+        rolePrompt={settings?.role_prompt || ''}
+        onRolePromptChange={handleRolePromptChange}
+        modelParams={settings?.model_params}
+        onModelParamsChange={handleModelParamsChange}
       />
     </div>
   );
 }
 
 export default function FreeChat() {
+  const userId = useFreeChatUserId();
+  const { settings, updateField } = useFreeChatSettingsApi(userId);
+
+  // Apply Source Han Serif font
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://chinese-fonts-cdn.deno.dev/packages/syst/dist/SourceHanSerifCN/result.css';
+    document.head.appendChild(link);
+
+    // Apply font to body
+    document.body.style.fontFamily = '"Source Han Serif CN", "思源宋体", serif';
+
+    return () => {
+      document.head.removeChild(link);
+      document.body.style.fontFamily = '';
+    };
+  }, []);
+
   return (
-    <KBProvider>
-      <FreeChatContent />
-    </KBProvider>
+    <>
+      <Helmet>
+        <link
+          rel="stylesheet"
+          href="https://chinese-fonts-cdn.deno.dev/packages/syst/dist/SourceHanSerifCN/result.css"
+        />
+      </Helmet>
+      <div style={{ fontFamily: '"Source Han Serif CN", "思源宋体", serif' }}>
+        <KBProvider
+          initialKBs={settings?.kb_ids}
+          onKBsChange={(kbIds) => updateField('kb_ids', kbIds)}
+        >
+          <FreeChatContent />
+        </KBProvider>
+      </div>
+    </>
   );
 }

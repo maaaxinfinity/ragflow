@@ -99,6 +99,13 @@ export default {
   ask: `${api_host}/conversation/ask`,
   mindmap: `${api_host}/conversation/mindmap`,
   getRelatedQuestions: `${api_host}/conversation/related_questions`,
+
+  // free chat
+  getFreeChatSettings: `${api_host}/free_chat/settings`,
+  saveFreeChatSettings: `${api_host}/free_chat/settings`,
+  deleteFreeChatSettings: (userId: string) => `${api_host}/free_chat/settings/${userId}`,
+  getAdminToken: `${api_host}/free_chat/admin_token`,
+
   // chat for external
   createToken: `${api_host}/api/new_token`,
   listToken: `${api_host}/api/token_list`,

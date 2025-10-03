@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { MessageSquarePlus, MoreVertical, Trash2 } from 'lucide-react';
+import { MessageSquarePlus, Trash2, Eraser } from 'lucide-react';
 import { IFreeChatSession } from '../hooks/use-free-chat-session';
 import { useTranslate } from '@/hooks/common-hooks';
 
@@ -22,6 +22,7 @@ interface SessionListProps {
   onSessionSelect: (sessionId: string) => void;
   onSessionDelete: (sessionId: string) => void;
   onNewSession: () => void;
+  onClearAll?: () => void;
 }
 
 export function SessionList({
@@ -30,23 +31,12 @@ export function SessionList({
   onSessionSelect,
   onSessionDelete,
   onNewSession,
+  onClearAll,
 }: SessionListProps) {
   const { t } = useTranslate('chat');
 
   return (
     <div className="w-64 border-r flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="p-4 border-b">
-        <Button
-          onClick={onNewSession}
-          className="w-full"
-          size="sm"
-        >
-          <MessageSquarePlus className="h-4 w-4 mr-2" />
-          {t('newChat')}
-        </Button>
-      </div>
-
       {/* Session List */}
       <div className="flex-1 overflow-y-auto">
         {sessions.length === 0 ? (
@@ -88,6 +78,29 @@ export function SessionList({
               </div>
             </div>
           ))
+        )}
+      </div>
+
+      {/* Footer - Controls */}
+      <div className="p-4 border-t space-y-2">
+        <Button
+          onClick={onNewSession}
+          className="w-full"
+          size="sm"
+        >
+          <MessageSquarePlus className="h-4 w-4 mr-2" />
+          {t('newChat')}
+        </Button>
+        {onClearAll && sessions.length > 0 && (
+          <Button
+            onClick={onClearAll}
+            variant="outline"
+            className="w-full"
+            size="sm"
+          >
+            <Eraser className="h-4 w-4 mr-2" />
+            清除全部
+          </Button>
         )}
       </div>
     </div>

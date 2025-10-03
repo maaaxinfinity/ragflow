@@ -181,7 +181,7 @@ const FloatingChatWidgetMarkdown = ({
       {(isSearching || hasThinking) && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 py-2">
-            <HexagonLoader size={60} completed={hasThinking} />
+            <HexagonLoader size={20} completed={hasThinking} />
             {isSearching && !hasThinking && (
               <span className="text-xs italic opacity-80 text-gray-600 dark:text-gray-400">
                 {t('common.thinking')}...
@@ -200,7 +200,7 @@ const FloatingChatWidgetMarkdown = ({
           {/* 展开的思考内容 */}
           {hasThinking && isThinkingExpanded && thinkingContent && (
             <div
-              className="ml-14 text-xs leading-relaxed opacity-80 text-gray-600 dark:text-gray-400 pl-3 border-l-2 border-gray-300 dark:border-gray-600"
+              className="ml-7 text-xs leading-relaxed opacity-80 text-gray-600 dark:text-gray-400 pl-3 border-l-2 border-gray-300 dark:border-gray-600"
               style={{
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word'

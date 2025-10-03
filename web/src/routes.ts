@@ -49,6 +49,7 @@ export enum Routes {
   DataSetSetting = '/dataset-setting',
   DataflowResult = '/dataflow-result',
   FreeChat = '/free-chat',
+  FreeChatUnauthorized = '/free-chat/unauthorized',
 }
 
 const routes = [
@@ -428,6 +429,11 @@ const routes = [
     path: Routes.FreeChat,
     layout: false,
     component: `@/pages${Routes.FreeChat}`,
+  },
+  {
+    path: Routes.FreeChatUnauthorized,
+    layout: false,
+    component: `@/pages${Routes.FreeChat}/unauthorized`,
   },
 ];
 

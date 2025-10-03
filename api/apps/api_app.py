@@ -502,10 +502,50 @@ def upload_parse():
             data=False, message='No file part!', code=settings.RetCode.ARGUMENT_ERROR)
 
     file_objs = request.files.getlist('file')
+
+    # Validate file count (max 10 files)
+    if len(file_objs) > 10:
+        return get_json_result(data=False, message="Maximum 10 files allowed!", code=settings.RetCode.ARGUMENT_ERROR)
+
     for file_obj in file_objs:
         if file_obj.filename == '':
             return get_json_result(
                 data=False, message='No file selected!', code=settings.RetCode.ARGUMENT_ERROR)
+
+        # Validate file size (max 8MB)
+        file_obj.seek(0, 2)  # Seek to end of file
+        file_size = file_obj.tell()
+        file_obj.seek(0)  # Reset to beginning
+
+        max_size = 8 * 1024 * 1024  # 8MB in bytes
+        if file_size > max_size:
+            return get_json_result(
+                data=False,
+                message=f"File '{file_obj.filename}' exceeds maximum size of 8MB!",
+                code=settings.RetCode.ARGUMENT_ERROR
+            )
+
+        # Validate file type (text files only)
+        allowed_extensions = {
+            '.txt', '.md', '.csv', '.json', '.xml', '.html', '.css',
+            '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp',
+            '.h', '.sh', '.yaml', '.yml'
+        }
+        allowed_mime_types = {
+            'text/plain', 'text/csv', 'text/html', 'text/css',
+            'text/javascript', 'text/markdown', 'application/json',
+            'application/xml', 'text/xml'
+        }
+
+        file_extension = Path(file_obj.filename.lower()).suffix
+        mime_type = file_obj.content_type or ''
+
+        if file_extension not in allowed_extensions and mime_type not in allowed_mime_types:
+            return get_json_result(
+                data=False,
+                message=f"File '{file_obj.filename}' is not a text file. Only text files are allowed!",
+                code=settings.RetCode.ARGUMENT_ERROR
+            )
 
     doc_ids = doc_upload_and_parse(request.form.get("conversation_id"), file_objs, objs[0].tenant_id)
     return get_json_result(data=doc_ids)

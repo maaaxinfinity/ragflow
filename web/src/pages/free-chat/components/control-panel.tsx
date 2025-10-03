@@ -1,22 +1,45 @@
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { RotateCcw } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState } from 'react';
 import { useDynamicParams } from '../hooks/use-dynamic-params';
 import { useTranslate } from '@/hooks/common-hooks';
 import { KnowledgeBaseSelector } from './knowledge-base-selector';
 import { DialogSelector } from './dialog-selector';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { DynamicModelParams } from '../types';
 
 interface ControlPanelProps {
   dialogId: string;
   onDialogChange: (dialogId: string) => void;
+  rolePrompt?: string;
+  onRolePromptChange?: (prompt: string) => void;
+  modelParams?: DynamicModelParams;
+  onModelParamsChange?: (params: DynamicModelParams) => void;
 }
 
-export function ControlPanel({ dialogId, onDialogChange }: ControlPanelProps) {
+export function ControlPanel({
+  dialogId,
+  onDialogChange,
+  rolePrompt = '',
+  onRolePromptChange,
+  modelParams,
+  onModelParamsChange,
+}: ControlPanelProps) {
   const { params, updateParam, resetParams, paramsChanged } =
-    useDynamicParams();
+    useDynamicParams({
+      initialParams: modelParams,
+      onParamsChange: onModelParamsChange,
+    });
   const { t } = useTranslate('chat');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   return (
     <div className="w-80 border-l p-6 space-y-6 overflow-y-auto">
@@ -48,6 +71,24 @@ export function ControlPanel({ dialogId, onDialogChange }: ControlPanelProps) {
         </Alert>
       )}
 
+      {/* Top P */}
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <Label>Top P</Label>
+          <span className="text-sm text-muted-foreground">
+            {params.top_p?.toFixed(2)}
+          </span>
+        </div>
+        <Slider
+          min={0}
+          max={1}
+          step={0.01}
+          value={[params.top_p ?? 0.9]}
+          onValueChange={(val) => updateParam('top_p', val[0])}
+        />
+        <p className="text-xs text-muted-foreground">{t('topPTip')}</p>
+      </div>
+
       {/* Temperature */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
@@ -68,83 +109,35 @@ export function ControlPanel({ dialogId, onDialogChange }: ControlPanelProps) {
         </p>
       </div>
 
-      {/* Top P */}
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label>Top P</Label>
-          <span className="text-sm text-muted-foreground">
-            {params.top_p?.toFixed(2)}
-          </span>
-        </div>
-        <Slider
-          min={0}
-          max={1}
-          step={0.01}
-          value={[params.top_p ?? 0.9]}
-          onValueChange={(val) => updateParam('top_p', val[0])}
-        />
-        <p className="text-xs text-muted-foreground">{t('topPTip')}</p>
-      </div>
-
-      {/* Frequency Penalty */}
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label>Frequency Penalty</Label>
-          <span className="text-sm text-muted-foreground">
-            {params.frequency_penalty?.toFixed(2)}
-          </span>
-        </div>
-        <Slider
-          min={0}
-          max={1}
-          step={0.01}
-          value={[params.frequency_penalty ?? 0]}
-          onValueChange={(val) => updateParam('frequency_penalty', val[0])}
-        />
-        <p className="text-xs text-muted-foreground">
-          {t('frequencyPenaltyTip')}
-        </p>
-      </div>
-
-      {/* Presence Penalty */}
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label>Presence Penalty</Label>
-          <span className="text-sm text-muted-foreground">
-            {params.presence_penalty?.toFixed(2)}
-          </span>
-        </div>
-        <Slider
-          min={0}
-          max={1}
-          step={0.01}
-          value={[params.presence_penalty ?? 0]}
-          onValueChange={(val) => updateParam('presence_penalty', val[0])}
-        />
-        <p className="text-xs text-muted-foreground">
-          {t('presencePenaltyTip')}
-        </p>
-      </div>
-
-      {/* Max Tokens */}
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label>Max Tokens</Label>
-          <span className="text-sm text-muted-foreground">
-            {params.max_tokens}
-          </span>
-        </div>
-        <Slider
-          min={100}
-          max={8000}
-          step={100}
-          value={[params.max_tokens ?? 2000]}
-          onValueChange={(val) => updateParam('max_tokens', val[0])}
-        />
-        <p className="text-xs text-muted-foreground">
-          {t('maxTokensTip')}
-        </p>
-      </div>
+      {/* Advanced Parameters - Collapsible */}
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" className="w-full justify-between">
+            <span>高级参数</span>
+            {advancedOpen ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 pt-4">
+          {/* Role Prompt */}
+          <div className="space-y-2">
+            <Label>系统提示词 (Role Prompt)</Label>
+            <Textarea
+              placeholder="设置AI的角色和行为规范，例如：你是一个专业的技术顾问..."
+              value={rolePrompt}
+              onChange={(e) => onRolePromptChange?.(e.target.value)}
+              rows={6}
+              className="resize-none"
+            />
+            <p className="text-xs text-muted-foreground">
+              自定义AI的角色设定，此设置将影响所有对话
+            </p>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Knowledge Base Selector */}
       <div className="pt-4 border-t">

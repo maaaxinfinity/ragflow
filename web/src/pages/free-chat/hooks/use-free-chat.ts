@@ -11,16 +11,26 @@ import { trim } from 'lodash';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { DynamicModelParams } from '../types';
-import { useDynamicParams } from './use-dynamic-params';
 import { useKBContext } from '../contexts/kb-context';
 import { useFreeChatSession } from './use-free-chat-session';
 import { useUpdateConversation } from '@/hooks/use-chat-request';
 import { logError, logInfo } from '../utils/error-handler';
 import { useTranslate } from '@/hooks/common-hooks';
 
-export const useFreeChat = (controller: AbortController) => {
+interface UseFreeChatProps {
+  userId: string;
+  settings: any; // FreeChatSettings from API
+  onSessionsChange?: (sessions: any[]) => void;
+}
+
+export const useFreeChat = (
+  controller: AbortController,
+  userId?: string,
+  settings?: UseFreeChatProps['settings'],
+  onSessionsChange?: (sessions: any[]) => void,
+) => {
   const { t } = useTranslate('chat');
-  const { params, paramsChanged, clearChangedFlag } = useDynamicParams();
+
   const { enabledKBs } = useKBContext();
   const { handleInputChange, value, setValue } = useHandleMessageInputChange();
   const { updateConversation } = useUpdateConversation();
@@ -33,24 +43,20 @@ export const useFreeChat = (controller: AbortController) => {
     sessions,
     switchSession,
     deleteSession,
-  } = useFreeChatSession();
+    clearAllSessions,
+  } = useFreeChatSession({
+    initialSessions: settings?.sessions,
+    onSessionsChange,
+  });
 
-  const [dialogId, setDialogId] = useState<string>('');
+  const [dialogId, setDialogId] = useState<string>(settings?.dialog_id || '');
 
-  // Load dialog ID from localStorage
+  // Sync dialogId from settings
   useEffect(() => {
-    const savedDialogId = localStorage.getItem('free_chat_dialog_id');
-    if (savedDialogId) {
-      setDialogId(savedDialogId);
+    if (settings?.dialog_id) {
+      setDialogId(settings.dialog_id);
     }
-  }, []);
-
-  // Update localStorage when dialogId changes
-  useEffect(() => {
-    if (dialogId) {
-      localStorage.setItem('free_chat_dialog_id', dialogId);
-    }
-  }, [dialogId]);
+  }, [settings?.dialog_id]);
 
   // SSE sending logic
   const { send, answer, done } = useSendMessageWithSse(
@@ -132,7 +138,7 @@ export const useFreeChat = (controller: AbortController) => {
       }
 
       // BUG FIX #7 & #12: Ensure kb_ids from enabledKBs has priority over params
-      const baseParams = customParams || params;
+      const baseParams = customParams || settings?.model_params || {};
       const kbIdsArray = Array.from(enabledKBs);
 
       // DEBUG: Log enabledKBs state
@@ -172,24 +178,17 @@ export const useFreeChat = (controller: AbortController) => {
       }
       // BUG FIX #1: Remove duplicate session update here
       // The session will be updated by the derivedMessages sync effect
-
-      // Clear parameter change flag
-      if (paramsChanged) {
-        clearChangedFlag();
-      }
     },
     [
       dialogId,
       currentSession,
       derivedMessages,
-      params,
+      settings?.model_params,
       enabledKBs,
       send,
       controller,
       setValue,
       removeLatestMessage,
-      paramsChanged,
-      clearChangedFlag,
       updateConversation,
       updateSession,
       t,
@@ -339,9 +338,6 @@ export const useFreeChat = (controller: AbortController) => {
     messageContainerRef,
     stopOutputMessage,
 
-    // Parameter prompt
-    paramsChanged,
-
     // Session management
     currentSession,
     currentSessionId,
@@ -349,6 +345,7 @@ export const useFreeChat = (controller: AbortController) => {
     createSession,
     switchSession,
     deleteSession,
+    clearAllSessions,
 
     // Dialog ID
     dialogId,

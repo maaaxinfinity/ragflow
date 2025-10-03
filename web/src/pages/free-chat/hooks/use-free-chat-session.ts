@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { Message } from '@/interfaces/database/chat';
-import { DynamicModelParams } from '../types';
-import { logError, logWarn } from '../utils/error-handler';
 
 export interface IFreeChatSession {
   id: string;
@@ -13,93 +11,36 @@ export interface IFreeChatSession {
   updated_at: number;
 }
 
-const STORAGE_KEY = 'free_chat_sessions';
-const CURRENT_SESSION_KEY = 'free_chat_current_session';
+interface UseFreeChatSessionProps {
+  initialSessions?: IFreeChatSession[];
+  onSessionsChange?: (sessions: IFreeChatSession[]) => void;
+}
 
-// BUG FIX #8: Improved localStorage error handling with user notification
-// Load sessions from localStorage
-const loadSessions = (): IFreeChatSession[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return [];
-
-    const parsed = JSON.parse(saved);
-    // Validate the data structure
-    if (!Array.isArray(parsed)) {
-      logError('invalidSessionsDataFormat', 'useFreeChatSession.loadSessions');
-      localStorage.removeItem(STORAGE_KEY);
-      return [];
-    }
-
-    // Validate each session has required fields
-    const validSessions = parsed.filter(s =>
-      s.id && s.name && s.created_at && s.updated_at
-    );
-
-    if (validSessions.length !== parsed.length) {
-      logWarn(
-        `Filtered out ${parsed.length - validSessions.length} invalid sessions`,
-        'useFreeChatSession.loadSessions'
-      );
-    }
-
-    return validSessions;
-  } catch (e) {
-    logError(
-      e instanceof Error ? e : 'sessionDataCorrupted',
-      'useFreeChatSession.loadSessions'
-    );
-    // Clear corrupted data
-    localStorage.removeItem(STORAGE_KEY);
-    return [];
-  }
-};
-
-// Save sessions to localStorage
-const saveSessions = (sessions: IFreeChatSession[]) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-  } catch (e) {
-    // Notify user if storage quota exceeded
-    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-      logError(
-        'localStorageQuotaExceeded',
-        'useFreeChatSession.saveSessions',
-        true
-      );
-    } else {
-      logError(
-        e instanceof Error ? e : 'failedToSaveSessions',
-        'useFreeChatSession.saveSessions'
-      );
-    }
-  }
-};
-
-export const useFreeChatSession = () => {
-  const [sessions, setSessions] = useState<IFreeChatSession[]>([]);
+export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
+  const { initialSessions, onSessionsChange } = props || {};
+  const [sessions, setSessions] = useState<IFreeChatSession[]>(
+    initialSessions || [],
+  );
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
 
-  // Load sessions on mount
+  // Sync with external sessions changes
   useEffect(() => {
-    const loadedSessions = loadSessions();
-    setSessions(loadedSessions);
-
-    // Load current session ID
-    const savedCurrentId = localStorage.getItem(CURRENT_SESSION_KEY);
-    if (savedCurrentId && loadedSessions.find(s => s.id === savedCurrentId)) {
-      setCurrentSessionId(savedCurrentId);
-    } else if (loadedSessions.length > 0) {
-      setCurrentSessionId(loadedSessions[0].id);
+    if (initialSessions) {
+      setSessions(initialSessions);
+      // Auto-select first session if none selected
+      if (!currentSessionId && initialSessions.length > 0) {
+        setCurrentSessionId(initialSessions[0].id);
+      }
     }
-  }, []);
+  }, [initialSessions, currentSessionId]);
 
-  // Save current session ID
-  useEffect(() => {
-    if (currentSessionId) {
-      localStorage.setItem(CURRENT_SESSION_KEY, currentSessionId);
-    }
-  }, [currentSessionId]);
+  // Save sessions callback
+  const saveSessions = useCallback(
+    (newSessions: IFreeChatSession[]) => {
+      onSessionsChange?.(newSessions);
+    },
+    [onSessionsChange],
+  );
 
   // Get current session
   const currentSession = sessions.find(s => s.id === currentSessionId);

@@ -1,6 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
 import { DynamicModelParams } from '../types';
-import { logError } from '../utils/error-handler';
 
 const DEFAULT_PARAMS: DynamicModelParams = {
   temperature: 0.7,
@@ -10,31 +9,32 @@ const DEFAULT_PARAMS: DynamicModelParams = {
   max_tokens: 2000,
 };
 
-const STORAGE_KEY = 'free_chat_model_params';
+interface UseDynamicParamsProps {
+  initialParams?: DynamicModelParams;
+  onParamsChange?: (params: DynamicModelParams) => void;
+}
 
-export const useDynamicParams = () => {
-  const [params, setParams] = useState<DynamicModelParams>(DEFAULT_PARAMS);
+export const useDynamicParams = (props?: UseDynamicParamsProps) => {
+  const { initialParams, onParamsChange } = props || {};
+  const [params, setParams] = useState<DynamicModelParams>(
+    initialParams || DEFAULT_PARAMS,
+  );
   const [paramsChanged, setParamsChanged] = useState(false);
 
-  // 从localStorage加载参数
+  // Sync with external params changes
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setParams(JSON.parse(saved));
-      } catch (e) {
-        logError(
-          e instanceof Error ? e : 'failedToParseSavedParams',
-          'useDynamicParams.loadParams'
-        );
-      }
+    if (initialParams) {
+      setParams(initialParams);
     }
-  }, []);
+  }, [initialParams]);
 
-  // 保存参数到localStorage
-  const saveParams = useCallback((newParams: DynamicModelParams) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newParams));
-  }, []);
+  // Save params callback
+  const saveParams = useCallback(
+    (newParams: DynamicModelParams) => {
+      onParamsChange?.(newParams);
+    },
+    [onParamsChange],
+  );
 
   // 更新单个参数
   const updateParam = useCallback(

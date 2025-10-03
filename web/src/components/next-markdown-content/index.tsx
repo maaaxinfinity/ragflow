@@ -267,8 +267,8 @@ function MarkdownContent({
       {/* Thinking 动画和提示/按钮 */}
       {(isSearching || hasThinking) && (
         <div className="space-y-2">
-          <div className="flex items-center gap-3 py-2">
-            <HexagonLoader size={80} completed={hasThinking} />
+          <div className="flex items-center gap-2 py-2">
+            <HexagonLoader size={24} completed={hasThinking} />
             {isSearching && !hasThinking && (
               <span className="text-sm italic opacity-80 text-gray-600 dark:text-gray-400">
                 {t('common.thinking')}...
@@ -287,7 +287,7 @@ function MarkdownContent({
           {/* 展开的思考内容 */}
           {hasThinking && isThinkingExpanded && thinkingContent && (
             <div
-              className="ml-16 text-sm leading-relaxed opacity-80 text-gray-600 dark:text-gray-400 pl-4 border-l-2 border-gray-300 dark:border-gray-600"
+              className="ml-8 text-sm leading-relaxed opacity-80 text-gray-600 dark:text-gray-400 pl-4 border-l-2 border-gray-300 dark:border-gray-600"
               style={{
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word'

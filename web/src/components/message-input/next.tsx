@@ -59,6 +59,27 @@ export function NextMessageInput({
     });
   }, []);
 
+  const onFileValidate = React.useCallback((file: File) => {
+    // Only allow text files
+    const textFileTypes = [
+      'text/plain',
+      'text/csv',
+      'text/html',
+      'text/css',
+      'text/javascript',
+      'text/markdown',
+      'application/json',
+      'application/xml',
+      'text/xml',
+    ];
+
+    if (!textFileTypes.includes(file.type) && !file.name.match(/\.(txt|md|csv|json|xml|html|css|js|ts|jsx|tsx|py|java|c|cpp|h|sh|yaml|yml)$/i)) {
+      return '只允许上传文本文件';
+    }
+
+    return null;
+  }, []);
+
   const submit = React.useCallback(() => {
     if (isUploading) return;
     onPressEnter();
@@ -93,6 +114,9 @@ export function NextMessageInput({
       onValueChange={setFiles}
       onUpload={onUpload}
       onFileReject={onFileReject}
+      onFileValidate={onFileValidate}
+      maxFiles={10}
+      maxSize={8 * 1024 * 1024}
       className="relative w-full items-center "
       disabled={isUploading || disabled}
     >
@@ -108,7 +132,7 @@ export function NextMessageInput({
           </div>
           <p className="font-medium text-sm">Drag & drop files here</p>
           <p className="text-muted-foreground text-xs">
-            Upload max 5 files each up to 5MB
+            仅文本文件，最多10个，单文件最大8MB
           </p>
         </div>
       </FileUploadDropzone>
