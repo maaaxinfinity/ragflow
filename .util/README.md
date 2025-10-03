@@ -255,24 +255,29 @@ A: 调整 `.env` 中的 `CONCURRENCY` 值（建议4-8）
 
 ### 基本用法
 
+**注意：使用Docker模式时需要sudo权限**
+
 ```bash
 # 1. 列出所有孤立的task（文档已删除或已取消）
-python cleanup_tasks.py --list-orphaned
+sudo python cleanup_tasks.py --list-orphaned
 
 # 2. 统计各知识库的task数量
-python cleanup_tasks.py --list-by-dataset
+sudo python cleanup_tasks.py --list-by-dataset
 
 # 3. 清理孤立的task（预览）
-python cleanup_tasks.py --clean-orphaned --dry-run
+sudo python cleanup_tasks.py --clean-orphaned --dry-run
 
 # 4. 清理孤立的task（实际执行）
-python cleanup_tasks.py --clean-orphaned
+sudo python cleanup_tasks.py --clean-orphaned
 
 # 5. 清理已取消文档的task
-python cleanup_tasks.py --clean-canceled
+sudo python cleanup_tasks.py --clean-canceled
 
 # 6. 清理指定知识库的所有task
-python cleanup_tasks.py --clean-dataset <dataset_id>
+sudo python cleanup_tasks.py --clean-dataset <dataset_id>
+
+# 7. 不使用Docker直接连接MySQL（无需sudo）
+python cleanup_tasks.py --list-orphaned --no-docker
 ```
 
 ### 参数说明
