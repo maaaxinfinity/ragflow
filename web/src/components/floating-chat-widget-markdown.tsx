@@ -1,6 +1,6 @@
 import Image from '@/components/image';
 import SvgIcon from '@/components/svg-icon';
-import ThinkingAnimation from '@/components/thinking-animation';
+import HexagonLoader from '@/components/hexagon-loader';
 import { useFetchDocumentThumbnailsByIds, useGetDocumentUrl } from '@/hooks/document-hooks';
 import { IReference, IReferenceChunk } from '@/interfaces/database/chat';
 import { preprocessLaTeX, replaceThinkToSection, showImage } from '@/utils/chat';
@@ -181,7 +181,7 @@ const FloatingChatWidgetMarkdown = ({
       {(isSearching || hasThinking) && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 py-2">
-            <ThinkingAnimation size={50} completed={hasThinking} />
+            <HexagonLoader size={60} completed={hasThinking} />
             {isSearching && !hasThinking && (
               <span className="text-xs italic opacity-80 text-gray-600 dark:text-gray-400">
                 {t('common.thinking')}...

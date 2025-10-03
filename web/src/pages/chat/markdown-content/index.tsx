@@ -1,6 +1,6 @@
 import Image from '@/components/image';
 import SvgIcon from '@/components/svg-icon';
-import ThinkingAnimation from '@/components/thinking-animation';
+import HexagonLoader from '@/components/hexagon-loader';
 import { IReference, IReferenceChunk } from '@/interfaces/database/chat';
 import { getExtension } from '@/utils/document-util';
 import { InfoCircleOutlined } from '@ant-design/icons';
@@ -259,7 +259,7 @@ const MarkdownContent = ({
       {(isSearching || hasThinking) && (
         <div className="space-y-2">
           <div className="flex items-center gap-3 py-2">
-            <ThinkingAnimation size={60} completed={hasThinking} />
+            <HexagonLoader size={80} completed={hasThinking} />
             {isSearching && !hasThinking && (
               <span className="text-sm italic opacity-80 text-gray-600 dark:text-gray-400">
                 {t('common.thinking')}...
