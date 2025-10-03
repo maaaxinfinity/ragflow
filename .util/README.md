@@ -310,20 +310,20 @@ DOCKER_CONTAINER=ragflow-mysql
 1. **定期维护**
    ```bash
    # 每周清理一次孤立task
-   python cleanup_tasks.py --clean-orphaned
+   sudo python cleanup_tasks.py --clean-orphaned
    ```
 
 2. **故障恢复**
    ```bash
    # 系统异常后清理残留task
-   python cleanup_tasks.py --list-orphaned
-   python cleanup_tasks.py --clean-orphaned
+   sudo python cleanup_tasks.py --list-orphaned
+   sudo python cleanup_tasks.py --clean-orphaned
    ```
 
 3. **知识库重置**
    ```bash
    # 完全重置某个知识库
-   python cleanup_tasks.py --clean-dataset <dataset_id>
+   sudo python cleanup_tasks.py --clean-dataset <dataset_id>
    python cancel_parse.py --names "知识库名称"
    python resolve.py --names "知识库名称" --force
    ```
@@ -334,13 +334,13 @@ DOCKER_CONTAINER=ragflow-mysql
 
 ```bash
 # 步骤1: 查看当前状态
-python cleanup_tasks.py --list-by-dataset
+sudo python cleanup_tasks.py --list-by-dataset
 
 # 步骤2: 取消解析
 python cancel_parse.py --names "法律法规测试"
 
 # 步骤3: 清理遗留task（如果有）
-python cleanup_tasks.py --clean-orphaned
+sudo python cleanup_tasks.py --clean-orphaned
 
 # 步骤4: 重新解析
 python resolve.py --names "法律法规测试" --force
@@ -350,16 +350,16 @@ python resolve.py --names "法律法规测试" --force
 
 ```bash
 # 步骤1: 预览将要清理的task
-python cleanup_tasks.py --list-orphaned --dry-run
+sudo python cleanup_tasks.py --list-orphaned --dry-run
 
 # 步骤2: 清理已取消的文档task
-python cleanup_tasks.py --clean-canceled
+sudo python cleanup_tasks.py --clean-canceled
 
 # 步骤3: 取消所有测试库的解析
 python cancel_parse.py --only 测试
 
 # 步骤4: 清理剩余孤立task
-python cleanup_tasks.py --clean-orphaned
+sudo python cleanup_tasks.py --clean-orphaned
 ```
 
 ## 更新日志
