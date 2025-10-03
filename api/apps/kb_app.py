@@ -25,7 +25,7 @@ from api.db.services.file_service import FileService
 from api.db.services.user_service import TenantService, UserTenantService
 from api.utils.api_utils import server_error_response, get_data_error_result, validate_request, not_allowed_parameters, active_required
 from api.utils import get_uuid
-from api.db import StatusEnum, FileSource
+from api.db import StatusEnum, FileSource, TaskStatus
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.db_models import File
 from api.utils.api_utils import get_json_result
@@ -118,7 +118,6 @@ def update():
         if "parser_config" in req and req["parser_config"] != kb.parser_config:
             parser_config_changed = True
             # Count documents that need to be reparsed (only completed documents)
-            from api.db.services.document_service import DocumentService
             docs = DocumentService.query(kb_id=kb.id, run=TaskStatus.DONE.value, status="1")
             docs_to_reparse_count = len(docs)
 
