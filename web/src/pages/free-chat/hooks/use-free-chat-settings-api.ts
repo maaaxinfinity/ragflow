@@ -49,20 +49,27 @@ export const useFreeChatSettingsApi = (userId: string) => {
 
     try {
       setLoading(true);
+      console.log('[Load] Fetching settings for user:', userId);
       const { data: response } = await request(api.getFreeChatSettings, {
         method: 'GET',
         params: { user_id: userId },
       });
 
+      console.log('[Load] Response code:', response.code);
+      console.log('[Load] Response data:', response.data);
+
       if (response.code === 0) {
+        console.log('[Load] Success! Sessions count:', response.data.sessions?.length);
         setSettings(response.data);
         logInfo(`Loaded settings for user ${userId}`, 'useFreeChatSettingsApi');
       } else if (response.code === 102) {
         // Authentication error - user not in team
+        console.error('[Load] Authentication error');
         logError('User not authorized for this team', 'useFreeChatSettingsApi');
         history.push(Routes.FreeChatUnauthorized);
       } else {
         // User has no settings yet, use defaults
+        console.log('[Load] No settings found, using defaults');
         const defaultSettings: FreeChatSettings = {
           user_id: userId,
           ...DEFAULT_SETTINGS,
@@ -71,6 +78,7 @@ export const useFreeChatSettingsApi = (userId: string) => {
       }
       setError(null);
     } catch (e) {
+      console.error('[Load] Exception:', e);
       const errorMsg = e instanceof Error ? e.message : 'Failed to load settings';
       logError(errorMsg, 'useFreeChatSettingsApi.loadSettings');
       setError(errorMsg);
@@ -86,16 +94,28 @@ export const useFreeChatSettingsApi = (userId: string) => {
 
   // Save current settings to API
   const saveToAPI = useCallback(async () => {
-    if (!userId || !settings) return false;
+    if (!userId || !settings) {
+      console.warn('[Save] Skipped - no userId or settings');
+      return false;
+    }
 
     try {
       setSaving(true);
+      console.log('[Save] Saving settings for user:', userId);
+      console.log('[Save] Sessions count:', settings.sessions?.length);
+      console.log('[Save] Dialog ID:', settings.dialog_id);
+      console.log('[Save] Role prompt length:', settings.role_prompt?.length || 0);
+
       const { data: response } = await request(api.saveFreeChatSettings, {
         method: 'POST',
         data: settings,
       });
 
+      console.log('[Save] Response code:', response.code);
+      console.log('[Save] Response message:', response.message);
+
       if (response.code === 0) {
+        console.log('[Save] Success! Returned sessions:', response.data.sessions?.length);
         setSettings(response.data);
         setHasUnsavedChanges(false);
         logInfo(
@@ -105,10 +125,12 @@ export const useFreeChatSettingsApi = (userId: string) => {
         return true;
       } else if (response.code === 102) {
         // Authentication error
+        console.error('[Save] Authentication error');
         logError('User not authorized', 'useFreeChatSettingsApi.saveToAPI');
         history.push(Routes.FreeChatUnauthorized);
         return false;
       } else {
+        console.error('[Save] Failed with code:', response.code);
         logError(
           `Failed to save settings (code ${response.code}): ${response.message || 'Unknown error'}`,
           'useFreeChatSettingsApi.saveToAPI',
@@ -116,6 +138,7 @@ export const useFreeChatSettingsApi = (userId: string) => {
         return false;
       }
     } catch (e) {
+      console.error('[Save] Exception:', e);
       const errorMsg = e instanceof Error ? e.message : 'Failed to save settings';
       logError(errorMsg, 'useFreeChatSettingsApi.saveToAPI');
       return false;
@@ -140,21 +163,29 @@ export const useFreeChatSettingsApi = (userId: string) => {
       field: K,
       value: FreeChatSettings[K],
     ) => {
-      if (!settings) return;
+      console.log('[UpdateField] Field:', field, 'Value:', field === 'sessions' ? `${(value as any[]).length} sessions` : value);
+
+      if (!settings) {
+        console.warn('[UpdateField] No settings, skipping');
+        return;
+      }
 
       // Update local state immediately
       const updatedSettings = { ...settings, [field]: value };
       setSettings(updatedSettings);
       setHasUnsavedChanges(true);
+      console.log('[UpdateField] Updated local state, hasUnsavedChanges=true');
 
       // Debounce time: shorter for sessions (5s), longer for settings (30s)
       const debounceTime = field === 'sessions' ? 5000 : 30000;
+      console.log('[UpdateField] Scheduling auto-save in', debounceTime, 'ms');
 
       // Schedule auto-save
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
       autoSaveTimerRef.current = setTimeout(() => {
+        console.log('[UpdateField] Auto-save timer triggered');
         saveToAPI();
       }, debounceTime);
     },

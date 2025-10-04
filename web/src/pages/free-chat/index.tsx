@@ -41,8 +41,13 @@ function FreeChatContent() {
   // Handle sessions change with debounce (5 seconds)
   const handleSessionsChange = useCallback(
     (sessions: any[]) => {
+      console.log('[SessionsChange] Called with', sessions.length, 'sessions');
+      console.log('[SessionsChange] userId:', userId, 'settings:', !!settings);
       if (userId && settings) {
+        console.log('[SessionsChange] Calling updateField');
         updateField('sessions', sessions);
+      } else {
+        console.warn('[SessionsChange] Skipped - missing userId or settings');
       }
     },
     [userId, settings, updateField],
