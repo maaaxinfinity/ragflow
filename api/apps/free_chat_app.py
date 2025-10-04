@@ -13,7 +13,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from flask import request
+from flask import request, Blueprint
 from flask_login import login_required, current_user
 from api.db.services.free_chat_user_settings_service import FreeChatUserSettingsService
 from api.db.services.user_service import UserTenantService
@@ -22,6 +22,52 @@ from api.utils.api_utils import get_data_error_result, get_json_result, server_e
 from api.db.db_models import APIToken
 from api.db import UserTenantRole
 from api import settings
+from rag.utils.redis_conn import REDIS_CONN
+import json
+import logging
+
+# Blueprint for free chat settings and sessions
+manager = Blueprint('free_chat', __name__)
+
+# Redis key prefix for sessions cache
+REDIS_SESSION_KEY_PREFIX = "freechat:sessions:"
+REDIS_SESSION_TTL = 7 * 24 * 60 * 60  # 7 days
+
+
+def get_sessions_from_redis(user_id: str):
+    """Get sessions from Redis cache (L1 cache)"""
+    try:
+        key = f"{REDIS_SESSION_KEY_PREFIX}{user_id}"
+        data = REDIS_CONN.get(key)
+        if data:
+            return json.loads(data)
+    except Exception as e:
+        logging.warning(f"[FreeChat] Redis get failed for user {user_id}: {e}")
+    return None
+
+
+def save_sessions_to_redis(user_id: str, sessions: list):
+    """Save sessions to Redis cache with TTL"""
+    try:
+        key = f"{REDIS_SESSION_KEY_PREFIX}{user_id}"
+        REDIS_CONN.setex(
+            key,
+            REDIS_SESSION_TTL,
+            json.dumps(sessions, ensure_ascii=False)
+        )
+        logging.info(f"[FreeChat] Cached sessions to Redis for user {user_id}")
+    except Exception as e:
+        logging.error(f"[FreeChat] Redis save failed for user {user_id}: {e}")
+
+
+def invalidate_sessions_cache(user_id: str):
+    """Invalidate Redis cache for user"""
+    try:
+        key = f"{REDIS_SESSION_KEY_PREFIX}{user_id}"
+        REDIS_CONN.delete(key)
+        logging.info(f"[FreeChat] Invalidated Redis cache for user {user_id}")
+    except Exception as e:
+        logging.error(f"[FreeChat] Redis delete failed for user {user_id}: {e}")
 
 
 def verify_team_access(user_id: str, current_tenant_id: str = None) -> tuple[bool, str]:
@@ -90,19 +136,34 @@ def get_user_settings():
                 code=settings.RetCode.AUTHENTICATION_ERROR
             )
 
+        # Try to get sessions from Redis cache first (L1 cache)
+        cached_sessions = get_sessions_from_redis(user_id)
+
         exists, setting = FreeChatUserSettingsService.get_by_user_id(user_id)
         if exists:
-            return get_json_result(data=setting.to_dict())
+            result = setting.to_dict()
+            # Use cached sessions if available, otherwise use DB sessions
+            if cached_sessions is not None:
+                result['sessions'] = cached_sessions
+                logging.info(f"[FreeChat] Loaded sessions from Redis cache for user {user_id}")
+            else:
+                # Cache miss, cache the DB sessions to Redis
+                save_sessions_to_redis(user_id, result.get('sessions', []))
+                logging.info(f"[FreeChat] Loaded sessions from MySQL for user {user_id}")
+            return get_json_result(data=result)
         else:
             # Return default settings
-            return get_json_result(data={
+            default_settings = {
                 "user_id": user_id,
                 "dialog_id": "",
                 "model_params": {"temperature": 0.7, "top_p": 0.9},
                 "kb_ids": [],
                 "role_prompt": "",
                 "sessions": []
-            })
+            }
+            # Cache default sessions
+            save_sessions_to_redis(user_id, [])
+            return get_json_result(data=default_settings)
     except Exception as e:
         return server_error_response(e)
 
@@ -149,10 +210,20 @@ def save_user_settings():
                     code=settings.RetCode.AUTHENTICATION_ERROR
                 )
 
+        # Step 1: Save sessions to Redis immediately (fast response)
+        sessions = data.get("sessions", [])
+        save_sessions_to_redis(user_id, sessions)
+        logging.info(f"[FreeChat] Saved sessions to Redis for user {user_id}")
+
+        # Step 2: Persist to MySQL (guaranteed durability)
         success, result = FreeChatUserSettingsService.upsert(user_id, **data)
         if success:
+            logging.info(f"[FreeChat] Persisted settings to MySQL for user {user_id}")
             return get_json_result(data=result.to_dict())
         else:
+            # MySQL save failed, invalidate Redis cache to prevent inconsistency
+            invalidate_sessions_cache(user_id)
+            logging.error(f"[FreeChat] MySQL save failed, invalidated Redis cache for user {user_id}")
             return get_data_error_result(message=f"Failed to save settings: {result}")
     except Exception as e:
         return server_error_response(e)
@@ -178,8 +249,12 @@ def delete_user_settings(user_id):
                 code=settings.RetCode.AUTHENTICATION_ERROR
             )
 
+        # Delete from MySQL
         success = FreeChatUserSettingsService.delete_by_user_id(user_id)
         if success:
+            # Also invalidate Redis cache
+            invalidate_sessions_cache(user_id)
+            logging.info(f"[FreeChat] Deleted settings and cache for user {user_id}")
             return get_json_result(data=True)
         else:
             return get_data_error_result(message="Failed to delete settings or user not found")

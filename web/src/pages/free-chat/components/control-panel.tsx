@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
-import { RotateCcw, ChevronDown, ChevronUp, Settings2, Sparkles } from 'lucide-react';
+import { RotateCcw, ChevronDown, ChevronUp, Settings2, Sparkles, Save, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useDynamicParams } from '../hooks/use-dynamic-params';
 import { useTranslate } from '@/hooks/common-hooks';
@@ -23,6 +23,10 @@ interface ControlPanelProps {
   onRolePromptChange?: (prompt: string) => void;
   modelParams?: DynamicModelParams;
   onModelParamsChange?: (params: DynamicModelParams) => void;
+  // Save button props
+  saving?: boolean;
+  hasUnsavedChanges?: boolean;
+  onManualSave?: () => void;
 }
 
 export function ControlPanel({
@@ -32,6 +36,9 @@ export function ControlPanel({
   onRolePromptChange,
   modelParams,
   onModelParamsChange,
+  saving = false,
+  hasUnsavedChanges = false,
+  onManualSave,
 }: ControlPanelProps) {
   const { params, updateParam, resetParams, paramsChanged } =
     useDynamicParams({
@@ -44,11 +51,42 @@ export function ControlPanel({
   return (
     <div className="w-80 border-l flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto">
       {/* Header */}
-      <div className="p-4 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="flex items-center gap-2 mb-3">
-          <Settings2 className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">配置面板</h2>
+      <div className="p-4 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">配置面板</h2>
+          </div>
+          {/* Save Button */}
+          {onManualSave && (
+            <Button
+              onClick={onManualSave}
+              disabled={saving || !hasUnsavedChanges}
+              size="sm"
+              variant={hasUnsavedChanges ? "default" : "outline"}
+              className="gap-2"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  保存中...
+                </>
+              ) : (
+                <>
+                  <Save className="h-3.5 w-3.5" />
+                  {hasUnsavedChanges ? '保存' : '已保存'}
+                </>
+              )}
+            </Button>
+          )}
         </div>
+        {hasUnsavedChanges && !saving && (
+          <Alert className="py-2 border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+            <AlertDescription className="text-xs text-amber-700 dark:text-amber-400">
+              有未保存的更改 · 30秒后自动保存
+            </AlertDescription>
+          </Alert>
+        )}
         <DialogSelector
           selectedDialogId={dialogId}
           onDialogChange={onDialogChange}
@@ -144,13 +182,13 @@ export function ControlPanel({
                 <Label className="text-sm font-medium">系统提示词 (Role Prompt)</Label>
                 <Textarea
                   placeholder="设置AI的角色和行为规范，例如：你是一个专业的技术顾问..."
-                  value={rolePrompt}
-                  onChange={(e) => onRolePromptChange?.(e.target.value)}
+                  defaultValue={rolePrompt}
+                  onBlur={(e) => onRolePromptChange?.(e.target.value)}
                   rows={6}
                   className="resize-none text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  自定义AI的角色设定，此设置将影响所有对话
+                  自定义AI的角色设定，失焦时自动保存
                 </p>
               </div>
             </CollapsibleContent>

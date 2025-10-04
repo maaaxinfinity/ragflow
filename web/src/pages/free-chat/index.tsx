@@ -17,7 +17,14 @@ function FreeChatContent() {
   const controller = useRef(new AbortController());
   const userId = useFreeChatUserId();
   const [searchParams] = useSearchParams();
-  const { settings, loading: settingsLoading, updateField } = useFreeChatSettingsApi(userId);
+  const {
+    settings,
+    loading: settingsLoading,
+    saving: settingsSaving,
+    hasUnsavedChanges,
+    updateField,
+    manualSave,
+  } = useFreeChatSettingsApi(userId);
 
   // Fetch tenant info (required for team queries)
   const { data: tenantInfo, loading: tenantInfoLoading } = useFetchTenantInfo();
@@ -31,6 +38,7 @@ function FreeChatContent() {
   // Find current user info from tenant users
   const currentUserInfo = tenantUsers.find(user => user.user_id === userId);
 
+  // Handle sessions change with debounce (5 seconds)
   const handleSessionsChange = useCallback(
     (sessions: any[]) => {
       if (userId && settings) {
@@ -254,6 +262,9 @@ function FreeChatContent() {
         onRolePromptChange={handleRolePromptChange}
         modelParams={settings?.model_params}
         onModelParamsChange={handleModelParamsChange}
+        saving={settingsSaving}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onManualSave={manualSave}
       />
 
       {/* User Info Display - Bottom Right */}

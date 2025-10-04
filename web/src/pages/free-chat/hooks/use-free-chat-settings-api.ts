@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { IFreeChatSession } from './use-free-chat-session';
 import { DynamicModelParams } from '../types';
 import api from '@/utils/api';
@@ -26,12 +26,18 @@ const DEFAULT_SETTINGS: Omit<FreeChatSettings, 'user_id'> = {
 
 /**
  * Hook to manage free chat user settings via API
- * This replaces localStorage with database storage
+ * Optimized save strategy:
+ * - Sessions: debounced 5s
+ * - Other settings: auto-save after 30s
+ * - Manual save: immediate
  */
 export const useFreeChatSettingsApi = (userId: string) => {
   const [settings, setSettings] = useState<FreeChatSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load settings from API
   const loadSettings = useCallback(async () => {
@@ -78,56 +84,91 @@ export const useFreeChatSettingsApi = (userId: string) => {
     }
   }, [userId]);
 
-  // Save settings to API
-  const saveSettings = useCallback(
-    async (updates: Partial<Omit<FreeChatSettings, 'user_id'>>) => {
-      if (!userId || !settings) return false;
+  // Save current settings to API
+  const saveToAPI = useCallback(async () => {
+    if (!userId || !settings) return false;
 
-      try {
-        const updatedSettings = { ...settings, ...updates };
-        const response = await request(api.saveFreeChatSettings, {
-          method: 'POST',
-          data: updatedSettings,
-        });
+    try {
+      setSaving(true);
+      const response = await request(api.saveFreeChatSettings, {
+        method: 'POST',
+        data: settings,
+      });
 
-        if (response.code === 0) {
-          setSettings(response.data);
-          logInfo(
-            `Saved settings for user ${userId}`,
-            'useFreeChatSettingsApi.saveSettings',
-          );
-          return true;
-        } else if (response.code === 102) {
-          // Authentication error
-          logError('User not authorized', 'useFreeChatSettingsApi.saveSettings');
-          history.push(Routes.FreeChatUnauthorized);
-          return false;
-        } else {
-          logError(
-            response.message || 'Failed to save settings',
-            'useFreeChatSettingsApi.saveSettings',
-          );
-          return false;
-        }
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : 'Failed to save settings';
-        logError(errorMsg, 'useFreeChatSettingsApi.saveSettings');
+      if (response.code === 0) {
+        setSettings(response.data);
+        setHasUnsavedChanges(false);
+        logInfo(
+          `Saved settings for user ${userId}`,
+          'useFreeChatSettingsApi.saveToAPI',
+        );
+        return true;
+      } else if (response.code === 102) {
+        // Authentication error
+        logError('User not authorized', 'useFreeChatSettingsApi.saveToAPI');
+        history.push(Routes.FreeChatUnauthorized);
+        return false;
+      } else {
+        logError(
+          response.message || 'Failed to save settings',
+          'useFreeChatSettingsApi.saveToAPI',
+        );
         return false;
       }
-    },
-    [userId, settings],
-  );
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'Failed to save settings';
+      logError(errorMsg, 'useFreeChatSettingsApi.saveToAPI');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [userId, settings]);
 
-  // Update specific field
+  // Manual save - saves immediately
+  const manualSave = useCallback(async () => {
+    // Clear auto-save timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    return await saveToAPI();
+  }, [saveToAPI]);
+
+  // Update field locally and schedule auto-save
   const updateField = useCallback(
-    async <K extends keyof Omit<FreeChatSettings, 'user_id'>>(
+    <K extends keyof Omit<FreeChatSettings, 'user_id'>>(
       field: K,
       value: FreeChatSettings[K],
     ) => {
-      return await saveSettings({ [field]: value });
+      if (!settings) return;
+
+      // Update local state immediately
+      const updatedSettings = { ...settings, [field]: value };
+      setSettings(updatedSettings);
+      setHasUnsavedChanges(true);
+
+      // Debounce time: shorter for sessions (5s), longer for settings (30s)
+      const debounceTime = field === 'sessions' ? 5000 : 30000;
+
+      // Schedule auto-save
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      autoSaveTimerRef.current = setTimeout(() => {
+        saveToAPI();
+      }, debounceTime);
     },
-    [saveSettings],
+    [settings, saveToAPI],
   );
+
+  // Cleanup auto-save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
 
   // Load settings on mount or when userId changes
   useEffect(() => {
@@ -137,9 +178,11 @@ export const useFreeChatSettingsApi = (userId: string) => {
   return {
     settings,
     loading,
+    saving,
     error,
-    saveSettings,
+    hasUnsavedChanges,
     updateField,
+    manualSave,
     reload: loadSettings,
   };
 };
