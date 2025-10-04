@@ -38,6 +38,16 @@ function FreeChatContent() {
   // Find current user info from tenant users
   const currentUserInfo = tenantUsers.find(user => user.user_id === userId);
 
+  // Debug: Log user info display conditions
+  console.log('[UserInfo] Display conditions:', {
+    userId,
+    hasCurrentUserInfo: !!currentUserInfo,
+    hasTenantInfo: !!tenantInfo,
+    tenantUsersCount: tenantUsers.length,
+    currentUserInfo,
+    tenantInfo,
+  });
+
   // Handle sessions change with debounce (5 seconds)
   // Sessions are saved silently without triggering "unsaved changes" indicator
   const handleSessionsChange = useCallback(
@@ -274,28 +284,28 @@ function FreeChatContent() {
       />
 
       {/* User Info Display - Bottom Right (Highest Priority) */}
-      {userId && currentUserInfo && tenantInfo && (
+      {userId && (currentUserInfo || userInfo) && (
         <div
           className="fixed bottom-6 right-[336px] z-[9999] pointer-events-auto"
           style={{ display: 'flex' }}
         >
           <div className="flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200">
             <RAGFlowAvatar
-              name={currentUserInfo.nickname || currentUserInfo.email}
-              avatar={currentUserInfo.avatar}
+              name={(currentUserInfo?.nickname || currentUserInfo?.email) || (userInfo?.nickname || userInfo?.email) || 'User'}
+              avatar={currentUserInfo?.avatar || userInfo?.avatar}
               isPerson={true}
               className="w-9 h-9 ring-2 ring-primary/20"
             />
             <div className="flex flex-col">
               <span className="text-sm font-semibold">
-                {currentUserInfo.nickname || currentUserInfo.email}
+                {(currentUserInfo?.nickname || currentUserInfo?.email) || (userInfo?.nickname || userInfo?.email) || 'User'}
               </span>
-              {currentUserInfo.nickname && currentUserInfo.email && (
+              {((currentUserInfo?.nickname && currentUserInfo?.email) || (userInfo?.nickname && userInfo?.email)) && (
                 <span className="text-xs text-muted-foreground">
-                  {currentUserInfo.email}
+                  {currentUserInfo?.email || userInfo?.email}
                 </span>
               )}
-              {tenantInfo.name && (
+              {tenantInfo?.name && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
