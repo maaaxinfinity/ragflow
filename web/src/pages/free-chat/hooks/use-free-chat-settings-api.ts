@@ -162,8 +162,10 @@ export const useFreeChatSettingsApi = (userId: string) => {
     <K extends keyof Omit<FreeChatSettings, 'user_id'>>(
       field: K,
       value: FreeChatSettings[K],
+      options?: { silent?: boolean }
     ) => {
-      console.log('[UpdateField] Field:', field, 'Value:', field === 'sessions' ? `${(value as any[]).length} sessions` : value);
+      const silent = options?.silent ?? false;
+      console.log('[UpdateField] Field:', field, 'Value:', field === 'sessions' ? `${(value as any[]).length} sessions` : value, 'Silent:', silent);
 
       if (!settings) {
         console.warn('[UpdateField] No settings, skipping');
@@ -173,8 +175,14 @@ export const useFreeChatSettingsApi = (userId: string) => {
       // Update local state immediately
       const updatedSettings = { ...settings, [field]: value };
       setSettings(updatedSettings);
-      setHasUnsavedChanges(true);
-      console.log('[UpdateField] Updated local state, hasUnsavedChanges=true');
+
+      // Only set hasUnsavedChanges if not silent
+      if (!silent) {
+        setHasUnsavedChanges(true);
+        console.log('[UpdateField] Updated local state, hasUnsavedChanges=true');
+      } else {
+        console.log('[UpdateField] Updated local state (silent mode, no unsaved flag)');
+      }
 
       // Debounce time: shorter for sessions (5s), longer for settings (30s)
       const debounceTime = field === 'sessions' ? 5000 : 30000;

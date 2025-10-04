@@ -2,8 +2,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
-import { RotateCcw, ChevronDown, ChevronUp, Settings2, Sparkles, Save, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { RotateCcw, ChevronDown, ChevronUp, Settings2, Sparkles, Save, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useDynamicParams } from '../hooks/use-dynamic-params';
 import { useTranslate } from '@/hooks/common-hooks';
 import { KnowledgeBaseSelector } from './knowledge-base-selector';
@@ -14,6 +14,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { DynamicModelParams } from '../types';
 
 interface ControlPanelProps {
@@ -47,6 +54,13 @@ export function ControlPanel({
     });
   const { t } = useTranslate('chat');
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
+  const [tempPrompt, setTempPrompt] = useState(rolePrompt);
+
+  // Sync rolePrompt to tempPrompt when it changes
+  useEffect(() => {
+    setTempPrompt(rolePrompt);
+  }, [rolePrompt]);
 
   return (
     <div className="w-80 border-l flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto">
@@ -179,13 +193,27 @@ export function ControlPanel({
             <CollapsibleContent className="space-y-3 pt-3">
               {/* Role Prompt */}
               <div className="space-y-2 p-3 rounded-lg bg-card border">
-                <Label className="text-sm font-medium">系统提示词 (Role Prompt)</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">系统提示词 (Role Prompt)</Label>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setTempPrompt(rolePrompt);
+                      setFullscreenPrompt(true);
+                    }}
+                    className="h-6 w-6"
+                    title="全屏编辑"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
                 <Textarea
                   placeholder="设置AI的角色和行为规范，例如：你是一个专业的技术顾问..."
                   defaultValue={rolePrompt}
                   onBlur={(e) => onRolePromptChange?.(e.target.value)}
                   rows={6}
-                  className="resize-none text-sm"
+                  className="resize-none text-sm overflow-y-auto"
                 />
                 <p className="text-xs text-muted-foreground">
                   自定义AI的角色设定，失焦时自动保存
@@ -200,6 +228,42 @@ export function ControlPanel({
           <KnowledgeBaseSelector />
         </div>
       </div>
+
+      {/* Fullscreen Role Prompt Dialog */}
+      <Dialog open={fullscreenPrompt} onOpenChange={setFullscreenPrompt}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              系统提示词 (Role Prompt)
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            <Textarea
+              value={tempPrompt}
+              onChange={(e) => setTempPrompt(e.target.value)}
+              placeholder="设置AI的角色和行为规范，例如：你是一个专业的技术顾问..."
+              className="h-full resize-none text-sm"
+            />
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setFullscreenPrompt(false)}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={() => {
+                onRolePromptChange?.(tempPrompt);
+                setFullscreenPrompt(false);
+              }}
+            >
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

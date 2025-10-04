@@ -39,13 +39,14 @@ function FreeChatContent() {
   const currentUserInfo = tenantUsers.find(user => user.user_id === userId);
 
   // Handle sessions change with debounce (5 seconds)
+  // Sessions are saved silently without triggering "unsaved changes" indicator
   const handleSessionsChange = useCallback(
     (sessions: any[]) => {
       console.log('[SessionsChange] Called with', sessions.length, 'sessions');
       console.log('[SessionsChange] userId:', userId, 'settings:', !!settings);
       if (userId && settings) {
-        console.log('[SessionsChange] Calling updateField');
-        updateField('sessions', sessions);
+        console.log('[SessionsChange] Calling updateField (silent mode)');
+        updateField('sessions', sessions, { silent: true });
       } else {
         console.warn('[SessionsChange] Skipped - missing userId or settings');
       }
@@ -274,7 +275,7 @@ function FreeChatContent() {
 
       {/* User Info Display - Bottom Right */}
       {userId && currentUserInfo && tenantInfo && (
-        <div className="fixed bottom-6 right-6 flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200">
+        <div className="fixed bottom-6 right-[336px] flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200 z-20">
           <RAGFlowAvatar
             name={currentUserInfo.nickname || currentUserInfo.email}
             avatar={currentUserInfo.avatar}
@@ -334,10 +335,7 @@ export default function FreeChat() {
         />
       </Helmet>
       <div style={{ fontFamily: '"KingHwa_OldSong", serif' }}>
-        <KBProvider
-          initialKBs={settings?.kb_ids}
-          onKBsChange={(kbIds) => updateField('kb_ids', kbIds)}
-        >
+        <KBProvider>
           <FreeChatContent />
         </KBProvider>
       </div>
