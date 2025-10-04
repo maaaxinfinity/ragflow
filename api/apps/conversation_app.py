@@ -185,6 +185,10 @@ def completion():
     kb_ids = req.get("kb_ids", None)
     req.pop("kb_ids", None)
 
+    # Support dynamic role prompt (system prompt override)
+    role_prompt = req.get("role_prompt", None)
+    req.pop("role_prompt", None)
+
     chat_model_config = {}
     for model_config in [
         "temperature",
@@ -230,6 +234,13 @@ def completion():
             logging.info(f"[FreeChat] After override - dialog.kb_ids is now: {dia.kb_ids}, type: {type(dia.kb_ids)}")
         else:
             logging.info(f"[FreeChat] Using dialog's default kb_ids: {dia.kb_ids}")
+
+        # Temporarily override dialog's system prompt if role_prompt provided
+        if role_prompt is not None and role_prompt.strip():
+            logging.info(f"[FreeChat] Overriding dialog system prompt with role_prompt (length: {len(role_prompt)})")
+            dia.prompt_config["system"] = role_prompt
+        else:
+            logging.info(f"[FreeChat] Using dialog's default system prompt")
 
         is_embedded = bool(chat_model_id)
         def stream():

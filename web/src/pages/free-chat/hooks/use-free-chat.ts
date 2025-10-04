@@ -141,10 +141,6 @@ export const useFreeChat = (
       const baseParams = customParams || settings?.model_params || {};
       const kbIdsArray = Array.from(enabledKBs);
 
-      // DEBUG: Log enabledKBs state
-      console.log('[FreeChat] enabledKBs Set:', enabledKBs);
-      console.log('[FreeChat] kbIdsArray:', kbIdsArray);
-
       const requestBody = {
         conversation_id: conversationId,
         messages: [...derivedMessages, message],
@@ -152,23 +148,9 @@ export const useFreeChat = (
         ...baseParams,
         // Dynamic knowledge base (always include, overrides any kb_ids in params)
         kb_ids: kbIdsArray,
+        // Dynamic role prompt (system prompt override)
+        role_prompt: settings?.role_prompt || '',
       };
-
-      // DEBUG: Log full request body
-      console.log('[FreeChat] Full request body:', JSON.stringify(requestBody, null, 2));
-
-      // Log for debugging knowledge base selection
-      if (kbIdsArray.length > 0) {
-        logInfo(
-          `Sending message with ${kbIdsArray.length} knowledge base(s): [${kbIdsArray.join(', ')}]`,
-          'useFreeChat.sendMessage'
-        );
-      } else {
-        logInfo(
-          'Sending message with kb_ids: [] (explicitly clearing knowledge bases)',
-          'useFreeChat.sendMessage'
-        );
-      }
 
       const res = await send(requestBody, controller);
 

@@ -50,11 +50,7 @@ def save_sessions_to_redis(user_id: str, sessions: list):
     """Save sessions to Redis cache with TTL"""
     try:
         key = f"{REDIS_SESSION_KEY_PREFIX}{user_id}"
-        REDIS_CONN.setex(
-            key,
-            REDIS_SESSION_TTL,
-            json.dumps(sessions, ensure_ascii=False)
-        )
+        REDIS_CONN.set_obj(key, sessions, REDIS_SESSION_TTL)
         logging.info(f"[FreeChat] Cached sessions to Redis for user {user_id}")
     except Exception as e:
         logging.error(f"[FreeChat] Redis save failed for user {user_id}: {e}")

@@ -86,22 +86,10 @@ export const useFreeChatSettingsApi = (userId: string) => {
 
   // Save current settings to API
   const saveToAPI = useCallback(async () => {
-    console.log('[useFreeChatSettingsApi] saveToAPI called');
-    console.log('[useFreeChatSettingsApi] userId:', userId);
-    console.log('[useFreeChatSettingsApi] settings:', {
-      ...settings,
-      sessions: settings?.sessions?.length + ' sessions',
-      role_prompt: settings?.role_prompt?.substring(0, 50) + '...',
-    });
-
-    if (!userId || !settings) {
-      console.warn('[useFreeChatSettingsApi] saveToAPI: userId or settings is null');
-      return false;
-    }
+    if (!userId || !settings) return false;
 
     try {
       setSaving(true);
-      console.log('[useFreeChatSettingsApi] Sending POST request with', settings.sessions?.length, 'sessions');
       const response = await request(api.saveFreeChatSettings, {
         method: 'POST',
         data: settings,
@@ -122,7 +110,7 @@ export const useFreeChatSettingsApi = (userId: string) => {
         return false;
       } else {
         logError(
-          response.message || 'Failed to save settings',
+          `Failed to save settings (code ${response.code}): ${response.message || 'Unknown error'}`,
           'useFreeChatSettingsApi.saveToAPI',
         );
         return false;
@@ -152,20 +140,10 @@ export const useFreeChatSettingsApi = (userId: string) => {
       field: K,
       value: FreeChatSettings[K],
     ) => {
-      console.log('[useFreeChatSettingsApi] updateField called:', field,
-        field === 'sessions' ? `${(value as any[]).length} sessions` : value);
-
-      if (!settings) {
-        console.warn('[useFreeChatSettingsApi] updateField: settings is null, skipping');
-        return;
-      }
+      if (!settings) return;
 
       // Update local state immediately
       const updatedSettings = { ...settings, [field]: value };
-      console.log('[useFreeChatSettingsApi] Updated settings:', {
-        ...updatedSettings,
-        sessions: updatedSettings.sessions?.length + ' sessions',
-      });
       setSettings(updatedSettings);
       setHasUnsavedChanges(true);
 
@@ -177,7 +155,6 @@ export const useFreeChatSettingsApi = (userId: string) => {
         clearTimeout(autoSaveTimerRef.current);
       }
       autoSaveTimerRef.current = setTimeout(() => {
-        console.log('[useFreeChatSettingsApi] Auto-save triggered for field:', field);
         saveToAPI();
       }, debounceTime);
     },
