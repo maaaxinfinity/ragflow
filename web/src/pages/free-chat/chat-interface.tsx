@@ -23,6 +23,10 @@ interface ChatInterfaceProps {
   removeAllMessages: () => void;
   regenerateMessage: (message: Message) => void;
   dialogId: string;
+  // User and dialog avatar props
+  userAvatar?: string;
+  userNickname?: string;
+  dialogAvatar?: string;
 }
 
 export function ChatInterface({
@@ -39,9 +43,16 @@ export function ChatInterface({
   removeAllMessages,
   regenerateMessage,
   dialogId,
+  userAvatar,
+  userNickname,
+  dialogAvatar,
 }: ChatInterfaceProps) {
   const { data: userInfo } = useFetchUserInfo();
   const { t } = useTranslate('chat');
+
+  // Use provided avatar/nickname or fallback to userInfo
+  const displayAvatar = userAvatar || userInfo.avatar;
+  const displayNickname = userNickname || userInfo.nickname;
 
   return (
     <section className="flex flex-col h-full bg-gradient-to-b from-background to-muted/10">
@@ -107,9 +118,9 @@ export function ChatInterface({
                   }
                   key={buildMessageUuidWithRole(message)}
                   item={message}
-                  nickname={userInfo.nickname}
-                  avatar={userInfo.avatar}
-                  avatarDialog={''} // Free chat doesn't have dialog avatar
+                  nickname={displayNickname}
+                  avatar={displayAvatar}
+                  avatarDialog={dialogAvatar || ''}
                   reference={(message as any).reference}
                   clickDocumentButton={() => {}}
                   index={i}

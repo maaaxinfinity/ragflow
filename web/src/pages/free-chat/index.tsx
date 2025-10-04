@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { useFreeChat } from './hooks/use-free-chat';
 import { ControlPanel } from './components/control-panel';
 import { ChatInterface } from './chat-interface';
@@ -9,6 +9,7 @@ import { useFreeChatSettingsApi } from './hooks/use-free-chat-settings-api';
 import { Spin } from 'antd';
 import { Helmet, useSearchParams } from 'umi';
 import { useListTenantUser, useFetchUserInfo, useFetchTenantInfo } from '@/hooks/user-setting-hooks';
+import { useFetchDialogList } from '@/hooks/use-chat-request';
 import chatService from '@/services/next-chat-service';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 
@@ -35,8 +36,21 @@ function FreeChatContent() {
   // Fetch tenant users to get user info by user_id (only after tenantInfo is loaded)
   const { data: tenantUsers = [] } = useListTenantUser();
 
+  // Fetch dialog list to get current dialog avatar
+  const { data: dialogData } = useFetchDialogList();
+
   // Find current user info from tenant users
   const currentUserInfo = tenantUsers.find(user => user.user_id === userId);
+
+  // Find current dialog by dialogId
+  const currentDialog = useMemo(() => {
+    return dialogData?.dialogs?.find(d => d.id === dialogId);
+  }, [dialogData, dialogId]);
+
+  // Calculate user avatar and nickname (prioritize currentUserInfo)
+  const userAvatar = currentUserInfo?.avatar || userInfo?.avatar;
+  const userNickname = currentUserInfo?.nickname || currentUserInfo?.email || userInfo?.nickname || userInfo?.email || 'User';
+  const dialogAvatar = currentDialog?.icon; // Use dialog icon if set, otherwise MessageItem will show default AssistantIcon
 
   // Debug: Log user info display conditions
   console.log('[UserInfo] Display conditions:', {
@@ -267,6 +281,9 @@ function FreeChatContent() {
           removeAllMessages={removeAllMessages}
           regenerateMessage={regenerateMessage}
           dialogId={dialogId}
+          userAvatar={userAvatar}
+          userNickname={userNickname}
+          dialogAvatar={dialogAvatar}
         />
       </div>
 
@@ -281,42 +298,11 @@ function FreeChatContent() {
         saving={settingsSaving}
         hasUnsavedChanges={hasUnsavedChanges}
         onManualSave={manualSave}
+        userId={userId}
+        currentUserInfo={currentUserInfo}
+        userInfo={userInfo}
+        tenantInfo={tenantInfo}
       />
-
-      {/* User Info Display - Bottom Right (Highest Priority) */}
-      {userId && (currentUserInfo || userInfo) && (
-        <div
-          className="fixed bottom-6 right-[336px] z-[9999] pointer-events-auto"
-          style={{ display: 'flex' }}
-        >
-          <div className="flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200">
-            <RAGFlowAvatar
-              name={(currentUserInfo?.nickname || currentUserInfo?.email) || (userInfo?.nickname || userInfo?.email) || 'User'}
-              avatar={currentUserInfo?.avatar || userInfo?.avatar}
-              isPerson={true}
-              className="w-9 h-9 ring-2 ring-primary/20"
-            />
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold">
-                {(currentUserInfo?.nickname || currentUserInfo?.email) || (userInfo?.nickname || userInfo?.email) || 'User'}
-              </span>
-              {((currentUserInfo?.nickname && currentUserInfo?.email) || (userInfo?.nickname && userInfo?.email)) && (
-                <span className="text-xs text-muted-foreground">
-                  {currentUserInfo?.email || userInfo?.email}
-                </span>
-              )}
-              {tenantInfo?.name && (
-                <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                  团队：{tenantInfo.name}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
