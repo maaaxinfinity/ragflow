@@ -192,9 +192,17 @@ function FreeChatContent() {
 
   const handleSessionRename = useCallback(
     (sessionId: string, newName: string) => {
+      console.log('[SessionRename] Renaming session:', sessionId, 'to:', newName);
+      // Update the session locally (this will trigger handleSessionsChange via onSessionsChange)
       updateSession(sessionId, { name: newName });
+
+      // Immediately save after rename (wait for state update to propagate)
+      setTimeout(() => {
+        console.log('[SessionRename] Triggering immediate save via manualSave');
+        manualSave();
+      }, 50); // Small delay to ensure state update has propagated
     },
-    [updateSession],
+    [updateSession, manualSave],
   );
 
   const handleDialogChange = useCallback(

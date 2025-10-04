@@ -32,7 +32,9 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
         setCurrentSessionId(initialSessions[0].id);
       }
     }
-  }, [initialSessions, currentSessionId]);
+    // Note: Only depend on initialSessions, not currentSessionId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSessions]);
 
   // Save sessions callback
   const saveSessions = useCallback(

@@ -196,6 +196,9 @@ def save_user_settings():
             "role_prompt": req.get("role_prompt", ""),
             "sessions": req.get("sessions", [])
         }
+        logging.info(f"[FreeChat] Received save request for user {user_id}, sessions count: {len(data['sessions'])}")
+        if data['sessions']:
+            logging.info(f"[FreeChat] First session: id={data['sessions'][0].get('id')}, name={data['sessions'][0].get('name')}")
 
         # Verify dialog belongs to current tenant if provided
         if data["dialog_id"]:
@@ -215,7 +218,11 @@ def save_user_settings():
         success, result = FreeChatUserSettingsService.upsert(user_id, **data)
         if success:
             logging.info(f"[FreeChat] Persisted settings to MySQL for user {user_id}")
-            return get_json_result(data=result.to_dict())
+            result_dict = result.to_dict()
+            logging.info(f"[FreeChat] Returning data: sessions count = {len(result_dict.get('sessions', []))}")
+            if result_dict.get('sessions'):
+                logging.info(f"[FreeChat] First session name: {result_dict['sessions'][0].get('name', 'N/A')}")
+            return get_json_result(data=result_dict)
         else:
             # MySQL save failed, invalidate Redis cache to prevent inconsistency
             invalidate_sessions_cache(user_id)

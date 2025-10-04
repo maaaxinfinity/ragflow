@@ -116,6 +116,9 @@ export const useFreeChatSettingsApi = (userId: string) => {
 
       if (response.code === 0) {
         console.log('[Save] Success! Returned sessions:', response.data.sessions?.length);
+        if (response.data.sessions?.length > 0) {
+          console.log('[Save] First session name:', response.data.sessions[0].name);
+        }
         setSettings(response.data);
         setHasUnsavedChanges(false);
         logInfo(
@@ -162,10 +165,11 @@ export const useFreeChatSettingsApi = (userId: string) => {
     <K extends keyof Omit<FreeChatSettings, 'user_id'>>(
       field: K,
       value: FreeChatSettings[K],
-      options?: { silent?: boolean }
+      options?: { silent?: boolean; immediate?: boolean }
     ) => {
       const silent = options?.silent ?? false;
-      console.log('[UpdateField] Field:', field, 'Value:', field === 'sessions' ? `${(value as any[]).length} sessions` : value, 'Silent:', silent);
+      const immediate = options?.immediate ?? false;
+      console.log('[UpdateField] Field:', field, 'Value:', field === 'sessions' ? `${(value as any[]).length} sessions` : value, 'Silent:', silent, 'Immediate:', immediate);
 
       if (!settings) {
         console.warn('[UpdateField] No settings, skipping');
@@ -184,18 +188,29 @@ export const useFreeChatSettingsApi = (userId: string) => {
         console.log('[UpdateField] Updated local state (silent mode, no unsaved flag)');
       }
 
-      // Debounce time: shorter for sessions (5s), longer for settings (30s)
-      const debounceTime = field === 'sessions' ? 5000 : 30000;
-      console.log('[UpdateField] Scheduling auto-save in', debounceTime, 'ms');
-
-      // Schedule auto-save
+      // Clear existing timer
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
       }
-      autoSaveTimerRef.current = setTimeout(() => {
-        console.log('[UpdateField] Auto-save timer triggered');
-        saveToAPI();
-      }, debounceTime);
+
+      // Immediate save or schedule auto-save
+      if (immediate) {
+        console.log('[UpdateField] Immediate save requested');
+        // Use setTimeout to ensure state update has been flushed
+        setTimeout(() => {
+          saveToAPI();
+        }, 0);
+      } else {
+        // Debounce time: shorter for sessions (5s), longer for settings (30s)
+        const debounceTime = field === 'sessions' ? 5000 : 30000;
+        console.log('[UpdateField] Scheduling auto-save in', debounceTime, 'ms');
+
+        autoSaveTimerRef.current = setTimeout(() => {
+          console.log('[UpdateField] Auto-save timer triggered');
+          saveToAPI();
+        }, debounceTime);
+      }
     },
     [settings, saveToAPI],
   );
