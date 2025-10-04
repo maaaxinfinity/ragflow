@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { DynamicModelParams } from '../types';
 
 const DEFAULT_PARAMS: DynamicModelParams = {
@@ -21,6 +21,9 @@ export const useDynamicParams = (props?: UseDynamicParamsProps) => {
   );
   const [paramsChanged, setParamsChanged] = useState(false);
 
+  // Debounce timer ref
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Sync with external params changes
   useEffect(() => {
     if (initialParams) {
@@ -28,10 +31,27 @@ export const useDynamicParams = (props?: UseDynamicParamsProps) => {
     }
   }, [initialParams]);
 
-  // Save params callback
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Save params callback with debounce
   const saveParams = useCallback(
     (newParams: DynamicModelParams) => {
-      onParamsChange?.(newParams);
+      // Clear previous timer
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+
+      // Set new timer - save after 500ms of no changes
+      saveTimerRef.current = setTimeout(() => {
+        onParamsChange?.(newParams);
+      }, 500);
     },
     [onParamsChange],
   );

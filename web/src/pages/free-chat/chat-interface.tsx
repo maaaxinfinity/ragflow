@@ -5,7 +5,7 @@ import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
 import { buildMessageUuidWithRole } from '@/utils/chat';
 import { Message } from '@/interfaces/database/chat';
 import { Button } from '@/components/ui/button';
-import { Trash2 } from 'lucide-react';
+import { Trash2, MessageCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useTranslate } from '@/hooks/common-hooks';
 
@@ -44,14 +44,19 @@ export function ChatInterface({
   const { t } = useTranslate('chat');
 
   return (
-    <section className="flex flex-col p-5 h-full">
+    <section className="flex flex-col h-full bg-gradient-to-b from-background to-muted/10">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-4 border-b">
-        <div>
-          <h1 className="text-2xl font-bold">{t('freeChat')}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t('freeChatDescription')}
-          </p>
+      <div className="flex items-center justify-between px-6 py-4 border-b bg-card/50 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <MessageCircle className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">{t('freeChat')}</h1>
+            <p className="text-xs text-muted-foreground">
+              {t('freeChatDescription')}
+            </p>
+          </div>
         </div>
         {messages.length > 0 && (
           <Button
@@ -59,6 +64,7 @@ export function ChatInterface({
             size="sm"
             onClick={removeAllMessages}
             disabled={sendLoading}
+            className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50"
           >
             <Trash2 className="h-4 w-4 mr-2" />
             {t('clearAll')}
@@ -68,11 +74,14 @@ export function ChatInterface({
 
       {/* Dialog Setup Alert */}
       {!dialogId && (
-        <Alert className="mb-4">
-          <AlertDescription>
-            {t('selectDialogToStartChatting')}
-          </AlertDescription>
-        </Alert>
+        <div className="mx-6 mt-4">
+          <Alert className="border-primary/50 bg-primary/5">
+            <AlertDescription className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4" />
+              {t('selectDialogToStartChatting')}
+            </AlertDescription>
+          </Alert>
+        </div>
       )}
 
       {/* Messages */}

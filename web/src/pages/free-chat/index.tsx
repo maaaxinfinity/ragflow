@@ -8,8 +8,9 @@ import { useFreeChatUserId } from './hooks/use-free-chat-user-id';
 import { useFreeChatSettingsApi } from './hooks/use-free-chat-settings-api';
 import { Spin } from 'antd';
 import { Helmet, useSearchParams } from 'umi';
-import { useListTenantUser } from '@/hooks/user-setting-hooks';
+import { useListTenantUser, useFetchUserInfo, useFetchTenantInfo } from '@/hooks/user-setting-hooks';
 import chatService from '@/services/next-chat-service';
+import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 
 // BUG FIX: Separate component to use hooks inside KBProvider
 function FreeChatContent() {
@@ -17,6 +18,12 @@ function FreeChatContent() {
   const userId = useFreeChatUserId();
   const [searchParams] = useSearchParams();
   const { settings, loading: settingsLoading, updateField } = useFreeChatSettingsApi(userId);
+
+  // Fetch tenant info (required for team queries)
+  const { data: tenantInfo } = useFetchTenantInfo();
+
+  // Fetch current user info
+  const { data: userInfo } = useFetchUserInfo();
 
   // Fetch tenant users to get user info by user_id
   const { data: tenantUsers = [] } = useListTenantUser();
@@ -195,8 +202,20 @@ function FreeChatContent() {
     );
   }
 
+  // Require user_id parameter for access control
+  if (!userId) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg font-semibold mb-2">Access Denied</p>
+          <p className="text-muted-foreground">This page requires a user_id parameter to access.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-background">
       {/* Session List */}
       <SessionList
         sessions={sessions}
@@ -209,7 +228,7 @@ function FreeChatContent() {
       />
 
       {/* Chat Interface */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <ChatInterface
           messages={derivedMessages}
           onSendMessage={handlePressEnter}
@@ -239,16 +258,15 @@ function FreeChatContent() {
 
       {/* User Info Display - Bottom Right */}
       {userId && currentUserInfo && (
-        <div className="fixed bottom-4 right-4 flex items-center gap-2 bg-white dark:bg-gray-800 border rounded-lg px-3 py-2 shadow-md">
-          {currentUserInfo.avatar && (
-            <img
-              src={currentUserInfo.avatar}
-              alt={currentUserInfo.nickname || currentUserInfo.email}
-              className="w-8 h-8 rounded-full"
-            />
-          )}
+        <div className="fixed bottom-6 right-6 flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200">
+          <RAGFlowAvatar
+            name={currentUserInfo.nickname || currentUserInfo.email}
+            avatar={currentUserInfo.avatar}
+            isPerson={true}
+            className="w-9 h-9 ring-2 ring-primary/20"
+          />
           <div className="flex flex-col">
-            <span className="text-sm font-medium">
+            <span className="text-sm font-semibold">
               {currentUserInfo.nickname || currentUserInfo.email}
             </span>
             {currentUserInfo.nickname && currentUserInfo.email && (
@@ -275,7 +293,7 @@ export default function FreeChat() {
     document.head.appendChild(link);
 
     // Apply font to body
-    document.body.style.fontFamily = '"京华老宋体", serif';
+    document.body.style.fontFamily = '"KingHwa_OldSong", serif';
 
     return () => {
       document.head.removeChild(link);
@@ -291,7 +309,7 @@ export default function FreeChat() {
           href="https://chinese-fonts-cdn.deno.dev/packages/jhlst/dist/%E4%BA%AC%E8%8F%AF%E8%80%81%E5%AE%8B%E4%BD%93v1_007/result.css"
         />
       </Helmet>
-      <div style={{ fontFamily: '"京华老宋体", serif' }}>
+      <div style={{ fontFamily: '"KingHwa_OldSong", serif' }}>
         <KBProvider
           initialKBs={settings?.kb_ids}
           onKBsChange={(kbIds) => updateField('kb_ids', kbIds)}
