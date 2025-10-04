@@ -48,10 +48,10 @@ def verify_team_access(user_id: str, current_tenant_id: str = None) -> tuple[boo
 
         # Check if user_id settings exist and belong to the same tenant
         exists, setting = FreeChatUserSettingsService.get_by_user_id(user_id)
-        if exists and setting.dialog_id:
+        if exists and setting.dialog_id and setting.dialog_id.strip():
             # Verify the dialog belongs to the current tenant
-            dialog = DialogService.query(id=setting.dialog_id, tenant_id=current_tenant_id)
-            if not dialog:
+            dialogs = DialogService.query(id=setting.dialog_id, tenant_id=current_tenant_id)
+            if not dialogs:  # dialogs is a list, check if empty
                 return False, "User does not belong to your team"
 
         # If no settings exist yet, allow access (first time user)
