@@ -20,12 +20,12 @@ function FreeChatContent() {
   const { settings, loading: settingsLoading, updateField } = useFreeChatSettingsApi(userId);
 
   // Fetch tenant info (required for team queries)
-  const { data: tenantInfo } = useFetchTenantInfo();
+  const { data: tenantInfo, loading: tenantInfoLoading } = useFetchTenantInfo();
 
   // Fetch current user info
   const { data: userInfo } = useFetchUserInfo();
 
-  // Fetch tenant users to get user info by user_id
+  // Fetch tenant users to get user info by user_id (only after tenantInfo is loaded)
   const { data: tenantUsers = [] } = useListTenantUser();
 
   // Find current user info from tenant users

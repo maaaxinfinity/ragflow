@@ -50,9 +50,13 @@ def verify_team_access(user_id: str, current_tenant_id: str = None) -> tuple[boo
         exists, setting = FreeChatUserSettingsService.get_by_user_id(user_id)
         if exists and setting.dialog_id and setting.dialog_id.strip():
             # Verify the dialog belongs to the current tenant
-            dialogs = DialogService.query(id=setting.dialog_id, tenant_id=current_tenant_id)
-            if not dialogs:  # dialogs is a list, check if empty
-                return False, "User does not belong to your team"
+            try:
+                dialogs = DialogService.query(id=setting.dialog_id, tenant_id=current_tenant_id)
+                if not dialogs:  # dialogs is a list, check if empty
+                    return False, "User does not belong to your team"
+            except Exception:
+                # Dialog not found or other error, treat as unauthorized
+                return False, "Dialog not found or user does not belong to your team"
 
         # If no settings exist yet, allow access (first time user)
         # They will be associated with the tenant when they save settings
@@ -62,7 +66,7 @@ def verify_team_access(user_id: str, current_tenant_id: str = None) -> tuple[boo
         return False, f"Authorization check failed: {str(e)}"
 
 
-@manager.route("/free_chat/settings", methods=["GET"])  # noqa: F821
+@manager.route("/settings", methods=["GET"])  # noqa: F821
 @login_required
 def get_user_settings():
     """Get free chat settings for a user (team access required)"""
@@ -103,7 +107,7 @@ def get_user_settings():
         return server_error_response(e)
 
 
-@manager.route("/free_chat/settings", methods=["POST", "PUT"])  # noqa: F821
+@manager.route("/settings", methods=["POST", "PUT"])  # noqa: F821
 @login_required
 @validate_request("user_id")
 def save_user_settings():
@@ -154,7 +158,7 @@ def save_user_settings():
         return server_error_response(e)
 
 
-@manager.route("/free_chat/settings/<user_id>", methods=["DELETE"])  # noqa: F821
+@manager.route("/settings/<user_id>", methods=["DELETE"])  # noqa: F821
 @login_required
 def delete_user_settings(user_id):
     """Delete free chat settings for a user (team access required)"""
@@ -183,7 +187,7 @@ def delete_user_settings(user_id):
         return server_error_response(e)
 
 
-@manager.route("/free_chat/admin_token", methods=["GET"])  # noqa: F821
+@manager.route("/admin_token", methods=["GET"])  # noqa: F821
 @login_required
 def get_admin_token():
     """Get admin API token for the current user's tenant"""
