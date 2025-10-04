@@ -38,9 +38,10 @@ class FreeChatUserSettingsService(CommonService):
             # Check if exists
             exists, setting = cls.get_by_user_id(user_id)
             if exists:
-                # Update
-                kwargs['user_id'] = user_id
-                cls.update_by_id(user_id, kwargs)
+                # Update using user_id as primary key
+                update_query = cls.model.update(**kwargs).where(cls.model.user_id == user_id)
+                update_query.execute()
+                # Return updated setting
                 return True, cls.model.get(cls.model.user_id == user_id)
             else:
                 # Insert
