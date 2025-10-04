@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { MessageSquarePlus, Trash2, Eraser, Edit3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MessageSquarePlus, MessageSquare, Trash2, Eraser, Edit3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { IFreeChatSession } from '../hooks/use-free-chat-session';
 import { useTranslate } from '@/hooks/common-hooks';
 import { useState, useCallback } from 'react';
@@ -115,7 +115,7 @@ export function SessionList({
                   onClick={() => onSessionSelect(session.id)}
                   title={session.name}
                 >
-                  <MessageSquarePlus className="h-4 w-4" />
+                  <MessageSquare className="h-4 w-4" />
                 </div>
               );
             })}
@@ -168,7 +168,7 @@ export function SessionList({
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
-                              <MessageSquarePlus className="h-3 w-3" />
+                              <MessageSquare className="h-3 w-3" />
                               {session.messages.length}
                             </span>
                             <span>•</span>

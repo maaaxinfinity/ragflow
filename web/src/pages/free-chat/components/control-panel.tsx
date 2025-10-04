@@ -238,12 +238,12 @@ export function ControlPanel({
               系统提示词 (Role Prompt)
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0">
             <Textarea
               value={tempPrompt}
               onChange={(e) => setTempPrompt(e.target.value)}
               placeholder="设置AI的角色和行为规范，例如：你是一个专业的技术顾问..."
-              className="h-full resize-none text-sm"
+              className="h-full resize-none text-sm overflow-y-auto"
             />
           </div>
           <DialogFooter className="flex gap-2">
