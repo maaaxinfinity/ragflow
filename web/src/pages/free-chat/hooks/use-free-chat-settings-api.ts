@@ -49,7 +49,7 @@ export const useFreeChatSettingsApi = (userId: string) => {
 
     try {
       setLoading(true);
-      const response = await request(api.getFreeChatSettings, {
+      const { data: response } = await request(api.getFreeChatSettings, {
         method: 'GET',
         params: { user_id: userId },
       });
@@ -90,7 +90,7 @@ export const useFreeChatSettingsApi = (userId: string) => {
 
     try {
       setSaving(true);
-      const response = await request(api.saveFreeChatSettings, {
+      const { data: response } = await request(api.saveFreeChatSettings, {
         method: 'POST',
         data: settings,
       });
