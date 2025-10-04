@@ -7,7 +7,7 @@ import { Routes } from '@/routes';
 import { useQuery } from '@tanstack/react-query';
 import chatService from '@/services/next-chat-service';
 import { IConversation } from '@/interfaces/database/chat';
-import { useListTenantUser } from '@/hooks/user-setting-hooks';
+import { useListTenantUser, useFetchUserInfo } from '@/hooks/user-setting-hooks';
 
 interface FreeChatListPanelProps {
   dialogId: string;
@@ -16,6 +16,9 @@ interface FreeChatListPanelProps {
 export function FreeChatListPanel({ dialogId }: FreeChatListPanelProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+
+  // Fetch current user info
+  const { data: currentUserInfo } = useFetchUserInfo();
 
   // Fetch tenant users for user info mapping
   const { data: tenantUsers = [] } = useListTenantUser();
@@ -63,16 +66,19 @@ export function FreeChatListPanel({ dialogId }: FreeChatListPanelProps) {
 
   const handleCreateFreeChat = useCallback(() => {
     if (!dialogId) return;
-    // Navigate to free-chat page
-    navigate(Routes.FreeChat);
-  }, [dialogId, navigate]);
+    // Navigate to free-chat page with user_id and dialog_id
+    const userId = currentUserInfo?.id || '';
+    navigate(`${Routes.FreeChat}?user_id=${userId}&dialog_id=${dialogId}`);
+  }, [dialogId, navigate, currentUserInfo]);
 
   const handleClickConversation = useCallback(
     (conversationId: string) => {
-      // Navigate to free-chat page with conversation_id query
-      navigate(`${Routes.FreeChat}?conversation_id=${conversationId}`);
+      // Navigate to free-chat page with current user's ID and conversation_id
+      // IMPORTANT: Always use current logged-in user's ID, not the conversation creator's ID
+      const userId = currentUserInfo?.id || '';
+      navigate(`${Routes.FreeChat}?user_id=${userId}&conversation_id=${conversationId}`);
     },
-    [navigate],
+    [navigate, currentUserInfo],
   );
 
   const sortedConversations = useMemo(() => {

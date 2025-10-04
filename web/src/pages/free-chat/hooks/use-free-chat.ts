@@ -205,7 +205,9 @@ export const useFreeChat = (
 
       // Create session if not exists and mark message as pending
       if (!currentSession) {
-        createSession(content.slice(0, 30));
+        // Extract meaningful title: trim, limit to 50 chars, remove newlines
+        const title = content.trim().replace(/\n+/g, ' ').slice(0, 50);
+        createSession(title);
         // Store pending message to be sent after session is created
         pendingMessageRef.current = content;
         return;
@@ -343,6 +345,7 @@ export const useFreeChat = (
     currentSessionId,
     sessions,
     createSession,
+    updateSession,
     switchSession,
     deleteSession,
     clearAllSessions,

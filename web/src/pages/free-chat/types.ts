@@ -22,15 +22,5 @@ export interface IFreeChatMessage extends Message {
   kb_ids?: string[]; // 该消息使用的知识库
 }
 
-// 对话会话配置
-export interface IFreeChatSession {
-  id: string;
-  name: string;
-  messages: IFreeChatMessage[];
-  current_model_params: DynamicModelParams;
-  enabled_kb_ids: string[];
-  bookmarked: boolean;
-  tags: string[];
-  created_at: number;
-  updated_at: number;
-}
+// NOTE: IFreeChatSession is defined in hooks/use-free-chat-session.ts
+// This file only contains type definitions that are not tied to specific hooks

@@ -1,7 +1,9 @@
 import { Button } from '@/components/ui/button';
-import { MessageSquarePlus, Trash2, Eraser } from 'lucide-react';
+import { MessageSquarePlus, Trash2, Eraser, Edit3 } from 'lucide-react';
 import { IFreeChatSession } from '../hooks/use-free-chat-session';
 import { useTranslate } from '@/hooks/common-hooks';
+import { useState, useCallback } from 'react';
+import { Input } from '@/components/ui/input';
 
 const formatTimeAgo = (timestamp: number, t: any) => {
   const now = Date.now();
@@ -21,6 +23,7 @@ interface SessionListProps {
   currentSessionId: string;
   onSessionSelect: (sessionId: string) => void;
   onSessionDelete: (sessionId: string) => void;
+  onSessionRename?: (sessionId: string, newName: string) => void;
   onNewSession: () => void;
   onClearAll?: () => void;
 }
@@ -30,10 +33,32 @@ export function SessionList({
   currentSessionId,
   onSessionSelect,
   onSessionDelete,
+  onSessionRename,
   onNewSession,
   onClearAll,
 }: SessionListProps) {
   const { t } = useTranslate('chat');
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+
+  const handleStartEdit = useCallback((session: IFreeChatSession, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditingName(session.name);
+  }, []);
+
+  const handleSaveEdit = useCallback((sessionId: string) => {
+    if (editingName.trim() && onSessionRename) {
+      onSessionRename(sessionId, editingName.trim());
+    }
+    setEditingSessionId(null);
+    setEditingName('');
+  }, [editingName, onSessionRename]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingSessionId(null);
+    setEditingName('');
+  }, []);
 
   return (
     <div className="w-64 border-r flex flex-col h-full bg-background">
@@ -44,40 +69,78 @@ export function SessionList({
             {t('noConversationsYet')}
           </div>
         ) : (
-          sessions.map((session) => (
-            <div
-              key={session.id}
-              className={`group relative p-3 border-b cursor-pointer hover:bg-accent transition-colors ${
-                currentSessionId === session.id ? 'bg-accent' : ''
-              }`}
-              onClick={() => onSessionSelect(session.id)}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">
-                    {session.name}
+          sessions.map((session) => {
+            const isEditing = editingSessionId === session.id;
+
+            return (
+              <div
+                key={session.id}
+                className={`group relative p-3 border-b cursor-pointer hover:bg-accent transition-colors ${
+                  currentSessionId === session.id ? 'bg-accent' : ''
+                }`}
+                onClick={() => !isEditing && onSessionSelect(session.id)}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    {isEditing ? (
+                      <Input
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleSaveEdit(session.id);
+                          } else if (e.key === 'Escape') {
+                            handleCancelEdit();
+                          }
+                        }}
+                        onBlur={() => handleSaveEdit(session.id)}
+                        autoFocus
+                        className="h-7 text-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <>
+                        <div className="font-medium text-sm truncate">
+                          {session.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {session.messages.length} {t('messages')}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatTimeAgo(session.updated_at, t)}
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {session.messages.length} {t('messages')}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatTimeAgo(session.updated_at, t)}
-                  </div>
+                  {!isEditing && (
+                    <div className="flex gap-1">
+                      {onSessionRename && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                          onClick={(e) => handleStartEdit(session, e)}
+                        >
+                          <Edit3 className="h-3 w-3" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSessionDelete(session.id);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSessionDelete(session.id);
-                  }}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

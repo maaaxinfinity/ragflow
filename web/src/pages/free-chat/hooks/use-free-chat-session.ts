@@ -65,7 +65,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
 
     setCurrentSessionId(newSession!.id);
     return newSession!;
-  }, []);
+  }, [saveSessions]);
 
   // Update session
   const updateSession = useCallback((sessionId: string, updates: Partial<IFreeChatSession>) => {
@@ -78,7 +78,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
       saveSessions(updatedSessions);
       return updatedSessions;
     });
-  }, []);
+  }, [saveSessions]);
 
   // Delete session
   const deleteSession = useCallback((sessionId: string) => {
@@ -104,7 +104,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     if (shouldUpdateCurrentId) {
       setCurrentSessionId(newCurrentId);
     }
-  }, [currentSessionId]);
+  }, [currentSessionId, saveSessions]);
 
   // BUG FIX #11: Switch session without closure dependency
   const switchSession = useCallback((sessionId: string) => {
@@ -121,7 +121,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     setSessions([]);
     saveSessions([]);
     setCurrentSessionId('');
-  }, []);
+  }, [saveSessions]);
 
   return {
     sessions,
