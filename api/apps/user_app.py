@@ -26,7 +26,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from api import settings
 from api.apps.auth import get_auth_client
-from api.db import FileType, UserTenantRole
+from api.db import FileType, StatusEnum, UserTenantRole
 from api.db.db_models import TenantLLM
 from api.db.services.file_service import FileService
 from api.db.services.llm_service import get_init_tenant_llm
