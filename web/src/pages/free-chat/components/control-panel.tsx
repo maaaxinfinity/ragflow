@@ -72,6 +72,22 @@ export function ControlPanel({
     setTempPrompt(rolePrompt);
   }, [rolePrompt]);
 
+  // Debug: Log user info received in ControlPanel
+  useEffect(() => {
+    console.log('[ControlPanel] Props received:', {
+      userId,
+      userInfo,
+      currentUserInfo,
+      tenantInfo,
+      hasUserInfo: !!userInfo,
+      hasCurrentUserInfo: !!currentUserInfo,
+      userInfoNickname: userInfo?.nickname,
+      userInfoEmail: userInfo?.email,
+      currentUserInfoNickname: currentUserInfo?.nickname,
+      currentUserInfoEmail: currentUserInfo?.email,
+    });
+  }, [userId, userInfo, currentUserInfo, tenantInfo]);
+
   return (
     <div className="w-80 border-l flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto">
       {/* Header */}
