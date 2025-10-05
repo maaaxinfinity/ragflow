@@ -277,14 +277,37 @@ def delete_user_settings(user_id):
 
 
 @manager.route("/admin_token", methods=["GET"])  # noqa: F821
-@login_required
 def get_admin_token():
     """Get admin API token for the current user's tenant"""
     try:
-        from flask_login import current_user
+        # 支持多种认证方式
+        user = None
+
+        # 方式 1: 检查 Authorization header 中的原始 access_token
+        authorization_str = request.headers.get("Authorization")
+        if authorization_str:
+            parts = authorization_str.split()
+            if len(parts) == 2 and parts[0] == 'Bearer':
+                access_token = parts[1]
+                from api.db import StatusEnum
+                users = UserService.query(access_token=access_token, status=StatusEnum.VALID.value)
+                if users:
+                    user = users[0]
+
+        # 方式 2: 检查 Flask-Login session
+        if not user:
+            from flask_login import current_user
+            if current_user and current_user.is_authenticated:
+                user = current_user
+
+        if not user:
+            return get_data_error_result(
+                message="Authentication required",
+                code=settings.RetCode.AUTHENTICATION_ERROR
+            )
 
         # Get user's tenant
-        tenants = UserTenantService.query(user_id=current_user.id)
+        tenants = UserTenantService.query(user_id=user.id)
         if not tenants:
             return get_data_error_result(message="Tenant not found")
 
