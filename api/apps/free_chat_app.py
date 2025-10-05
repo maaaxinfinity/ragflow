@@ -19,6 +19,7 @@ from api.db.services.free_chat_user_settings_service import FreeChatUserSettings
 from api.db.services.user_service import UserTenantService
 from api.db.services.dialog_service import DialogService
 from api.utils.api_utils import get_data_error_result, get_json_result, server_error_response, validate_request
+from api.utils.auth_decorator import api_key_or_login_required
 from api.db.db_models import APIToken
 from api.db import UserTenantRole
 from api import settings
@@ -109,20 +110,25 @@ def verify_team_access(user_id: str, current_tenant_id: str = None) -> tuple[boo
 
 
 @manager.route("/settings", methods=["GET"])  # noqa: F821
-@login_required
-def get_user_settings():
+@api_key_or_login_required
+def get_user_settings(**kwargs):
     """Get free chat settings for a user (team access required)"""
     try:
         user_id = request.args.get("user_id")
         if not user_id:
             return get_data_error_result(message="user_id is required")
 
-        # Get current user's tenant
-        tenants = UserTenantService.query(user_id=current_user.id)
-        if not tenants:
-            return get_data_error_result(message="User not associated with any tenant")
-
-        current_tenant_id = tenants[0].tenant_id
+        # Get tenant_id based on authentication method
+        auth_method = kwargs.get("auth_method")
+        if auth_method == "api_key":
+            # API key authentication - tenant_id provided by decorator
+            current_tenant_id = kwargs.get("tenant_id")
+        else:
+            # Session authentication - get tenant from current_user
+            tenants = UserTenantService.query(user_id=current_user.id)
+            if not tenants:
+                return get_data_error_result(message="User not associated with any tenant")
+            current_tenant_id = tenants[0].tenant_id
 
         # Verify team access
         is_authorized, error_msg = verify_team_access(user_id, current_tenant_id)
@@ -165,20 +171,25 @@ def get_user_settings():
 
 
 @manager.route("/settings", methods=["POST", "PUT"])  # noqa: F821
-@login_required
+@api_key_or_login_required
 @validate_request("user_id")
-def save_user_settings():
+def save_user_settings(**kwargs):
     """Save/update free chat settings for a user (team access required)"""
     try:
         req = request.json
         user_id = req.get("user_id")
 
-        # Get current user's tenant
-        tenants = UserTenantService.query(user_id=current_user.id)
-        if not tenants:
-            return get_data_error_result(message="User not associated with any tenant")
-
-        current_tenant_id = tenants[0].tenant_id
+        # Get tenant_id based on authentication method
+        auth_method = kwargs.get("auth_method")
+        if auth_method == "api_key":
+            # API key authentication - tenant_id provided by decorator
+            current_tenant_id = kwargs.get("tenant_id")
+        else:
+            # Session authentication - get tenant from current_user
+            tenants = UserTenantService.query(user_id=current_user.id)
+            if not tenants:
+                return get_data_error_result(message="User not associated with any tenant")
+            current_tenant_id = tenants[0].tenant_id
 
         # Verify team access
         is_authorized, error_msg = verify_team_access(user_id, current_tenant_id)
@@ -292,8 +303,12 @@ def get_admin_token():
         # Get or create API token for this tenant
         tokens = APIToken.query(tenant_id=tenant_id)
         if tokens:
-            # Return first available token
-            return get_json_result(data={"token": tokens[0].token})
+            # Return beta token (用于嵌入认证) 和普通 token
+            return get_json_result(data={
+                "token": tokens[0].beta or tokens[0].token,  # 优先返回 beta token
+                "beta": tokens[0].beta,
+                "api_key": tokens[0].token
+            })
         else:
             # No token found
             return get_data_error_result(message="No API token found. Please create one in settings.")
