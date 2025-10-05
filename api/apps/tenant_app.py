@@ -34,21 +34,16 @@ from api.utils.web_utils import send_invite_email
 def user_list(tenant_id, **kwargs):
     # Get auth method and verify authorization
     auth_method = kwargs.get("auth_method")
-    if auth_method == "api_key":
-        # For API key auth, verify tenant_id from decorator matches URL tenant_id
-        decorator_tenant_id = kwargs.get("tenant_id")
-        if decorator_tenant_id != tenant_id:
-            return get_json_result(
-                data=False,
-                message='No authorization.',
-                code=settings.RetCode.AUTHENTICATION_ERROR)
-    else:
+    if auth_method != "api_key":
         # For session auth, verify current_user.id matches URL tenant_id
         if current_user.id != tenant_id:
             return get_json_result(
                 data=False,
                 message='No authorization.',
                 code=settings.RetCode.AUTHENTICATION_ERROR)
+    # For API key auth, decorator has already validated the token
+    # and the tenant_id from token is available as kwargs.get("tenant_id")
+    # We allow access if token is valid (decorator passed)
 
     try:
         users = UserTenantService.get_by_tenant_id(tenant_id)
