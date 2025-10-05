@@ -18,12 +18,15 @@ from flask_login import login_required, current_user
 from api.db.services.free_chat_user_settings_service import FreeChatUserSettingsService
 from api.db.services.user_service import UserTenantService, UserService
 from api.db.services.dialog_service import DialogService
-from api.utils.api_utils import get_data_error_result, get_json_result, server_error_response, validate_request
+from api.db.services.api_service import APITokenService
+from api.utils.api_utils import get_data_error_result, get_json_result, server_error_response, validate_request, generate_confirmation_token
 from api.utils.auth_decorator import api_key_or_login_required
+from api.utils import current_timestamp, datetime_format, get_uuid
 from api.db.db_models import APIToken
 from api.db import UserTenantRole, StatusEnum
 from api import settings
 from rag.utils.redis_conn import REDIS_CONN
+from datetime import datetime
 import json
 import logging
 
@@ -311,14 +314,8 @@ def get_admin_token():
 
         tenant_id = tenants[0].tenant_id
 
-        # Check if user is team admin
-        if tenants[0].role != UserTenantRole.OWNER:
-            # User is not admin, try to get team admin's token
-            # Get team owner
-            team_admins = UserTenantService.query(tenant_id=tenant_id, role=UserTenantRole.OWNER)
-            if not team_admins:
-                return get_data_error_result(message="Team admin not found")
-            tenant_id = team_admins[0].tenant_id
+        # API token is team-level (tenant_id based), all team members can access it
+        # No need to check if user is OWNER - just use the tenant_id directly
 
         # Get or create API token for this tenant
         tokens = APIToken.query(tenant_id=tenant_id)
@@ -330,7 +327,38 @@ def get_admin_token():
                 "api_key": tokens[0].token
             })
         else:
-            # No token found
-            return get_data_error_result(message="No API token found. Please create one in settings.")
+            # No token found - auto create one for better UX
+            logging.info(f"[FreeChat] No API token found for tenant {tenant_id}, creating one automatically")
+            try:
+                # Generate token and beta token
+                token = generate_confirmation_token(tenant_id)
+                beta_token = "ragflow-" + get_uuid()[:32]  # Generate beta token for iframe embedding
+
+                # Create API token record
+                token_obj = {
+                    "tenant_id": tenant_id,
+                    "token": token,
+                    "beta": beta_token,
+                    "dialog_id": None,
+                    "source": None,
+                    "create_time": current_timestamp(),
+                    "create_date": datetime_format(datetime.now()),
+                    "update_time": None,
+                    "update_date": None
+                }
+
+                if not APITokenService.save(**token_obj):
+                    logging.error(f"[FreeChat] Failed to auto-create API token for tenant {tenant_id}")
+                    return get_data_error_result(message="Failed to create API token automatically")
+
+                logging.info(f"[FreeChat] Successfully auto-created API token for tenant {tenant_id}")
+                return get_json_result(data={
+                    "token": beta_token,
+                    "beta": beta_token,
+                    "api_key": token
+                })
+            except Exception as e:
+                logging.error(f"[FreeChat] Error auto-creating API token: {e}")
+                return get_data_error_result(message=f"Failed to create API token: {str(e)}")
     except Exception as e:
         return server_error_response(e)
