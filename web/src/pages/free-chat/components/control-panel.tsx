@@ -243,18 +243,23 @@ export function ControlPanel({
           <div className="pt-4 border-t">
             <div className="flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200">
               <RAGFlowAvatar
-                name={(currentUserInfo?.nickname || currentUserInfo?.email) || (userInfo?.nickname || userInfo?.email) || 'User'}
-                avatar={currentUserInfo?.avatar || userInfo?.avatar}
+                name={(userInfo?.nickname || userInfo?.email) || (currentUserInfo?.nickname || currentUserInfo?.email) || 'User'}
+                avatar={userInfo?.avatar || currentUserInfo?.avatar}
                 isPerson={true}
                 className="w-9 h-9 ring-2 ring-primary/20"
               />
               <div className="flex flex-col">
-                <span className="text-sm font-semibold">
-                  {(currentUserInfo?.nickname || currentUserInfo?.email) || (userInfo?.nickname || userInfo?.email) || 'User'}
+                <span className="text-sm font-semibold flex items-center gap-2">
+                  {(userInfo?.nickname || userInfo?.email) || (currentUserInfo?.nickname || currentUserInfo?.email) || 'User'}
+                  {userInfo?.is_su && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm">
+                      SU
+                    </span>
+                  )}
                 </span>
-                {((currentUserInfo?.nickname && currentUserInfo?.email) || (userInfo?.nickname && userInfo?.email)) && (
+                {((userInfo?.nickname && userInfo?.email) || (currentUserInfo?.nickname && currentUserInfo?.email)) && (
                   <span className="text-xs text-muted-foreground">
-                    {currentUserInfo?.email || userInfo?.email}
+                    {userInfo?.email || currentUserInfo?.email}
                   </span>
                 )}
                 {tenantInfo?.name && (

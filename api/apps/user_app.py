@@ -641,14 +641,36 @@ def user_profile(**kwargs):
             # FreeChat mode - return user info by user_id
             users = UserService.query(id=user_id)
             if users:
-                return get_json_result(data=users[0].to_dict())
+                user_dict = users[0].to_dict()
+                # Add is_su field based on ADMIN_EMAIL
+                admin_email = os.environ.get("ADMIN_EMAIL")
+                if admin_email:
+                    su_users = UserService.query(email=admin_email, status=StatusEnum.VALID.value)
+                    if su_users and su_users[0].id == user_id:
+                        user_dict['is_su'] = True
+                    else:
+                        user_dict['is_su'] = False
+                else:
+                    user_dict['is_su'] = False
+                return get_json_result(data=user_dict)
             return get_data_error_result(message="User not found")
         else:
             # External embedding mode - return null
             return get_json_result(data=None)
 
     # Session authentication - return user profile
-    return get_json_result(data=current_user.to_dict())
+    user_dict = current_user.to_dict()
+    # Add is_su field based on ADMIN_EMAIL
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    if admin_email:
+        su_users = UserService.query(email=admin_email, status=StatusEnum.VALID.value)
+        if su_users and su_users[0].id == current_user.id:
+            user_dict['is_su'] = True
+        else:
+            user_dict['is_su'] = False
+    else:
+        user_dict['is_su'] = False
+    return get_json_result(data=user_dict)
 
 
 def rollback_user_registration(user_id):

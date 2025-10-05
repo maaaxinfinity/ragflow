@@ -46,8 +46,9 @@ class FreeChatUserSettingsService(CommonService):
             else:
                 # Insert
                 kwargs['user_id'] = user_id
-                setting = cls.save(**kwargs)
-                return True, setting
+                cls.save(**kwargs)  # save() returns row count, not object
+                # Fetch and return the newly created object
+                return True, cls.model.get(cls.model.user_id == user_id)
         except Exception as e:
             return False, str(e)
 
