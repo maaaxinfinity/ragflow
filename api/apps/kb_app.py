@@ -19,6 +19,7 @@ from flask import request
 from flask_login import login_required, current_user
 
 from api.db.services import duplicate_name
+from api.utils.auth_decorator import api_key_or_login_required
 from api.db.services.document_service import DocumentService
 from api.db.services.file2document_service import File2DocumentService
 from api.db.services.file_service import FileService
@@ -175,8 +176,8 @@ def detail():
 
 
 @manager.route('/list', methods=['POST'])  # noqa: F821
-@login_required
-def list_kbs():
+@api_key_or_login_required
+def list_kbs(**kwargs):
     keywords = request.args.get("keywords", "")
     page_number = int(request.args.get("page", 0))
     items_per_page = int(request.args.get("page_size", 0))
@@ -187,19 +188,26 @@ def list_kbs():
     else:
         desc = True
 
+    # Get tenant_id based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        tenant_id = kwargs.get("tenant_id")
+    else:
+        tenant_id = current_user.id
+
     req = request.get_json()
     owner_ids = req.get("owner_ids", [])
     try:
         if not owner_ids:
-            tenants = TenantService.get_joined_tenants_by_user_id(current_user.id)
+            tenants = TenantService.get_joined_tenants_by_user_id(tenant_id)
             tenants = [m["tenant_id"] for m in tenants]
             kbs, total = KnowledgebaseService.get_by_tenant_ids(
-                tenants, current_user.id, page_number,
+                tenants, tenant_id, page_number,
                 items_per_page, orderby, desc, keywords, parser_id)
         else:
             tenants = owner_ids
             kbs, total = KnowledgebaseService.get_by_tenant_ids(
-                tenants, current_user.id, 0,
+                tenants, tenant_id, 0,
                 0, orderby, desc, keywords, parser_id)
             kbs = [kb for kb in kbs if kb["tenant_id"] in tenants]
             total = len(kbs)

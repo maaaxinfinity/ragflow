@@ -18,6 +18,7 @@ from flask import request
 from flask_login import login_required, current_user
 
 from api import settings
+from api.utils.auth_decorator import api_key_or_login_required
 from api.apps import smtp_mail_server
 from api.db import UserTenantRole, StatusEnum
 from api.db.db_models import UserTenant
@@ -29,13 +30,25 @@ from api.utils.web_utils import send_invite_email
 
 
 @manager.route("/<tenant_id>/user/list", methods=["GET"])  # noqa: F821
-@login_required
-def user_list(tenant_id):
-    if current_user.id != tenant_id:
-        return get_json_result(
-            data=False,
-            message='No authorization.',
-            code=settings.RetCode.AUTHENTICATION_ERROR)
+@api_key_or_login_required
+def user_list(tenant_id, **kwargs):
+    # Get auth method and verify authorization
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        # For API key auth, verify tenant_id from decorator matches URL tenant_id
+        decorator_tenant_id = kwargs.get("tenant_id")
+        if decorator_tenant_id != tenant_id:
+            return get_json_result(
+                data=False,
+                message='No authorization.',
+                code=settings.RetCode.AUTHENTICATION_ERROR)
+    else:
+        # For session auth, verify current_user.id matches URL tenant_id
+        if current_user.id != tenant_id:
+            return get_json_result(
+                data=False,
+                message='No authorization.',
+                code=settings.RetCode.AUTHENTICATION_ERROR)
 
     try:
         users = UserTenantService.get_by_tenant_id(tenant_id)
