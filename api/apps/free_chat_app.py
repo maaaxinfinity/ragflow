@@ -16,12 +16,12 @@
 from flask import request, Blueprint
 from flask_login import login_required, current_user
 from api.db.services.free_chat_user_settings_service import FreeChatUserSettingsService
-from api.db.services.user_service import UserTenantService
+from api.db.services.user_service import UserTenantService, UserService
 from api.db.services.dialog_service import DialogService
 from api.utils.api_utils import get_data_error_result, get_json_result, server_error_response, validate_request
 from api.utils.auth_decorator import api_key_or_login_required
 from api.db.db_models import APIToken
-from api.db import UserTenantRole
+from api.db import UserTenantRole, StatusEnum
 from api import settings
 from rag.utils.redis_conn import REDIS_CONN
 import json
@@ -289,14 +289,12 @@ def get_admin_token():
             parts = authorization_str.split()
             if len(parts) == 2 and parts[0] == 'Bearer':
                 access_token = parts[1]
-                from api.db import StatusEnum
                 users = UserService.query(access_token=access_token, status=StatusEnum.VALID.value)
                 if users:
                     user = users[0]
 
         # 方式 2: 检查 Flask-Login session
         if not user:
-            from flask_login import current_user
             if current_user and current_user.is_authenticated:
                 user = current_user
 
@@ -314,7 +312,6 @@ def get_admin_token():
         tenant_id = tenants[0].tenant_id
 
         # Check if user is team admin
-        from api.db import UserTenantRole
         if tenants[0].role != UserTenantRole.OWNER:
             # User is not admin, try to get team admin's token
             # Get team owner
