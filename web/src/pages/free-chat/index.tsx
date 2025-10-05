@@ -12,6 +12,7 @@ import { useListTenantUser, useFetchUserInfo, useFetchTenantInfo } from '@/hooks
 import { useFetchDialogList } from '@/hooks/use-chat-request';
 import chatService from '@/services/next-chat-service';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
+import i18n from '@/locales/config';
 
 // BUG FIX: Separate component to use hooks inside KBProvider
 function FreeChatContent() {
@@ -39,26 +40,43 @@ function FreeChatContent() {
   // Fetch dialog list to get current dialog avatar
   const { data: dialogData } = useFetchDialogList();
 
+  // Handle language parameter from URL
+  useEffect(() => {
+    const languageParam = searchParams.get('language');
+    if (languageParam) {
+      // Map URL parameter to i18n language code
+      const languageMap: Record<string, string> = {
+        'zhcn': 'zh',
+        'zhtw': 'zh-TRADITIONAL',
+        'en': 'en',
+      };
+      const language = languageMap[languageParam.toLowerCase()] || languageParam;
+      i18n.changeLanguage(language);
+    }
+  }, [searchParams]);
+
   // Find current user info from tenant users
-  const currentUserInfo = tenantUsers.find(user => user.user_id === userId);
+  const currentUserInfo = Array.isArray(tenantUsers) ? tenantUsers.find(user => user.user_id === userId) : undefined;
 
   // Find current dialog by dialogId
   const currentDialog = useMemo(() => {
     return dialogData?.dialogs?.find(d => d.id === dialogId);
   }, [dialogData, dialogId]);
 
-  // Calculate user avatar and nickname (prioritize currentUserInfo)
-  const userAvatar = currentUserInfo?.avatar || userInfo?.avatar;
-  const userNickname = currentUserInfo?.nickname || currentUserInfo?.email || userInfo?.nickname || userInfo?.email || 'User';
+  // Calculate user avatar and nickname (prioritize userInfo since currentUserInfo may not be available in beta token mode)
+  const userAvatar = userInfo?.avatar || currentUserInfo?.avatar;
+  const userNickname = userInfo?.nickname || userInfo?.email || currentUserInfo?.nickname || currentUserInfo?.email || 'User';
   const dialogAvatar = currentDialog?.icon; // Use dialog icon if set, otherwise MessageItem will show default AssistantIcon
 
   // Debug: Log user info display conditions
   console.log('[UserInfo] Display conditions:', {
     userId,
     hasCurrentUserInfo: !!currentUserInfo,
+    hasUserInfo: !!userInfo,
     hasTenantInfo: !!tenantInfo,
-    tenantUsersCount: tenantUsers.length,
+    tenantUsersCount: Array.isArray(tenantUsers) ? tenantUsers.length : 0,
     currentUserInfo,
+    userInfo,
     tenantInfo,
   });
 

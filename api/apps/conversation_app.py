@@ -45,8 +45,9 @@ def set_conversation(**kwargs):
     # Get user_id based on authentication method
     auth_method = kwargs.get("auth_method")
     if auth_method == "api_key":
-        # API key authentication - user_id should be in request
-        user_id = req.get("user_id")
+        # API key authentication - get tenant_id from token (tenant_id = user_id in this system)
+        # Also accept user_id from request for compatibility
+        user_id = req.get("user_id") or kwargs.get("tenant_id")
         if not user_id:
             return get_data_error_result(message="user_id is required when using API key authentication")
     else:
