@@ -611,6 +611,12 @@ def user_profile(**kwargs):
       - User
     security:
       - ApiKeyAuth: []
+    parameters:
+      - name: user_id
+        in: query
+        type: string
+        required: false
+        description: User ID to get info for (only for API key auth with FreeChat)
     responses:
       200:
         description: User profile retrieved successfully.
@@ -627,10 +633,19 @@ def user_profile(**kwargs):
               type: string
               description: User email.
     """
-    # API key authentication - return null (external embedding doesn't need user info)
     auth_method = kwargs.get("auth_method")
     if auth_method == "api_key":
-        return get_json_result(data=None)
+        # API key authentication - check if user_id is provided (for FreeChat)
+        user_id = request.args.get("user_id")
+        if user_id:
+            # FreeChat mode - return user info by user_id
+            users = UserService.query(id=user_id)
+            if users:
+                return get_json_result(data=users[0].to_dict())
+            return get_data_error_result(message="User not found")
+        else:
+            # External embedding mode - return null
+            return get_json_result(data=None)
 
     # Session authentication - return user profile
     return get_json_result(data=current_user.to_dict())

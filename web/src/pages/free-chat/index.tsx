@@ -8,11 +8,13 @@ import { useFreeChatUserId } from './hooks/use-free-chat-user-id';
 import { useFreeChatSettingsApi } from './hooks/use-free-chat-settings-api';
 import { Spin } from 'antd';
 import { Helmet, useSearchParams } from 'umi';
-import { useListTenantUser, useFetchUserInfo, useFetchTenantInfo } from '@/hooks/user-setting-hooks';
+import { useListTenantUser, useFetchTenantInfo } from '@/hooks/user-setting-hooks';
 import { useFetchDialogList } from '@/hooks/use-chat-request';
 import chatService from '@/services/next-chat-service';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import i18n from '@/locales/config';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/utils/api';
 
 // BUG FIX: Separate component to use hooks inside KBProvider
 function FreeChatContent() {
@@ -31,8 +33,19 @@ function FreeChatContent() {
   // Fetch tenant info (required for team queries)
   const { data: tenantInfo, loading: tenantInfoLoading } = useFetchTenantInfo();
 
-  // Fetch current user info
-  const { data: userInfo } = useFetchUserInfo();
+  // Fetch current user info with user_id parameter (for beta token mode)
+  const { data: userInfo } = useQuery({
+    queryKey: ['freeChatUserInfo', userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await fetch(`${api.user_info}?user_id=${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${searchParams.get('auth')}` || '',
+        },
+      }).then(res => res.json());
+      return data?.data ?? {};
+    },
+  });
 
   // Fetch tenant users to get user info by user_id (only after tenantInfo is loaded)
   const { data: tenantUsers = [] } = useListTenantUser();
@@ -63,10 +76,16 @@ function FreeChatContent() {
     return dialogData?.dialogs?.find(d => d.id === dialogId);
   }, [dialogData, dialogId]);
 
-  // Calculate user avatar and nickname (prioritize userInfo since currentUserInfo may not be available in beta token mode)
+  // Calculate user avatar and nickname
+  // Priority: userInfo (from /user/info?user_id=xxx) > currentUserInfo (from tenant users list)
   const userAvatar = userInfo?.avatar || currentUserInfo?.avatar;
   const userNickname = userInfo?.nickname || userInfo?.email || currentUserInfo?.nickname || currentUserInfo?.email || 'User';
   const dialogAvatar = currentDialog?.icon; // Use dialog icon if set, otherwise MessageItem will show default AssistantIcon
+
+  // Determine which team info to display
+  // If user is found in tenantUsers, they are a NORMAL member -> show joined team (tenantInfo)
+  // If user is NOT in tenantUsers, they are the OWNER -> show their own team (tenantInfo is already correct)
+  const displayTenantInfo = tenantInfo;
 
   // Debug: Log user info display conditions
   console.log('[UserInfo] Display conditions:', {

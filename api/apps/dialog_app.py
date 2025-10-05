@@ -202,9 +202,9 @@ def list_dialogs_next(**kwargs):
     owner_ids = req.get("owner_ids", [])
     try:
         if not owner_ids:
-            # tenants = TenantService.get_joined_tenants_by_user_id(tenant_id)
-            # tenants = [tenant["tenant_id"] for tenant in tenants]
-            tenants = [] # keep it here
+            # Get tenants that user has joined (role=NORMAL)
+            tenants = TenantService.get_joined_tenants_by_user_id(tenant_id)
+            tenants = [tenant["tenant_id"] for tenant in tenants]
             dialogs, total = DialogService.get_by_tenant_ids(
                 tenants, tenant_id, page_number,
                 items_per_page, orderby, desc, keywords, parser_id)

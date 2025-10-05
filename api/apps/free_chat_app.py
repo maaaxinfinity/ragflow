@@ -29,6 +29,7 @@ from rag.utils.redis_conn import REDIS_CONN
 from datetime import datetime
 import json
 import logging
+import os
 
 # Blueprint for free chat settings and sessions
 manager = Blueprint('free_chat', __name__)
@@ -307,15 +308,54 @@ def get_admin_token():
                 code=settings.RetCode.AUTHENTICATION_ERROR
             )
 
-        # Get user's tenant
-        tenants = UserTenantService.query(user_id=user.id)
-        if not tenants:
-            return get_data_error_result(message="Tenant not found")
+        # Determine tenant_id based on user role:
+        # 1. Get ADMIN_EMAIL from environment
+        admin_email = os.environ.get("ADMIN_EMAIL")
 
-        tenant_id = tenants[0].tenant_id
+        if admin_email:
+            # 2. Find SU (super user) by email
+            su_users = UserService.query(email=admin_email, status=StatusEnum.VALID.value)
 
-        # API token is team-level (tenant_id based), all team members can access it
-        # No need to check if user is OWNER - just use the tenant_id directly
+            if su_users:
+                su_user = su_users[0]
+                su_tenant_id = su_user.id  # SU's tenant_id = SU's user_id
+
+                # 3. Check if current user is SU or in SU's team
+                if user.id == su_user.id:
+                    # Current user IS the SU - use SU's tenant_id
+                    tenant_id = su_tenant_id
+                    logging.info(f"[FreeChat] User {user.id} is SU, using SU tenant_id: {su_tenant_id}")
+                else:
+                    # 4. Get SU team members (NORMAL role only, excludes OWNER)
+                    su_team_members = UserTenantService.get_by_tenant_id(su_tenant_id)
+                    su_member_ids = [member["user_id"] for member in su_team_members]
+
+                    # 5. Check if current user is in SU's team
+                    if user.id in su_member_ids:
+                        # Team member - use SU's tenant_id
+                        tenant_id = su_tenant_id
+                        logging.info(f"[FreeChat] User {user.id} is in SU team, using SU tenant_id: {su_tenant_id}")
+                    else:
+                        # Not in team - deny access and return error
+                        logging.warning(f"[FreeChat] User {user.id} is NOT in SU team, access denied")
+                        return get_data_error_result(
+                            message="Access denied. Only team members can access FreeChat.",
+                            code=settings.RetCode.AUTHENTICATION_ERROR
+                        )
+            else:
+                # SU not found, fallback to user's own tenant
+                logging.warning(f"[FreeChat] ADMIN_EMAIL {admin_email} not found, using user's own tenant")
+                tenants = UserTenantService.query(user_id=user.id)
+                if not tenants:
+                    return get_data_error_result(message="Tenant not found")
+                tenant_id = tenants[0].tenant_id
+        else:
+            # No ADMIN_EMAIL configured, use user's own tenant
+            logging.info(f"[FreeChat] No ADMIN_EMAIL configured, using user's own tenant")
+            tenants = UserTenantService.query(user_id=user.id)
+            if not tenants:
+                return get_data_error_result(message="Tenant not found")
+            tenant_id = tenants[0].tenant_id
 
         # Get or create API token for this tenant
         tokens = APIToken.query(tenant_id=tenant_id)
