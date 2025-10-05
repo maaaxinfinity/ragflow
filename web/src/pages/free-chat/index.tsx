@@ -38,11 +38,16 @@ function FreeChatContent() {
     queryKey: ['freeChatUserInfo', userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data } = await fetch(`${api.user_info}?user_id=${userId}`, {
+      const url = `${api.user_info}?user_id=${userId}`;
+      console.log('[UserInfo] Fetching from:', url);
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${searchParams.get('auth')}` || '',
         },
-      }).then(res => res.json());
+      });
+      const data = await response.json();
+      console.log('[UserInfo] Response:', data);
+      console.log('[UserInfo] Final userInfo:', data?.data);
       return data?.data ?? {};
     },
   });

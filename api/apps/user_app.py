@@ -635,12 +635,15 @@ def user_profile(**kwargs):
               description: User email.
     """
     auth_method = kwargs.get("auth_method")
+    logging.info(f"[UserInfo] Auth method: {auth_method}")
     if auth_method == "api_key":
         # API key authentication - check if user_id is provided (for FreeChat)
         user_id = request.args.get("user_id")
+        logging.info(f"[UserInfo] user_id parameter: {user_id}")
         if user_id:
             # FreeChat mode - return user info by user_id
             users = UserService.query(id=user_id)
+            logging.info(f"[UserInfo] Query result count: {len(users) if users else 0}")
             if users:
                 user_dict = users[0].to_dict()
                 # Add is_su field based on ADMIN_EMAIL
