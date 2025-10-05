@@ -48,6 +48,51 @@ from api.utils.api_utils import (
 from api.utils.crypt import decrypt
 
 
+@manager.route("/verify_token", methods=["GET"])  # noqa: F821
+def verify_token():
+    """
+    Verify if the current access token is still valid and return latest token if needed.
+    """
+    try:
+        authorization_str = request.headers.get("Authorization")
+        if not authorization_str:
+            return get_json_result(
+                data=False,
+                message="No authorization token provided",
+                code=settings.RetCode.AUTHENTICATION_ERROR
+            )
+
+        parts = authorization_str.split()
+        if len(parts) != 2 or parts[0] != 'Bearer':
+            return get_json_result(
+                data=False,
+                message="Invalid authorization format",
+                code=settings.RetCode.AUTHENTICATION_ERROR
+            )
+
+        access_token = parts[1]
+        from api.db import StatusEnum
+        users = UserService.query(access_token=access_token, status=StatusEnum.VALID.value)
+
+        if users:
+            user = users[0]
+            # Token 有效，返回用户信息和当前 token
+            return get_json_result(data={
+                "valid": True,
+                "access_token": user.access_token,
+                "user": user.to_json()
+            })
+        else:
+            # Token 无效
+            return get_json_result(
+                data={"valid": False},
+                message="Token is invalid or expired",
+                code=settings.RetCode.AUTHENTICATION_ERROR
+            )
+    except Exception as e:
+        return server_error_response(e)
+
+
 @manager.route("/login", methods=["POST", "GET"])  # noqa: F821
 def login():
     """

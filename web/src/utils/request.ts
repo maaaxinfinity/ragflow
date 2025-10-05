@@ -116,8 +116,20 @@ request.interceptors.response.use(async (response: Response, options) => {
       description: data?.message,
       duration: 3,
     });
-    authorizationUtil.removeAll();
-    redirectToLogin();
+
+    // 检查是否使用 URL 参数的 auth（beta token）
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasUrlAuth = urlParams.has('auth');
+
+    // 如果使用 URL auth（外部嵌入），不要重定向到登录页
+    if (!hasUrlAuth) {
+      authorizationUtil.removeAll();
+      redirectToLogin();
+    } else {
+      // 外部嵌入模式，只清除 localStorage，不重定向
+      authorizationUtil.removeAll();
+      console.warn('[Auth] Beta token authentication failed. Please check your token.');
+    }
   } else if (data?.code !== 0) {
     notification.error({
       message: `${i18n.t('message.hint')} : ${data?.code}`,
