@@ -26,6 +26,7 @@ from api import settings
 from api.utils.api_utils import server_error_response, get_data_error_result, validate_request
 from api.utils import get_uuid
 from api.utils.api_utils import get_json_result
+from api.utils.auth_decorator import api_key_or_login_required
 
 
 @manager.route('/set', methods=['POST'])  # noqa: F821
@@ -176,8 +177,8 @@ def list_dialogs():
 
 
 @manager.route('/next', methods=['POST'])  # noqa: F821
-@login_required
-def list_dialogs_next():
+@api_key_or_login_required
+def list_dialogs_next(**kwargs):
     keywords = request.args.get("keywords", "")
     page_number = int(request.args.get("page", 0))
     items_per_page = int(request.args.get("page_size", 0))
@@ -188,20 +189,29 @@ def list_dialogs_next():
     else:
         desc = True
 
+    # Get tenant_id based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        # API key authentication - use tenant_id from decorator
+        tenant_id = kwargs.get("tenant_id")
+    else:
+        # Session authentication - use current_user.id as tenant_id
+        tenant_id = current_user.id
+
     req = request.get_json()
     owner_ids = req.get("owner_ids", [])
     try:
         if not owner_ids:
-            # tenants = TenantService.get_joined_tenants_by_user_id(current_user.id)
+            # tenants = TenantService.get_joined_tenants_by_user_id(tenant_id)
             # tenants = [tenant["tenant_id"] for tenant in tenants]
             tenants = [] # keep it here
             dialogs, total = DialogService.get_by_tenant_ids(
-                tenants, current_user.id, page_number,
+                tenants, tenant_id, page_number,
                 items_per_page, orderby, desc, keywords, parser_id)
         else:
             tenants = owner_ids
             dialogs, total = DialogService.get_by_tenant_ids(
-                tenants, current_user.id, 0,
+                tenants, tenant_id, 0,
                 0, orderby, desc, keywords, parser_id)
             dialogs = [dialog for dialog in dialogs if dialog["tenant_id"] in tenants]
             total = len(dialogs)

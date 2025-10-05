@@ -29,18 +29,31 @@ from api.db.services.search_service import SearchService
 from api.db.services.tenant_llm_service import TenantLLMService
 from api.db.services.user_service import TenantService, UserTenantService
 from api.utils.api_utils import get_data_error_result, get_json_result, server_error_response, validate_request
+from api.utils.auth_decorator import api_key_or_login_required
 from rag.prompts.template import load_prompt
 from rag.prompts.generator import chunks_format
 
 
 @manager.route("/set", methods=["POST"])  # noqa: F821
-@login_required
-def set_conversation():
+@api_key_or_login_required
+def set_conversation(**kwargs):
     req = request.json
     conv_id = req.get("conversation_id")
     is_new = req.get("is_new")
     name = req.get("name", "New conversation")
-    req["user_id"] = current_user.id
+
+    # Get user_id based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        # API key authentication - user_id should be in request
+        user_id = req.get("user_id")
+        if not user_id:
+            return get_data_error_result(message="user_id is required when using API key authentication")
+    else:
+        # Session authentication
+        user_id = current_user.id
+
+    req["user_id"] = user_id
 
     if len(name) > 255:
         name = name[0:255]
@@ -68,7 +81,7 @@ def set_conversation():
             "dialog_id": req["dialog_id"],
             "name": name,
             "message": [{"role": "assistant", "content": dia.prompt_config["prologue"]}],
-            "user_id": current_user.id,
+            "user_id": user_id,
             "reference": [],
         }
         ConversationService.save(**conv)
@@ -78,22 +91,34 @@ def set_conversation():
 
 
 @manager.route("/get", methods=["GET"])  # noqa: F821
-@login_required
-def get():
+@api_key_or_login_required
+def get(**kwargs):
     conv_id = request.args["conversation_id"]
     try:
         e, conv = ConversationService.get_by_id(conv_id)
         if not e:
             return get_data_error_result(message="Conversation not found!")
-        tenants = UserTenantService.query(user_id=current_user.id)
-        avatar = None
-        for tenant in tenants:
-            dialog = DialogService.query(tenant_id=tenant.tenant_id, id=conv.dialog_id)
-            if dialog and len(dialog) > 0:
-                avatar = dialog[0].icon
-                break
+
+        # Get tenant_id based on authentication method
+        auth_method = kwargs.get("auth_method")
+        if auth_method == "api_key":
+            tenant_id = kwargs.get("tenant_id")
+            # Verify dialog belongs to this tenant
+            dialog = DialogService.query(tenant_id=tenant_id, id=conv.dialog_id)
+            if not dialog or len(dialog) == 0:
+                return get_json_result(data=False, message="Only owner of conversation authorized for this operation.", code=settings.RetCode.OPERATING_ERROR)
+            avatar = dialog[0].icon
         else:
-            return get_json_result(data=False, message="Only owner of conversation authorized for this operation.", code=settings.RetCode.OPERATING_ERROR)
+            # Session authentication
+            tenants = UserTenantService.query(user_id=current_user.id)
+            avatar = None
+            for tenant in tenants:
+                dialog = DialogService.query(tenant_id=tenant.tenant_id, id=conv.dialog_id)
+                if dialog and len(dialog) > 0:
+                    avatar = dialog[0].icon
+                    break
+            else:
+                return get_json_result(data=False, message="Only owner of conversation authorized for this operation.", code=settings.RetCode.OPERATING_ERROR)
 
         for ref in conv.reference:
             if isinstance(ref, list):
@@ -129,20 +154,36 @@ def getsse(dialog_id):
 
 
 @manager.route("/rm", methods=["POST"])  # noqa: F821
-@login_required
-def rm():
+@api_key_or_login_required
+def rm(**kwargs):
     conv_ids = request.json["conversation_ids"]
+
+    # Get tenant_id based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        tenant_id = kwargs.get("tenant_id")
+    else:
+        tenant_id = None
+
     try:
         for cid in conv_ids:
             exist, conv = ConversationService.get_by_id(cid)
             if not exist:
                 return get_data_error_result(message="Conversation not found!")
-            tenants = UserTenantService.query(user_id=current_user.id)
-            for tenant in tenants:
-                if DialogService.query(tenant_id=tenant.tenant_id, id=conv.dialog_id):
-                    break
+
+            if auth_method == "api_key":
+                # Verify dialog belongs to this tenant
+                if not DialogService.query(tenant_id=tenant_id, id=conv.dialog_id):
+                    return get_json_result(data=False, message="Only owner of conversation authorized for this operation.", code=settings.RetCode.OPERATING_ERROR)
             else:
-                return get_json_result(data=False, message="Only owner of conversation authorized for this operation.", code=settings.RetCode.OPERATING_ERROR)
+                # Session authentication
+                tenants = UserTenantService.query(user_id=current_user.id)
+                for tenant in tenants:
+                    if DialogService.query(tenant_id=tenant.tenant_id, id=conv.dialog_id):
+                        break
+                else:
+                    return get_json_result(data=False, message="Only owner of conversation authorized for this operation.", code=settings.RetCode.OPERATING_ERROR)
+
             ConversationService.delete_by_id(cid)
         return get_json_result(data=True)
     except Exception as e:
@@ -150,11 +191,19 @@ def rm():
 
 
 @manager.route("/list", methods=["GET"])  # noqa: F821
-@login_required
-def list_conversation():
+@api_key_or_login_required
+def list_conversation(**kwargs):
     dialog_id = request.args["dialog_id"]
+
+    # Get tenant_id based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        tenant_id = kwargs.get("tenant_id")
+    else:
+        tenant_id = current_user.id
+
     try:
-        if not DialogService.query(tenant_id=current_user.id, id=dialog_id):
+        if not DialogService.query(tenant_id=tenant_id, id=dialog_id):
             return get_json_result(data=False, message="Only owner of dialog authorized for this operation.", code=settings.RetCode.OPERATING_ERROR)
         convs = ConversationService.query(dialog_id=dialog_id, order_by=ConversationService.model.create_time, reverse=True)
 
@@ -165,9 +214,9 @@ def list_conversation():
 
 
 @manager.route("/completion", methods=["POST"])  # noqa: F821
-@login_required
+@api_key_or_login_required
 @validate_request("conversation_id", "messages")
-def completion():
+def completion(**kwargs):
     req = request.json
     msg = []
     for m in req["messages"]:
@@ -277,20 +326,31 @@ def completion():
 
 
 @manager.route("/tts", methods=["POST"])  # noqa: F821
-@login_required
-def tts():
+@api_key_or_login_required
+def tts(**kwargs):
     req = request.json
     text = req["text"]
 
-    tenants = TenantService.get_info_by(current_user.id)
-    if not tenants:
-        return get_data_error_result(message="Tenant not found!")
-
-    tts_id = tenants[0]["tts_id"]
+    # Get tenant info based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        tenant_id = kwargs.get("tenant_id")
+        e, tenant = TenantService.get_by_id(tenant_id)
+        if not e:
+            return get_data_error_result(message="Tenant not found!")
+        tenant_dict = tenant.to_dict()
+        tts_id = tenant_dict.get("tts_id")
+        tenant_id_for_llm = tenant_dict.get("id")
+    else:
+        tenants = TenantService.get_info_by(current_user.id)
+        if not tenants:
+            return get_data_error_result(message="Tenant not found!")
+        tts_id = tenants[0]["tts_id"]
+        tenant_id_for_llm = tenants[0]["tenant_id"]
     if not tts_id:
         return get_data_error_result(message="No default TTS model is set")
 
-    tts_mdl = LLMBundle(tenants[0]["tenant_id"], LLMType.TTS, tts_id)
+    tts_mdl = LLMBundle(tenant_id_for_llm, LLMType.TTS, tts_id)
 
     def stream_audio():
         try:
@@ -309,9 +369,9 @@ def tts():
 
 
 @manager.route("/delete_msg", methods=["POST"])  # noqa: F821
-@login_required
+@api_key_or_login_required
 @validate_request("conversation_id", "message_id")
-def delete_msg():
+def delete_msg(**kwargs):
     req = request.json
     e, conv = ConversationService.get_by_id(req["conversation_id"])
     if not e:
@@ -339,9 +399,9 @@ def delete_msg():
 
 
 @manager.route("/thumbup", methods=["POST"])  # noqa: F821
-@login_required
+@api_key_or_login_required
 @validate_request("conversation_id", "message_id")
-def thumbup():
+def thumbup(**kwargs):
     req = request.json
     e, conv = ConversationService.get_by_id(req["conversation_id"])
     if not e:
@@ -366,11 +426,17 @@ def thumbup():
 
 
 @manager.route("/ask", methods=["POST"])  # noqa: F821
-@login_required
+@api_key_or_login_required
 @validate_request("question", "kb_ids")
-def ask_about():
+def ask_about(**kwargs):
     req = request.json
-    uid = current_user.id
+
+    # Get tenant_id based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        uid = kwargs.get("tenant_id")
+    else:
+        uid = current_user.id
 
     search_id = req.get("search_id", "")
     search_app = None
@@ -398,10 +464,18 @@ def ask_about():
 
 
 @manager.route("/mindmap", methods=["POST"])  # noqa: F821
-@login_required
+@api_key_or_login_required
 @validate_request("question", "kb_ids")
-def mindmap():
+def mindmap(**kwargs):
     req = request.json
+
+    # Get tenant_id based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        tenant_id = kwargs.get("tenant_id")
+    else:
+        tenant_id = current_user.id
+
     search_id = req.get("search_id", "")
     search_app = SearchService.get_detail(search_id) if search_id else {}
     search_config = search_app.get("search_config", {}) if search_app else {}
@@ -409,17 +483,24 @@ def mindmap():
     kb_ids.extend(req["kb_ids"])
     kb_ids = list(set(kb_ids))
 
-    mind_map = gen_mindmap(req["question"], kb_ids, search_app.get("tenant_id", current_user.id), search_config)
+    mind_map = gen_mindmap(req["question"], kb_ids, search_app.get("tenant_id", tenant_id), search_config)
     if "error" in mind_map:
         return server_error_response(Exception(mind_map["error"]))
     return get_json_result(data=mind_map)
 
 
 @manager.route("/related_questions", methods=["POST"])  # noqa: F821
-@login_required
+@api_key_or_login_required
 @validate_request("question")
-def related_questions():
+def related_questions(**kwargs):
     req = request.json
+
+    # Get tenant_id based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        tenant_id = kwargs.get("tenant_id")
+    else:
+        tenant_id = current_user.id
 
     search_id = req.get("search_id", "")
     search_config = {}
@@ -430,7 +511,7 @@ def related_questions():
     question = req["question"]
 
     chat_id = search_config.get("chat_id", "")
-    chat_mdl = LLMBundle(current_user.id, LLMType.CHAT, chat_id)
+    chat_mdl = LLMBundle(tenant_id, LLMType.CHAT, chat_id)
 
     gen_conf = search_config.get("llm_setting", {"temperature": 0.9})
     if "parameter" in gen_conf:

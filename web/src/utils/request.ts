@@ -81,11 +81,22 @@ request.interceptors.request.use((url: string, options: any) => {
   const data = convertTheKeysOfTheObjectToSnake(options.data);
   const params = convertTheKeysOfTheObjectToSnake(options.params);
 
+  // Check if using URL auth (beta token) and add user_id if available
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasUrlAuth = urlParams.has('auth');
+  const userId = urlParams.get('user_id');
+
+  // If using URL auth and user_id is available, add it to request data (only if not already present)
+  let enhancedData = data;
+  if (hasUrlAuth && userId && data && typeof data === 'object' && !data.user_id) {
+    enhancedData = { ...data, user_id: userId };
+  }
+
   return {
     url,
     options: {
       ...options,
-      data,
+      data: enhancedData,
       params,
       headers: {
         ...(options.skipToken
@@ -121,13 +132,12 @@ request.interceptors.response.use(async (response: Response, options) => {
     const urlParams = new URLSearchParams(window.location.search);
     const hasUrlAuth = urlParams.has('auth');
 
-    // 如果使用 URL auth（外部嵌入），不要重定向到登录页
+    // 如果使用 URL auth（外部嵌入），不要重定向到登录页，也不要清除 localStorage
     if (!hasUrlAuth) {
       authorizationUtil.removeAll();
       redirectToLogin();
     } else {
-      // 外部嵌入模式，只清除 localStorage，不重定向
-      authorizationUtil.removeAll();
+      // 外部嵌入模式，不清除 localStorage，只记录警告
       console.warn('[Auth] Beta token authentication failed. Please check your token.');
     }
   } else if (data?.code !== 0) {

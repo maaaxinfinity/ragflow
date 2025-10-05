@@ -45,6 +45,7 @@ from api.utils.api_utils import (
     server_error_response,
     validate_request,
 )
+from api.utils.auth_decorator import api_key_or_login_required
 from api.utils.crypt import decrypt
 
 
@@ -601,8 +602,8 @@ def setting_user():
 
 
 @manager.route("/info", methods=["GET"])  # noqa: F821
-@login_required
-def user_profile():
+@api_key_or_login_required
+def user_profile(**kwargs):
     """
     Get user profile information.
     ---
@@ -626,6 +627,12 @@ def user_profile():
               type: string
               description: User email.
     """
+    # API key authentication - return null (external embedding doesn't need user info)
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        return get_json_result(data=None)
+
+    # Session authentication - return user profile
     return get_json_result(data=current_user.to_dict())
 
 
@@ -786,8 +793,8 @@ def user_add():
 
 
 @manager.route("/tenant_info", methods=["GET"])  # noqa: F821
-@login_required
-def tenant_info():
+@api_key_or_login_required
+def tenant_info(**kwargs):
     """
     Get tenant information.
     ---
@@ -815,10 +822,38 @@ def tenant_info():
               description: Embedding model ID.
     """
     try:
-        tenants = TenantService.get_info_by(current_user.id)
-        if not tenants:
-            return get_data_error_result(message="Tenant not found!")
-        return get_json_result(data=tenants[0])
+        # Get user_id based on authentication method
+        auth_method = kwargs.get("auth_method")
+        if auth_method == "api_key":
+            # API key authentication - get tenant info by tenant_id from token
+            tenant_id = kwargs.get("tenant_id")
+            if not tenant_id:
+                return get_data_error_result(message="Tenant not found!")
+
+            e, tenant = TenantService.get_by_id(tenant_id)
+            if not e:
+                return get_data_error_result(message="Tenant not found!")
+
+            # Return tenant info in same format as get_info_by
+            tenant_dict = tenant.to_dict()
+            result = {
+                "tenant_id": tenant_dict.get("id"),
+                "name": tenant_dict.get("name"),
+                "llm_id": tenant_dict.get("llm_id"),
+                "embd_id": tenant_dict.get("embd_id"),
+                "rerank_id": tenant_dict.get("rerank_id"),
+                "asr_id": tenant_dict.get("asr_id"),
+                "img2txt_id": tenant_dict.get("img2txt_id"),
+                "tts_id": tenant_dict.get("tts_id"),
+                "parser_ids": tenant_dict.get("parser_ids"),
+            }
+            return get_json_result(data=result)
+        else:
+            # Session authentication - get tenant by current user
+            tenants = TenantService.get_info_by(current_user.id)
+            if not tenants:
+                return get_data_error_result(message="Tenant not found!")
+            return get_json_result(data=tenants[0])
     except Exception as e:
         return server_error_response(e)
 
