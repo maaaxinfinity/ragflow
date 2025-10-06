@@ -462,21 +462,28 @@ def chat(dialog, messages, stream=True, **kwargs):
                     yield think
         else:
             if embd_mdl:
-                kbinfos = retriever.retrieval(
-                    " ".join(questions),
-                    embd_mdl,
-                    tenant_ids,
-                    dialog.kb_ids,
-                    1,
-                    dialog.top_n,
-                    dialog.similarity_threshold,
-                    dialog.vector_similarity_weight,
-                    doc_ids=attachments,
-                    top=dialog.top_k,
-                    aggs=False,
-                    rerank_mdl=rerank_mdl,
-                    rank_feature=label_question(" ".join(questions), kbs),
-                )
+                try:
+                    kbinfos = retriever.retrieval(
+                        " ".join(questions),
+                        embd_mdl,
+                        tenant_ids,
+                        dialog.kb_ids,
+                        1,
+                        dialog.top_n,
+                        dialog.similarity_threshold,
+                        dialog.vector_similarity_weight,
+                        doc_ids=attachments,
+                        top=dialog.top_k,
+                        aggs=False,
+                        rerank_mdl=rerank_mdl,
+                        rank_feature=label_question(" ".join(questions), kbs),
+                    )
+                except Exception as e:
+                    logging.error(f"[chat] Retrieval failed: {e}")
+                    # Fallback to chat without KB if retrieval fails
+                    for ans in chat_solo(dialog, messages, stream):
+                        yield ans
+                    return
             if prompt_config.get("tavily_api_key"):
                 tav = Tavily(prompt_config["tavily_api_key"])
                 tav_res = tav.retrieve_chunks(" ".join(questions))

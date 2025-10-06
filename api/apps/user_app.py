@@ -833,6 +833,53 @@ def user_add():
         )
 
 
+@manager.route("/list", methods=["GET"])  # noqa: F821
+@login_required
+def user_list():
+    """
+    Get all users in the system (admin only).
+    ---
+    tags:
+      - User
+    security:
+      - ApiKeyAuth: []
+    responses:
+      200:
+        description: User list retrieved successfully.
+        schema:
+          type: object
+          properties:
+            data:
+              type: array
+              description: List of all users.
+      403:
+        description: Forbidden - Only admin can access.
+    """
+    try:
+        # Check if current user is admin
+        admin_email = os.environ.get("ADMIN_EMAIL")
+        if not admin_email or current_user.email != admin_email:
+            return get_json_result(
+                data=False,
+                code=settings.RetCode.FORBIDDEN,
+                message="Only admin can access user list"
+            )
+
+        # Get all valid users
+        users = UserService.query(status=StatusEnum.VALID.value)
+        user_list = []
+        for user in users:
+            user_dict = user.to_dict()
+            # Remove sensitive fields
+            user_dict.pop('password', None)
+            user_dict.pop('access_token', None)
+            user_list.append(user_dict)
+
+        return get_json_result(data=user_list)
+    except Exception as e:
+        return server_error_response(e)
+
+
 @manager.route("/tenant_info", methods=["GET"])  # noqa: F821
 @api_key_or_login_required
 def tenant_info(**kwargs):

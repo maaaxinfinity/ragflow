@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
-import { RotateCcw, ChevronDown, ChevronUp, Settings2, Sparkles, Save, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import { RotateCcw, ChevronDown, ChevronUp, Settings2, Sparkles, Save, Loader2, Maximize2, Minimize2, Moon, Sun } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useDynamicParams } from '../hooks/use-dynamic-params';
 import { useTranslate } from '@/hooks/common-hooks';
@@ -10,6 +10,8 @@ import { KnowledgeBaseSelector } from './knowledge-base-selector';
 import { DialogSelector } from './dialog-selector';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
+import { useTheme } from '@/components/theme-provider';
+import { ThemeEnum } from '@/constants/common';
 import {
   Collapsible,
   CollapsibleContent,
@@ -40,6 +42,8 @@ interface ControlPanelProps {
   currentUserInfo?: any;
   userInfo?: any;
   tenantInfo?: any;
+  // Mobile mode
+  isMobile?: boolean;
 }
 
 export function ControlPanel({
@@ -56,6 +60,7 @@ export function ControlPanel({
   currentUserInfo,
   userInfo,
   tenantInfo,
+  isMobile = false,
 }: ControlPanelProps) {
   const { params, updateParam, resetParams, paramsChanged } =
     useDynamicParams({
@@ -63,9 +68,15 @@ export function ControlPanel({
       onParamsChange: onModelParamsChange,
     });
   const { t } = useTranslate('chat');
+  const { theme, setTheme } = useTheme();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   const [tempPrompt, setTempPrompt] = useState(rolePrompt);
+
+  // Theme toggle handlers
+  const toggleTheme = () => {
+    setTheme(theme === ThemeEnum.Dark ? ThemeEnum.Light : ThemeEnum.Dark);
+  };
 
   // Sync rolePrompt to tempPrompt when it changes
   useEffect(() => {
@@ -89,7 +100,7 @@ export function ControlPanel({
   }, [userId, userInfo, currentUserInfo, tenantInfo]);
 
   return (
-    <div className="w-80 border-l flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto">
+    <div className={`${isMobile ? 'w-full' : 'w-80 border-l'} flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto`}>
       {/* Header */}
       <div className="p-4 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 space-y-3">
         <div className="flex items-center justify-between">
@@ -97,28 +108,44 @@ export function ControlPanel({
             <Settings2 className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">配置面板</h2>
           </div>
-          {/* Save Button */}
-          {onManualSave && (
+          <div className="flex items-center gap-2">
+            {/* Theme Toggle Button */}
             <Button
-              onClick={onManualSave}
-              disabled={saving || !hasUnsavedChanges}
+              onClick={toggleTheme}
               size="sm"
-              variant={hasUnsavedChanges ? "default" : "outline"}
-              className="gap-2"
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              title={theme === ThemeEnum.Dark ? '切换到亮色模式' : '切换到暗色模式'}
             >
-              {saving ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  保存中...
-                </>
+              {theme === ThemeEnum.Dark ? (
+                <Sun className="h-4 w-4" />
               ) : (
-                <>
-                  <Save className="h-3.5 w-3.5" />
-                  {hasUnsavedChanges ? '保存' : '已保存'}
-                </>
+                <Moon className="h-4 w-4" />
               )}
             </Button>
-          )}
+            {/* Save Button */}
+            {onManualSave && (
+              <Button
+                onClick={onManualSave}
+                disabled={saving || !hasUnsavedChanges}
+                size="sm"
+                variant={hasUnsavedChanges ? "default" : "outline"}
+                className="gap-2"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3.5 w-3.5" />
+                    {hasUnsavedChanges ? '保存' : '已保存'}
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
         {hasUnsavedChanges && !saving && (
           <Alert className="py-2 border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">

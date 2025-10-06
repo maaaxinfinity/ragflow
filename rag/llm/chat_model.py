@@ -172,14 +172,22 @@ class Base(ABC):
                 if not reasoning_start:
                     reasoning_start = True
                     ans = "<think>"
-                ans += resp.choices[0].delta.reasoning_content + "</think>"
+                ans += resp.choices[0].delta.reasoning_content
             else:
-                reasoning_start = False
-                ans = resp.choices[0].delta.content
+                # Transition from reasoning to content - close the thinking tag
+                if reasoning_start:
+                    ans = "</think>" + resp.choices[0].delta.content
+                    reasoning_start = False
+                else:
+                    ans = resp.choices[0].delta.content
 
             tol = self.total_token_count(resp)
             if not tol:
-                tol = num_tokens_from_string(resp.choices[0].delta.content)
+                # Calculate tokens for reasoning_content or content
+                if hasattr(resp.choices[0].delta, "reasoning_content") and resp.choices[0].delta.reasoning_content:
+                    tol = num_tokens_from_string(resp.choices[0].delta.reasoning_content)
+                else:
+                    tol = num_tokens_from_string(resp.choices[0].delta.content)
 
             if resp.choices[0].finish_reason == "length":
                 if is_chinese(ans):
@@ -378,16 +386,26 @@ class Base(ABC):
                             if not reasoning_start:
                                 reasoning_start = True
                                 ans = "<think>"
-                            ans += resp.choices[0].delta.reasoning_content + "</think>"
+                            ans += resp.choices[0].delta.reasoning_content
                             yield ans
                         else:
-                            reasoning_start = False
-                            answer += resp.choices[0].delta.content
-                            yield resp.choices[0].delta.content
+                            # Transition from reasoning to content - close the thinking tag
+                            if reasoning_start:
+                                ans = "</think>"
+                                answer += ans + resp.choices[0].delta.content
+                                yield ans + resp.choices[0].delta.content
+                                reasoning_start = False
+                            else:
+                                answer += resp.choices[0].delta.content
+                                yield resp.choices[0].delta.content
 
                         tol = self.total_token_count(resp)
                         if not tol:
-                            total_tokens += num_tokens_from_string(resp.choices[0].delta.content)
+                            # Calculate tokens for reasoning_content or content
+                            if hasattr(resp.choices[0].delta, "reasoning_content") and resp.choices[0].delta.reasoning_content:
+                                total_tokens += num_tokens_from_string(resp.choices[0].delta.reasoning_content)
+                            else:
+                                total_tokens += num_tokens_from_string(resp.choices[0].delta.content)
                         else:
                             total_tokens = tol
 

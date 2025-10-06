@@ -15,12 +15,17 @@ import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import i18n from '@/locales/config';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/utils/api';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Settings2 } from 'lucide-react';
 
 // BUG FIX: Separate component to use hooks inside KBProvider
 function FreeChatContent() {
   const controller = useRef(new AbortController());
   const userId = useFreeChatUserId();
   const [searchParams] = useSearchParams();
+  // Mobile control panel state
+  const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
   const {
     settings,
     loading: settingsLoading,
@@ -303,7 +308,7 @@ function FreeChatContent() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background relative">
       {/* Session List */}
       <SessionList
         sessions={sessions}
@@ -337,22 +342,56 @@ function FreeChatContent() {
         />
       </div>
 
-      {/* Control Panel */}
-      <ControlPanel
-        dialogId={dialogId}
-        onDialogChange={handleDialogChange}
-        rolePrompt={settings?.role_prompt || ''}
-        onRolePromptChange={handleRolePromptChange}
-        modelParams={settings?.model_params}
-        onModelParamsChange={handleModelParamsChange}
-        saving={settingsSaving}
-        hasUnsavedChanges={hasUnsavedChanges}
-        onManualSave={manualSave}
-        userId={userId}
-        currentUserInfo={currentUserInfo}
-        userInfo={userInfo}
-        tenantInfo={tenantInfo}
-      />
+      {/* Control Panel - Desktop (≥ 1024px) */}
+      <div className="hidden lg:flex">
+        <ControlPanel
+          dialogId={dialogId}
+          onDialogChange={handleDialogChange}
+          rolePrompt={settings?.role_prompt || ''}
+          onRolePromptChange={handleRolePromptChange}
+          modelParams={settings?.model_params}
+          onModelParamsChange={handleModelParamsChange}
+          saving={settingsSaving}
+          hasUnsavedChanges={hasUnsavedChanges}
+          onManualSave={manualSave}
+          userId={userId}
+          currentUserInfo={currentUserInfo}
+          userInfo={userInfo}
+          tenantInfo={tenantInfo}
+        />
+      </div>
+
+      {/* Floating Button - Mobile/Tablet (< 1024px) */}
+      <Button
+        onClick={() => setIsControlPanelOpen(true)}
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg lg:hidden z-40"
+        size="icon"
+        title="打开设置面板"
+      >
+        <Settings2 className="h-6 w-6" />
+      </Button>
+
+      {/* Control Panel - Mobile Sheet (< 1024px) */}
+      <Sheet open={isControlPanelOpen} onOpenChange={setIsControlPanelOpen}>
+        <SheetContent side="right" className="w-full sm:w-[400px] p-0">
+          <ControlPanel
+            dialogId={dialogId}
+            onDialogChange={handleDialogChange}
+            rolePrompt={settings?.role_prompt || ''}
+            onRolePromptChange={handleRolePromptChange}
+            modelParams={settings?.model_params}
+            onModelParamsChange={handleModelParamsChange}
+            saving={settingsSaving}
+            hasUnsavedChanges={hasUnsavedChanges}
+            onManualSave={manualSave}
+            userId={userId}
+            currentUserInfo={currentUserInfo}
+            userInfo={userInfo}
+            tenantInfo={tenantInfo}
+            isMobile={true}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
