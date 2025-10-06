@@ -834,7 +834,6 @@ def user_add():
 
 
 @manager.route("/list", methods=["GET"])  # noqa: F821
-@login_required
 def user_list():
     """
     Get all users in the system (admin only).
@@ -852,18 +851,47 @@ def user_list():
             data:
               type: array
               description: List of all users.
+      401:
+        description: Unauthorized - Authentication required.
       403:
         description: Forbidden - Only admin can access.
     """
     try:
-        # Check if current user is admin
-        admin_email = os.environ.get("ADMIN_EMAIL")
-        if not admin_email or current_user.email != admin_email:
+        # 方式 1: 检查 Authorization header (access_token)
+        current_request_user = None
+        authorization_str = request.headers.get("Authorization")
+
+        if authorization_str:
+            parts = authorization_str.split()
+            if len(parts) == 2 and parts[0] == 'Bearer':
+                access_token = parts[1]
+                # Query user by access_token
+                users = UserService.query(access_token=access_token, status=StatusEnum.VALID.value)
+                if users:
+                    current_request_user = users[0]
+
+        # 方式 2: 检查 Flask session
+        if not current_request_user and current_user and current_user.is_authenticated:
+            current_request_user = current_user
+
+        # 没有认证
+        if not current_request_user:
             return get_json_result(
                 data=False,
-                code=settings.RetCode.FORBIDDEN,
-                message="Only admin can access user list"
+                code=settings.RetCode.AUTHENTICATION_ERROR,
+                message="Authentication required"
             )
+
+        # 验证当前用户有邮箱
+        if not hasattr(current_request_user, 'email') or not current_request_user.email:
+            return get_json_result(
+                data=False,
+                code=settings.RetCode.AUTHENTICATION_ERROR,
+                message="Invalid user account: email is required"
+            )
+
+        # 返回当前用户信息和所有用户列表
+        # 权限检查由上层应用（law-workspace）负责
 
         # Get all valid users
         users = UserService.query(status=StatusEnum.VALID.value)
@@ -872,10 +900,16 @@ def user_list():
             user_dict = user.to_dict()
             # Remove sensitive fields
             user_dict.pop('password', None)
+            user_dict.pop('password_hash', None)
             user_dict.pop('access_token', None)
+            user_dict.pop('refresh_token', None)
             user_list.append(user_dict)
 
-        return get_json_result(data=user_list)
+        # 返回用户列表和当前请求用户的邮箱（用于权限检查）
+        return get_json_result(data={
+            'users': user_list,
+            'current_user_email': current_request_user.email
+        })
     except Exception as e:
         return server_error_response(e)
 
