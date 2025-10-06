@@ -24,15 +24,33 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
 
   // Sync with external sessions changes
+  // Only sync when sessions count changes (add/delete) to avoid overwriting local renames
+  const [lastSyncedCount, setLastSyncedCount] = useState(0);
   useEffect(() => {
     if (initialSessions) {
-      setSessions(initialSessions);
-      // Auto-select first session if none selected
-      if (!currentSessionId && initialSessions.length > 0) {
-        setCurrentSessionId(initialSessions[0].id);
+      const newCount = initialSessions.length;
+      const currentCount = sessions.length;
+
+      // Only sync if:
+      // 1. First load (lastSyncedCount === 0)
+      // 2. Sessions count changed (add/delete operations)
+      if (lastSyncedCount === 0 || newCount !== currentCount) {
+        console.log('[useFreeChatSession] Syncing with initialSessions:', {
+          reason: lastSyncedCount === 0 ? 'first_load' : 'count_changed',
+          oldCount: currentCount,
+          newCount,
+        });
+        setSessions(initialSessions);
+        setLastSyncedCount(newCount);
+
+        // Auto-select first session if none selected
+        if (!currentSessionId && initialSessions.length > 0) {
+          setCurrentSessionId(initialSessions[0].id);
+        }
+      } else {
+        console.log('[useFreeChatSession] Skipping sync to preserve local changes');
       }
     }
-    // Note: Only depend on initialSessions, not currentSessionId
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSessions]);
 

@@ -100,7 +100,8 @@ class Base(ABC):
                 if resp.choices[0].finish_reason == "length":
                     ans += "...\nFor the content length reason, it stopped, continue?" if is_english([ans]) else "······\n由于长度的原因，回答被截断了，要继续吗？"
                 if resp.choices[0].finish_reason == "stop":
-                    tk_count += resp.usage.total_tokens
+                    if resp.usage and hasattr(resp.usage, 'total_tokens'):
+                        tk_count += resp.usage.total_tokens
                 yield ans
         except Exception as e:
             yield ans + "\n**ERROR**: " + str(e)
