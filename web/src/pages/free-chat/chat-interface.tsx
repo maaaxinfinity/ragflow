@@ -4,7 +4,7 @@ import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
 import { buildMessageUuidWithRole } from '@/utils/chat';
 import { Message } from '@/interfaces/database/chat';
 import { Button } from '@/components/ui/button';
-import { Trash2, Settings, ChevronRight } from 'lucide-react';
+import { Trash2, Settings, ChevronRight, MessageCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useTranslate } from '@/hooks/common-hooks';
 

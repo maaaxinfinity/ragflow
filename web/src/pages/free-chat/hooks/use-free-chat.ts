@@ -172,7 +172,8 @@ export const useFreeChat = (
         // Dynamic parameters
         ...baseParams,
         // Model card ID (REQUIRED - for parameter merging on backend)
-        model_card_id: currentSession.model_card_id,
+        // Type assertion: we've already validated model_card_id exists above
+        model_card_id: currentSession.model_card_id!,
         // Dynamic knowledge base (always include, overrides any kb_ids in params)
         kb_ids: kbIdsArray,
         // Dynamic role prompt (system prompt override)
