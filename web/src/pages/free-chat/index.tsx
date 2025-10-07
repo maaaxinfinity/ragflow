@@ -88,24 +88,6 @@ function FreeChatContent() {
   // Find current user info from tenant users
   const currentUserInfo = Array.isArray(tenantUsers) ? tenantUsers.find(user => user.user_id === userId) : undefined;
 
-  // Find current dialog by dialogId
-  const currentDialog = useMemo(() => {
-    return dialogData?.dialogs?.find(d => d.id === dialogId);
-  }, [dialogData, dialogId]);
-
-  // Get current session and model card
-  const currentSession = sessions.find(s => s.id === currentSessionId);
-  const currentModelCard = useMemo(() => {
-    if (!currentSession?.model_card_id) return null;
-    return modelCards.find(c => c.id === currentSession.model_card_id);
-  }, [currentSession, modelCards]);
-
-  // Calculate user avatar and nickname
-  // Priority: userInfo (from /user/info?user_id=xxx) > currentUserInfo (from tenant users list)
-  const userAvatar = userInfo?.avatar || currentUserInfo?.avatar;
-  const userNickname = userInfo?.nickname || userInfo?.email || currentUserInfo?.nickname || currentUserInfo?.email || 'User';
-  const dialogAvatar = currentDialog?.icon; // Use dialog icon if set, otherwise MessageItem will show default AssistantIcon
-
   // Determine which team info to display
   // If user is found in tenantUsers, they are a NORMAL member -> show joined team (tenantInfo)
   // If user is NOT in tenantUsers, they are the OWNER -> show their own team (tenantInfo is already correct)
@@ -162,6 +144,24 @@ function FreeChatContent() {
     dialogId,
     setDialogId,
   } = useFreeChat(controller.current, userId, settings, handleSessionsChange);
+
+  // Find current dialog by dialogId
+  const currentDialog = useMemo(() => {
+    return dialogData?.dialogs?.find(d => d.id === dialogId);
+  }, [dialogData, dialogId]);
+
+  // Get current session and model card
+  const currentSession = sessions?.find(s => s.id === currentSessionId);
+  const currentModelCard = useMemo(() => {
+    if (!currentSession?.model_card_id) return null;
+    return modelCards?.find(c => c.id === currentSession.model_card_id);
+  }, [currentSession, modelCards]);
+
+  // Calculate user avatar and nickname
+  // Priority: userInfo (from /user/info?user_id=xxx) > currentUserInfo (from tenant users list)
+  const userAvatar = userInfo?.avatar || currentUserInfo?.avatar;
+  const userNickname = userInfo?.nickname || userInfo?.email || currentUserInfo?.nickname || currentUserInfo?.email || 'User';
+  const dialogAvatar = currentDialog?.icon; // Use dialog icon if set, otherwise MessageItem will show default AssistantIcon
 
   const [loadedConversationId, setLoadedConversationId] = useState<string>('');
   const [hasSetInitialDialogId, setHasSetInitialDialogId] = useState(false);

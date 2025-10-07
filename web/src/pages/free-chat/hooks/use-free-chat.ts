@@ -107,10 +107,23 @@ export const useFreeChat = (
 
       // Create conversation if not exists
       if (!conversationId) {
+        // Ensure model_card_id exists before creating conversation
+        if (!currentSession?.model_card_id) {
+          logError(
+            'model_card_id is required',
+            'useFreeChat.sendMessage',
+            true,
+            'Please select a model card first'
+          );
+          removeLatestMessage();
+          return;
+        }
+
         const convData = await updateConversation({
           dialog_id: dialogId,
           name: message.content.slice(0, 50),
           is_new: true,
+          model_card_id: currentSession.model_card_id,  // Add model_card_id
           message: [
             {
               role: MessageType.Assistant,
@@ -137,6 +150,18 @@ export const useFreeChat = (
         }
       }
 
+      // Ensure model_card_id exists before sending message
+      if (!currentSession?.model_card_id) {
+        logError(
+          'model_card_id is required',
+          'useFreeChat.sendMessage',
+          true,
+          'Please select a model card first'
+        );
+        removeLatestMessage();
+        return;
+      }
+
       // BUG FIX #7 & #12: Ensure kb_ids from enabledKBs has priority over params
       const baseParams = customParams || settings?.model_params || {};
       const kbIdsArray = Array.from(enabledKBs);
@@ -146,8 +171,8 @@ export const useFreeChat = (
         messages: [...derivedMessages, message],
         // Dynamic parameters
         ...baseParams,
-        // Model card ID (for parameter merging on backend)
-        ...(currentSession?.model_card_id && { model_card_id: currentSession.model_card_id }),
+        // Model card ID (REQUIRED - for parameter merging on backend)
+        model_card_id: currentSession.model_card_id,
         // Dynamic knowledge base (always include, overrides any kb_ids in params)
         kb_ids: kbIdsArray,
         // Dynamic role prompt (system prompt override)

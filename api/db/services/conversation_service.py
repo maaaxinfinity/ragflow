@@ -79,12 +79,31 @@ def structure_answer(conv, ans, message_id, session_id):
     if not conv:
         return ans
 
+    # Extract response metadata (tokens, duration, etc.)
+    response_metadata = {}
+    if "tokens" in ans:
+        response_metadata["tokens"] = ans["tokens"]
+    if "duration" in ans:
+        response_metadata["duration"] = ans["duration"]
+
     if not conv.message:
         conv.message = []
+
+    # Create assistant message with response metadata
+    assistant_msg = {
+        "role": "assistant",
+        "content": ans["answer"],
+        "created_at": time.time(),
+        "id": message_id
+    }
+    if response_metadata:
+        assistant_msg["response_metadata"] = response_metadata
+
     if not conv.message or conv.message[-1].get("role", "") != "assistant":
-        conv.message.append({"role": "assistant", "content": ans["answer"], "created_at": time.time(), "id": message_id})
+        conv.message.append(assistant_msg)
     else:
-        conv.message[-1] = {"role": "assistant", "content": ans["answer"], "created_at": time.time(), "id": message_id}
+        conv.message[-1] = assistant_msg
+
     if conv.reference:
         conv.reference[-1] = reference
     return ans
@@ -95,6 +114,9 @@ def completion(tenant_id, chat_id, question, name="New session", session_id=None
     dia = DialogService.query(id=chat_id, tenant_id=tenant_id, status=StatusEnum.VALID.value)
     assert dia, "You do not own the chat."
 
+    # Extract model_card_id from kwargs (required for new conversations)
+    model_card_id = kwargs.get("model_card_id")
+
     if not session_id:
         session_id = get_uuid()
         conv = {
@@ -102,7 +124,8 @@ def completion(tenant_id, chat_id, question, name="New session", session_id=None
             "dialog_id": chat_id,
             "name": name,
             "message": [{"role": "assistant", "content": dia[0].prompt_config.get("prologue"), "created_at": time.time()}],
-            "user_id": kwargs.get("user_id", "")
+            "user_id": kwargs.get("user_id", ""),
+            "model_card_id": model_card_id
         }
         ConversationService.save(**conv)
         if stream:
@@ -123,11 +146,28 @@ def completion(tenant_id, chat_id, question, name="New session", session_id=None
         raise LookupError("Session does not exist")
 
     conv = conv[0]
+
+    # Extract request parameters for this turn
+    request_params = {
+        "temperature": kwargs.get("temperature"),
+        "top_p": kwargs.get("top_p"),
+        "max_tokens": kwargs.get("max_tokens"),
+        "model_card_id": kwargs.get("model_card_id")
+    }
+    # Remove None values
+    request_params = {k: v for k, v in request_params.items() if v is not None}
+
+    # Update conversation's model_card_id if provided
+    if kwargs.get("model_card_id") is not None:
+        conv.model_card_id = kwargs.get("model_card_id")
+
     msg = []
     question = {
         "content": question,
         "role": "user",
-        "id": str(uuid4())
+        "id": str(uuid4()),
+        "created_at": time.time(),
+        "params": request_params  # Store parameters used for this request
     }
     conv.message.append(question)
     for m in conv.message:

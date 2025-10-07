@@ -805,9 +805,10 @@ class Conversation(DataBaseModel):
     id = CharField(max_length=32, primary_key=True)
     dialog_id = CharField(max_length=32, null=False, index=True)
     name = CharField(max_length=255, null=True, help_text="converastion name", index=True)
-    message = JSONField(null=True)
+    message = JSONField(null=True, help_text="message array - each message can include 'params' field for request parameters")
     reference = JSONField(null=True, default=[])
     user_id = CharField(max_length=255, null=True, help_text="user_id", index=True)
+    model_card_id = IntegerField(null=True, index=True, help_text="current model card ID for this conversation")
 
     class Meta:
         db_table = "conversation"

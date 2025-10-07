@@ -115,6 +115,10 @@ def set_conversation(**kwargs):
         e, dia = DialogService.get_by_id(req["dialog_id"])
         if not e:
             return get_data_error_result(message="Dialog not found")
+
+        # Extract model_card_id from request (optional for backward compatibility)
+        model_card_id = req.get("model_card_id")
+
         conv = {
             "id": conv_id,
             "dialog_id": req["dialog_id"],
@@ -122,6 +126,7 @@ def set_conversation(**kwargs):
             "message": [{"role": "assistant", "content": dia.prompt_config["prologue"]}],
             "user_id": user_id,
             "reference": [],
+            "model_card_id": model_card_id,  # Add model_card_id
         }
         ConversationService.save(**conv)
         return get_json_result(data=conv)
@@ -268,8 +273,10 @@ def completion(**kwargs):
     chat_model_id = req.get("llm_id", "")
     req.pop("llm_id", None)
 
-    # Support model card system
+    # Support model card system (required parameter)
     model_card_id = req.get("model_card_id", None)
+    if model_card_id is None:
+        return get_data_error_result(message="model_card_id is required")
     req.pop("model_card_id", None)
 
     # Support dynamic knowledge base selection
@@ -299,6 +306,8 @@ def completion(**kwargs):
         if not e:
             return get_data_error_result(message="Conversation not found!")
         conv.message = deepcopy(req["messages"])
+        # Update conversation's model_card_id
+        conv.model_card_id = model_card_id
         e, dia = DialogService.get_by_id(conv.dialog_id)
         if not e:
             return get_data_error_result(message="Dialog not found!")
@@ -388,6 +397,10 @@ def completion(**kwargs):
             dia.prompt_config["system"] = role_prompt
         else:
             logging.info(f"[FreeChat] Using dialog's default system prompt")
+
+        # Add model_card_id and parameters to req for persistence in conversation
+        req["model_card_id"] = model_card_id
+        req.update(chat_model_config)  # Add temperature, top_p, etc.
 
         is_embedded = bool(chat_model_id)
         def stream():
