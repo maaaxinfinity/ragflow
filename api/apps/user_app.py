@@ -659,6 +659,25 @@ def user_profile(**kwargs):
                 return get_json_result(data=user_dict)
             return get_data_error_result(message="User not found")
         else:
+            # No user_id parameter - get user info from tenant_id (from beta_token)
+            # This is used by law-workspace to validate beta_token
+            tenant_id = kwargs.get("tenant_id")
+            logging.info(f"[UserInfo] tenant_id from token: {tenant_id}")
+            if tenant_id:
+                users = UserService.query(id=tenant_id)
+                if users:
+                    user_dict = users[0].to_dict()
+                    admin_email = os.environ.get("ADMIN_EMAIL")
+                    if admin_email:
+                        su_users = UserService.query(email=admin_email, status=StatusEnum.VALID.value)
+                        if su_users and su_users[0].id == tenant_id:
+                            user_dict['is_su'] = True
+                        else:
+                            user_dict['is_su'] = False
+                    else:
+                        user_dict['is_su'] = False
+                    logging.info(f"[UserInfo] Returning user info for tenant_id: {tenant_id}")
+                    return get_json_result(data=user_dict)
             # External embedding mode - return null
             return get_json_result(data=None)
 
