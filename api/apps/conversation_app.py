@@ -85,17 +85,20 @@ def list_model_cards(**kwargs):
         access_token = None
 
         if auth_method == "api_key":
-            # API key authentication - get user's access_token
+            # API key authentication - get user's access_token from beta token
             tenant_id = kwargs.get("tenant_id")
             users = UserService.query(id=tenant_id)
             if users:
                 access_token = users[0].access_token
-        else:
-            # Session authentication
-            access_token = current_user.access_token if hasattr(current_user, 'access_token') else None
+        elif auth_method == "session":
+            # Session authentication - current_user should have access_token
+            if current_user and current_user.is_authenticated:
+                access_token = current_user.access_token
 
+        # Fallback: if access_token is still None, log detailed info
         if not access_token:
-            return get_data_error_result(message="No access token available")
+            logging.error(f"[ModelCards] No access token - auth_method: {auth_method}, current_user: {current_user}, is_authenticated: {getattr(current_user, 'is_authenticated', False)}")
+            return get_data_error_result(message="No access token available. Please login with Authorization header.")
 
         # Fetch model cards from law-workspace
         response = requests.get(
@@ -378,14 +381,15 @@ def completion(**kwargs):
             access_token = None
 
             if auth_method == "api_key":
-                # API key authentication - fetch user's access_token
+                # API key authentication - fetch user's access_token from beta token
                 user_id = kwargs.get("user_id") or conv.user_id
                 users = UserService.query(id=user_id)
                 if users:
                     access_token = users[0].access_token
-            else:
-                # Session authentication
-                access_token = current_user.access_token if hasattr(current_user, 'access_token') else None
+            elif auth_method == "session":
+                # Session authentication - current_user should have access_token
+                if current_user and current_user.is_authenticated:
+                    access_token = current_user.access_token
 
             if access_token:
                 model_card = fetch_model_card(model_card_id, access_token)

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { getAuthorization } from '@/utils/authorization-util';
 
 export interface IModelCard {
   id: number;
@@ -19,9 +20,18 @@ export const useFetchModelCards = () => {
   return useQuery<IModelCard[]>({
     queryKey: ['modelCards'],
     queryFn: async () => {
+      const authorization = getAuthorization();
+
+      if (!authorization) {
+        throw new Error('No authorization token available. Please login first.');
+      }
+
       const response = await fetch('/v1/conversation/model_cards', {
         method: 'GET',
-        credentials: 'include', // Include cookies for authentication
+        headers: {
+          'Authorization': authorization,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!response.ok) {
