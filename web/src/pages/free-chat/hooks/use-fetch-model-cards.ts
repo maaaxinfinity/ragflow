@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
 
 export interface IModelCard {
   id: number;
@@ -11,48 +10,32 @@ export interface IModelCard {
   prompt: string;
 }
 
-interface ModelCardsResponse {
-  success: boolean;
-  data: IModelCard[];
-}
-
-const MODEL_CARDS_API_URL = 'http://localhost:3001/api/model-cards';
-
 /**
- * Fetch model cards from law-workspace API
- * Uses access_token from RAGFlow user info for authentication
+ * Fetch model cards from RAGFlow backend (proxied to law-workspace)
+ * Backend endpoint: /v1/conversation/model_cards
+ * Backend handles authentication and proxying to law-workspace API
  */
 export const useFetchModelCards = () => {
-  const { data: userInfo } = useFetchUserInfo();
-
   return useQuery<IModelCard[]>({
-    queryKey: ['modelCards', userInfo?.access_token],
+    queryKey: ['modelCards'],
     queryFn: async () => {
-      if (!userInfo?.access_token) {
-        throw new Error('No access token available');
-      }
-
-      const response = await fetch(MODEL_CARDS_API_URL, {
+      const response = await fetch('/v1/conversation/model_cards', {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${userInfo.access_token}`,
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include', // Include cookies for authentication
       });
 
       if (!response.ok) {
         throw new Error(`Failed to fetch model cards: ${response.statusText}`);
       }
 
-      const result: ModelCardsResponse = await response.json();
+      const result = await response.json();
 
-      if (!result.success) {
-        throw new Error('Model cards API returned success=false');
+      if (result.code !== 0) {
+        throw new Error(result.message || 'Failed to fetch model cards');
       }
 
-      return result.data;
+      return result.data || [];
     },
-    enabled: !!userInfo?.access_token,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });

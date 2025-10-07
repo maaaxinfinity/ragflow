@@ -72,6 +72,56 @@ def fetch_model_card(model_card_id, access_token):
     return None
 
 
+@manager.route("/model_cards", methods=["GET"])  # noqa: F821
+@api_key_or_login_required
+def list_model_cards(**kwargs):
+    """
+    Proxy endpoint to fetch model cards from law-workspace API
+    Returns model cards list for the current user
+    """
+    try:
+        # Get access_token based on authentication method
+        auth_method = kwargs.get("auth_method")
+        access_token = None
+
+        if auth_method == "api_key":
+            # API key authentication - get user's access_token
+            tenant_id = kwargs.get("tenant_id")
+            users = UserService.query(id=tenant_id)
+            if users:
+                access_token = users[0].access_token
+        else:
+            # Session authentication
+            access_token = current_user.access_token if hasattr(current_user, 'access_token') else None
+
+        if not access_token:
+            return get_data_error_result(message="No access token available")
+
+        # Fetch model cards from law-workspace
+        response = requests.get(
+            MODEL_CARDS_API_URL,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=5,
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success"):
+                return get_json_result(data=result.get("data", []))
+            else:
+                return get_data_error_result(message="Model cards API returned success=false")
+        else:
+            logging.error(f"[ModelCards] API returned status {response.status_code}")
+            return get_data_error_result(message=f"Failed to fetch model cards: {response.status_code}")
+
+    except Exception as e:
+        logging.exception(e)
+        return server_error_response(e)
+
+
 @manager.route("/set", methods=["POST"])  # noqa: F821
 @api_key_or_login_required
 def set_conversation(**kwargs):
