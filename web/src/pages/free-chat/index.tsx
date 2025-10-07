@@ -269,18 +269,85 @@ function FreeChatContent() {
   }, [createSession]);
 
   const handleSessionRename = useCallback(
-    (sessionId: string, newName: string) => {
+    async (sessionId: string, newName: string) => {
       console.log('[SessionRename] Renaming session:', sessionId, 'to:', newName);
-      // Update the session locally (this will trigger handleSessionsChange via onSessionsChange)
+
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) return;
+
+      // Update local state first
       updateSession(sessionId, { name: newName });
 
-      // Immediately save after rename (wait for state update to propagate)
+      // If session has conversation_id, update backend as well
+      if (session.conversation_id) {
+        try {
+          const response = await fetch('/v1/conversation/set', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              conversation_id: session.conversation_id,
+              is_new: false,
+              name: newName,
+            }),
+          });
+
+          const result = await response.json();
+          if (result.code !== 0) {
+            console.error('[SessionRename] Backend update failed:', result.message);
+          }
+        } catch (error) {
+          console.error('[SessionRename] Failed to update conversation name in backend:', error);
+        }
+      }
+
+      // Save to FreeChatUserSettings
       setTimeout(() => {
         console.log('[SessionRename] Triggering immediate save via manualSave');
         manualSave();
-      }, 50); // Small delay to ensure state update has propagated
+      }, 50);
     },
-    [updateSession, manualSave],
+    [sessions, updateSession, manualSave],
+  );
+
+  const handleSessionDelete = useCallback(
+    async (sessionId: string) => {
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) return;
+
+      // If session has conversation_id, delete from backend first
+      if (session.conversation_id) {
+        try {
+          const response = await fetch('/v1/conversation/rm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              conversation_ids: [session.conversation_id],
+            }),
+          });
+
+          const result = await response.json();
+          if (result.code !== 0) {
+            console.error('[SessionDelete] Backend delete failed:', result.message);
+            alert(`删除失败: ${result.message}`);
+            return;
+          }
+        } catch (error) {
+          console.error('[SessionDelete] Failed to delete conversation from backend:', error);
+          alert('删除失败，请重试');
+          return;
+        }
+      }
+
+      // Delete from local state
+      deleteSession(sessionId);
+    },
+    [sessions, deleteSession],
   );
 
   const handleModelCardChange = useCallback(
@@ -377,7 +444,7 @@ function FreeChatContent() {
         onModelCardSelect={handleModelCardChange}
         onNewSession={handleNewSession}
         onSessionRename={handleSessionRename}
-        onSessionDelete={deleteSession}
+        onSessionDelete={handleSessionDelete}
         userId={userId}
         currentUserInfo={currentUserInfo}
         userInfo={userInfo}

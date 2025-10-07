@@ -247,9 +247,9 @@ export function SidebarDualTabs({
                                 <Input
                                   value={editingName}
                                   onChange={(e) => setEditingName(e.target.value)}
-                                  onKeyDown={(e) => {
+                                  onKeyDown={async (e) => {
                                     if (e.key === 'Enter') {
-                                      onSessionRename?.(session.id, editingName);
+                                      await onSessionRename?.(session.id, editingName);
                                       setEditingSessionId(null);
                                     } else if (e.key === 'Escape') {
                                       setEditingSessionId(null);
@@ -262,8 +262,8 @@ export function SidebarDualTabs({
                                   size="icon"
                                   variant="ghost"
                                   className="h-7 w-7"
-                                  onClick={() => {
-                                    onSessionRename?.(session.id, editingName);
+                                  onClick={async () => {
+                                    await onSessionRename?.(session.id, editingName);
                                     setEditingSessionId(null);
                                   }}
                                 >
@@ -319,9 +319,9 @@ export function SidebarDualTabs({
                                 size="icon"
                                 variant="ghost"
                                 className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => {
+                                onClick={async () => {
                                   if (window.confirm(`确定要删除"${session.name}"吗？`)) {
-                                    onSessionDelete?.(session.id);
+                                    await onSessionDelete?.(session.id);
                                   }
                                 }}
                                 title="删除"

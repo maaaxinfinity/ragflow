@@ -119,9 +119,14 @@ export const useFreeChat = (
           return;
         }
 
+        // Use session name if user renamed it (not the default "新对话"), otherwise use message content
+        const conversationName = currentSession.name && currentSession.name !== '新对话'
+          ? currentSession.name
+          : message.content.slice(0, 50);
+
         const convData = await updateConversation({
           dialog_id: dialogId,
-          name: message.content.slice(0, 50),
+          name: conversationName,
           is_new: true,
           model_card_id: currentSession.model_card_id,  // Add model_card_id
           message: [
