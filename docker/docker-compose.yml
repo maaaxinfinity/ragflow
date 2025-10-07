@@ -44,6 +44,7 @@ services:
       - TZ=${TIMEZONE}
       - HF_ENDPOINT=${HF_ENDPOINT-}
       - MACOS=${MACOS-}
+      - MODEL_CARDS_API_URL=${MODEL_CARDS_API_URL}
     networks:
       - ragflow
     restart: on-failure
