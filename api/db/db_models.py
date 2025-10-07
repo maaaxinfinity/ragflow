@@ -819,7 +819,7 @@ class FreeChatUserSettings(DataBaseModel):
     model_params = JSONField(null=False, default={"temperature": 0.7, "top_p": 0.9})
     kb_ids = ListField(null=False, default=[])
     role_prompt = LongTextField(null=True, default="", help_text="custom system prompt")
-    sessions = JSONField(null=False, default=[], help_text="chat sessions data")
+    sessions = JSONField(null=False, default=[], help_text="chat sessions data - Array of {id, conversation_id, model_card_id, name, messages, created_at, updated_at}")
 
     class Meta:
         db_table = "free_chat_user_settings"

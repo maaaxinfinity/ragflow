@@ -2,7 +2,8 @@ import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { useFreeChat } from './hooks/use-free-chat';
 import { ControlPanel } from './components/control-panel';
 import { ChatInterface } from './chat-interface';
-import { SessionList } from './components/session-list';
+import { SidebarDualTabs } from './components/sidebar-dual-tabs';
+import { SimplifiedMessageInput } from './components/simplified-message-input';
 import { KBProvider } from './contexts/kb-context';
 import { useFreeChatUserId } from './hooks/use-free-chat-user-id';
 import { useFreeChatSettingsApi } from './hooks/use-free-chat-settings-api';
@@ -10,6 +11,7 @@ import { Spin } from 'antd';
 import { Helmet, useSearchParams } from 'umi';
 import { useListTenantUser, useFetchTenantInfo } from '@/hooks/user-setting-hooks';
 import { useFetchDialogList } from '@/hooks/use-chat-request';
+import { useFetchModelCards } from './hooks/use-fetch-model-cards';
 import chatService from '@/services/next-chat-service';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import i18n from '@/locales/config';
@@ -17,14 +19,16 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/utils/api';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Settings2 } from 'lucide-react';
+import { Settings2, X } from 'lucide-react';
 
 // BUG FIX: Separate component to use hooks inside KBProvider
 function FreeChatContent() {
   const controller = useRef(new AbortController());
   const userId = useFreeChatUserId();
   const [searchParams] = useSearchParams();
-  // Mobile control panel state
+  // Right panel collapse state
+  const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(true);
+  // Mobile control panel state (for small screens)
   const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
   const {
     settings,
@@ -63,6 +67,9 @@ function FreeChatContent() {
   // Fetch dialog list to get current dialog avatar
   const { data: dialogData } = useFetchDialogList();
 
+  // Fetch model cards
+  const { data: modelCards = [] } = useFetchModelCards();
+
   // Handle language parameter from URL
   useEffect(() => {
     const languageParam = searchParams.get('language');
@@ -85,6 +92,13 @@ function FreeChatContent() {
   const currentDialog = useMemo(() => {
     return dialogData?.dialogs?.find(d => d.id === dialogId);
   }, [dialogData, dialogId]);
+
+  // Get current session and model card
+  const currentSession = sessions.find(s => s.id === currentSessionId);
+  const currentModelCard = useMemo(() => {
+    if (!currentSession?.model_card_id) return null;
+    return modelCards.find(c => c.id === currentSession.model_card_id);
+  }, [currentSession, modelCards]);
 
   // Calculate user avatar and nickname
   // Priority: userInfo (from /user/info?user_id=xxx) > currentUserInfo (from tenant users list)
@@ -151,6 +165,7 @@ function FreeChatContent() {
 
   const [loadedConversationId, setLoadedConversationId] = useState<string>('');
   const [hasSetInitialDialogId, setHasSetInitialDialogId] = useState(false);
+  const [hasSetInitialModelCardId, setHasSetInitialModelCardId] = useState(false);
 
   // Use ref to track latest sessions without causing re-renders
   const sessionsRef = useRef(sessions);
@@ -171,6 +186,22 @@ function FreeChatContent() {
       setHasSetInitialDialogId(true);
     }
   }, [searchParams, dialogId, setDialogId, userId, settings, updateField, hasSetInitialDialogId]);
+
+  // Handle model_card_id from URL parameter (only once on mount)
+  // When user selects a model card, create a new session with that model_card_id
+  useEffect(() => {
+    if (hasSetInitialModelCardId) return;
+
+    const urlModelCardId = searchParams.get('model_card_id');
+    if (urlModelCardId) {
+      const modelCardId = parseInt(urlModelCardId, 10);
+      if (!isNaN(modelCardId)) {
+        // Create new session with model_card_id
+        createSession(undefined, modelCardId);
+        setHasSetInitialModelCardId(true);
+      }
+    }
+  }, [searchParams, createSession, hasSetInitialModelCardId]);
 
   // Load conversation from URL parameter if present
   useEffect(() => {
@@ -252,20 +283,22 @@ function FreeChatContent() {
     [updateSession, manualSave],
   );
 
-  const handleDialogChange = useCallback(
-    (newDialogId: string) => {
-      // Check if dialog actually changed
-      if (dialogId && dialogId !== newDialogId) {
-        // Dialog changed - create new chat session
-        createSession();
-      }
-
-      setDialogId(newDialogId);
-      if (userId && settings) {
-        updateField('dialog_id', newDialogId);
+  const handleModelCardChange = useCallback(
+    (newModelCardId: number) => {
+      // Check if model card actually changed
+      const currentModelCardId = currentSession?.model_card_id;
+      if (currentModelCardId && currentModelCardId !== newModelCardId) {
+        // Model card changed - create new chat session with new card
+        createSession(undefined, newModelCardId);
+      } else if (!currentSession) {
+        // No session exists - create one
+        createSession(undefined, newModelCardId);
+      } else {
+        // Update current session's model_card_id
+        updateSession(currentSession.id, { model_card_id: newModelCardId });
       }
     },
-    [dialogId, createSession, setDialogId, userId, settings, updateField],
+    [currentSession, createSession, updateSession],
   );
 
   const handleRolePromptChange = useCallback(
@@ -309,29 +342,26 @@ function FreeChatContent() {
 
   return (
     <div className="flex h-screen bg-background relative">
-      {/* Session List */}
-      <SessionList
+      {/* Left Sidebar - Dual Tabs */}
+      <SidebarDualTabs
         sessions={sessions}
         currentSessionId={currentSessionId}
+        currentModelCardId={currentSession?.model_card_id}
         onSessionSelect={switchSession}
-        onSessionDelete={deleteSession}
-        onSessionRename={handleSessionRename}
+        onModelCardSelect={handleModelCardChange}
         onNewSession={handleNewSession}
-        onClearAll={clearAllSessions}
+        userAvatar={userAvatar}
+        userNickname={userNickname}
+        teamName={tenantInfo?.name}
       />
 
       {/* Chat Interface */}
       <div className="flex-1 flex flex-col min-w-0">
         <ChatInterface
           messages={derivedMessages}
-          onSendMessage={handlePressEnter}
-          onInputChange={handleInputChange}
-          inputValue={value}
-          setInputValue={setValue}
           sendLoading={sendLoading}
           scrollRef={scrollRef}
           messageContainerRef={messageContainerRef}
-          stopOutputMessage={stopOutputMessage}
           removeMessageById={removeMessageById}
           removeAllMessages={removeAllMessages}
           regenerateMessage={regenerateMessage}
@@ -339,44 +369,30 @@ function FreeChatContent() {
           userAvatar={userAvatar}
           userNickname={userNickname}
           dialogAvatar={dialogAvatar}
+          sessionName={currentSession?.name}
+          modelCardName={currentModelCard?.name}
+          isSettingsPanelOpen={isSettingsPanelOpen}
+          onToggleSettingsPanel={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
+        />
+
+        {/* Simplified Input - replacing NextMessageInput */}
+        <SimplifiedMessageInput
+          value={value}
+          onChange={handleInputChange}
+          onSend={handlePressEnter}
+          onNewTopic={handleNewSession}
+          onClearMessages={removeAllMessages}
+          disabled={!dialogId}
+          sendLoading={sendLoading}
         />
       </div>
 
-      {/* Control Panel - Desktop (≥ 1024px) */}
-      <div className="hidden lg:flex">
-        <ControlPanel
-          dialogId={dialogId}
-          onDialogChange={handleDialogChange}
-          rolePrompt={settings?.role_prompt || ''}
-          onRolePromptChange={handleRolePromptChange}
-          modelParams={settings?.model_params}
-          onModelParamsChange={handleModelParamsChange}
-          saving={settingsSaving}
-          hasUnsavedChanges={hasUnsavedChanges}
-          onManualSave={manualSave}
-          userId={userId}
-          currentUserInfo={currentUserInfo}
-          userInfo={userInfo}
-          tenantInfo={tenantInfo}
-        />
-      </div>
-
-      {/* Floating Button - Mobile/Tablet (< 1024px) */}
-      <Button
-        onClick={() => setIsControlPanelOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg lg:hidden z-40"
-        size="icon"
-        title="打开设置面板"
-      >
-        <Settings2 className="h-6 w-6" />
-      </Button>
-
-      {/* Control Panel - Mobile Sheet (< 1024px) */}
-      <Sheet open={isControlPanelOpen} onOpenChange={setIsControlPanelOpen}>
-        <SheetContent side="right" className="w-full sm:w-[400px] p-0">
+      {/* Control Panel - Right Side (Collapsible) */}
+      {isSettingsPanelOpen && (
+        <div className="w-80 border-l flex-shrink-0">
           <ControlPanel
-            dialogId={dialogId}
-            onDialogChange={handleDialogChange}
+            modelCardId={currentSession?.model_card_id}
+            onModelCardChange={handleModelCardChange}
             rolePrompt={settings?.role_prompt || ''}
             onRolePromptChange={handleRolePromptChange}
             modelParams={settings?.model_params}
@@ -388,10 +404,9 @@ function FreeChatContent() {
             currentUserInfo={currentUserInfo}
             userInfo={userInfo}
             tenantInfo={tenantInfo}
-            isMobile={true}
           />
-        </SheetContent>
-      </Sheet>
+        </div>
+      )}
     </div>
   );
 }

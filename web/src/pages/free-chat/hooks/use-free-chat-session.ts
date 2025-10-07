@@ -5,6 +5,7 @@ import { Message } from '@/interfaces/database/chat';
 export interface IFreeChatSession {
   id: string;
   conversation_id?: string; // RAGFlow conversation ID
+  model_card_id?: number; // Model card ID from law-workspace
   name: string;
   messages: Message[];
   created_at: number;
@@ -67,13 +68,14 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
 
   // BUG FIX #3: Use functional setState to avoid closure issues
   // Create new session
-  const createSession = useCallback((name?: string) => {
+  const createSession = useCallback((name?: string, model_card_id?: number) => {
     let newSession: IFreeChatSession;
 
     setSessions(prevSessions => {
       newSession = {
         id: uuid(),
         name: name || `Chat ${prevSessions.length + 1}`,
+        model_card_id,
         messages: [],
         created_at: Date.now(),
         updated_at: Date.now(),

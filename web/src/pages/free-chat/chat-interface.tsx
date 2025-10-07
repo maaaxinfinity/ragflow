@@ -1,24 +1,18 @@
 import MessageItem from '@/components/message-item';
-import { NextMessageInput } from '@/components/message-input/next';
 import { MessageType } from '@/constants/chat';
 import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
 import { buildMessageUuidWithRole } from '@/utils/chat';
 import { Message } from '@/interfaces/database/chat';
 import { Button } from '@/components/ui/button';
-import { Trash2, MessageCircle } from 'lucide-react';
+import { Trash2, Settings, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useTranslate } from '@/hooks/common-hooks';
 
 interface ChatInterfaceProps {
   messages: Message[];
-  onSendMessage: () => void;
-  onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  inputValue: string;
-  setInputValue: (value: string) => void;
   sendLoading: boolean;
   scrollRef: React.RefObject<HTMLDivElement>;
   messageContainerRef: React.RefObject<HTMLDivElement>;
-  stopOutputMessage: () => void;
   removeMessageById: (messageId: string) => void;
   removeAllMessages: () => void;
   regenerateMessage: (message: Message) => void;
@@ -27,18 +21,19 @@ interface ChatInterfaceProps {
   userAvatar?: string;
   userNickname?: string;
   dialogAvatar?: string;
+  // Breadcrumb props
+  sessionName?: string;
+  modelCardName?: string;
+  // Settings panel control
+  isSettingsPanelOpen?: boolean;
+  onToggleSettingsPanel?: () => void;
 }
 
 export function ChatInterface({
   messages,
-  onSendMessage,
-  onInputChange,
-  inputValue,
-  setInputValue,
   sendLoading,
   scrollRef,
   messageContainerRef,
-  stopOutputMessage,
   removeMessageById,
   removeAllMessages,
   regenerateMessage,
@@ -46,6 +41,10 @@ export function ChatInterface({
   userAvatar,
   userNickname,
   dialogAvatar,
+  sessionName,
+  modelCardName,
+  isSettingsPanelOpen,
+  onToggleSettingsPanel,
 }: ChatInterfaceProps) {
   const { data: userInfo } = useFetchUserInfo();
   const { t } = useTranslate('chat');
@@ -56,31 +55,57 @@ export function ChatInterface({
 
   return (
     <section className="flex flex-col h-full bg-gradient-to-b from-background to-muted/10">
-      {/* Header */}
+      {/* Header with Breadcrumb */}
       <div className="flex items-center justify-between px-6 py-4 border-b bg-card/50 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <MessageCircle className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold">{t('freeChat')}</h1>
-            <p className="text-xs text-muted-foreground">
-              {t('freeChatDescription')}
-            </p>
-          </div>
+        {/* Left: Breadcrumb Navigation */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {sessionName && (
+            <>
+              <div className="px-3 py-1.5 border rounded-md bg-background text-sm truncate max-w-xs">
+                {sessionName}
+              </div>
+              {modelCardName && (
+                <>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <div className="px-3 py-1.5 border rounded-md bg-primary/10 border-primary/30 text-sm truncate max-w-xs">
+                    {modelCardName}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+          {!sessionName && (
+            <div className="text-sm text-muted-foreground">
+              {t('selectSessionToStart', '请选择或创建一个对话')}
+            </div>
+          )}
         </div>
-        {messages.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={removeAllMessages}
-            disabled={sendLoading}
-            className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            {t('clearAll')}
-          </Button>
-        )}
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {messages.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={removeAllMessages}
+              disabled={sendLoading}
+              className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {t('clearAll')}
+            </Button>
+          )}
+          {onToggleSettingsPanel && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onToggleSettingsPanel}
+              className={isSettingsPanelOpen ? 'bg-primary/10' : ''}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Dialog Setup Alert */}
@@ -134,20 +159,6 @@ export function ChatInterface({
         </div>
         <div ref={scrollRef} />
       </div>
-
-      {/* Input */}
-      <NextMessageInput
-        disabled={false}
-        sendDisabled={!inputValue.trim() || sendLoading}
-        sendLoading={sendLoading}
-        value={inputValue}
-        onInputChange={onInputChange}
-        onPressEnter={onSendMessage}
-        conversationId=""
-        stopOutputMessage={stopOutputMessage}
-        isUploading={false}
-        removeFile={() => {}}
-      />
     </section>
   );
 }

@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { useDynamicParams } from '../hooks/use-dynamic-params';
 import { useTranslate } from '@/hooks/common-hooks';
 import { KnowledgeBaseSelector } from './knowledge-base-selector';
-import { DialogSelector } from './dialog-selector';
+import { ModelCardSelector } from './model-card-selector';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import { useTheme } from '@/components/theme-provider';
@@ -27,8 +27,8 @@ import {
 import { DynamicModelParams } from '../types';
 
 interface ControlPanelProps {
-  dialogId: string;
-  onDialogChange: (dialogId: string) => void;
+  modelCardId?: number;
+  onModelCardChange: (modelCardId: number) => void;
   rolePrompt?: string;
   onRolePromptChange?: (prompt: string) => void;
   modelParams?: DynamicModelParams;
@@ -47,8 +47,8 @@ interface ControlPanelProps {
 }
 
 export function ControlPanel({
-  dialogId,
-  onDialogChange,
+  modelCardId,
+  onModelCardChange,
   rolePrompt = '',
   onRolePromptChange,
   modelParams,
@@ -154,9 +154,9 @@ export function ControlPanel({
             </AlertDescription>
           </Alert>
         )}
-        <DialogSelector
-          selectedDialogId={dialogId}
-          onDialogChange={onDialogChange}
+        <ModelCardSelector
+          selectedModelCardId={modelCardId}
+          onModelCardChange={onModelCardChange}
         />
       </div>
 

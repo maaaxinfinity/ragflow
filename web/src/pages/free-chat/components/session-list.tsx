@@ -40,7 +40,13 @@ export function SessionList({
   const { t } = useTranslate('chat');
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Mobile: default collapsed (< 768px), Desktop: default expanded
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768;
+    }
+    return false;
+  });
 
   const handleStartEdit = useCallback((session: IFreeChatSession, e: React.MouseEvent) => {
     e.stopPropagation();

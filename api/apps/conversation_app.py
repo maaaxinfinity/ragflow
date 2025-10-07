@@ -16,6 +16,8 @@
 import json
 import re
 import logging
+import os
+import requests
 from copy import deepcopy
 from flask import Response, request
 from flask_login import current_user, login_required
@@ -27,11 +29,47 @@ from api.db.services.dialog_service import DialogService, ask, chat, gen_mindmap
 from api.db.services.llm_service import LLMBundle
 from api.db.services.search_service import SearchService
 from api.db.services.tenant_llm_service import TenantLLMService
-from api.db.services.user_service import TenantService, UserTenantService
+from api.db.services.user_service import TenantService, UserTenantService, UserService
 from api.utils.api_utils import get_data_error_result, get_json_result, server_error_response, validate_request
 from api.utils.auth_decorator import api_key_or_login_required
 from rag.prompts.template import load_prompt
 from rag.prompts.generator import chunks_format
+
+# Model card API configuration - read from environment variable
+# Default to localhost:3001 for development
+MODEL_CARDS_API_URL = os.environ.get("MODEL_CARDS_API_URL", "http://localhost:3001/api/model-cards")
+
+
+def fetch_model_card(model_card_id, access_token):
+    """
+    Fetch model card data from law-workspace API
+    Returns model card dict or None if not found/error
+    """
+    try:
+        response = requests.get(
+            MODEL_CARDS_API_URL,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=5,
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success") and result.get("data"):
+                # Find the specific model card by ID
+                for card in result["data"]:
+                    if card.get("id") == model_card_id:
+                        logging.info(f"[ModelCard] Found card {model_card_id}: {card.get('name')}")
+                        return card
+                logging.warning(f"[ModelCard] Card {model_card_id} not found in response")
+        else:
+            logging.error(f"[ModelCard] API returned status {response.status_code}")
+    except Exception as e:
+        logging.error(f"[ModelCard] Failed to fetch card {model_card_id}: {e}")
+
+    return None
 
 
 @manager.route("/set", methods=["POST"])  # noqa: F821
@@ -230,6 +268,10 @@ def completion(**kwargs):
     chat_model_id = req.get("llm_id", "")
     req.pop("llm_id", None)
 
+    # Support model card system
+    model_card_id = req.get("model_card_id", None)
+    req.pop("model_card_id", None)
+
     # Support dynamic knowledge base selection
     # BUG FIX: Distinguish between "not provided" and "empty array"
     kb_ids = req.get("kb_ids", None)
@@ -239,6 +281,7 @@ def completion(**kwargs):
     role_prompt = req.get("role_prompt", None)
     req.pop("role_prompt", None)
 
+    # Collect conversation-level parameter overrides
     chat_model_config = {}
     for model_config in [
         "temperature",
@@ -248,7 +291,7 @@ def completion(**kwargs):
         "max_tokens",
     ]:
         config = req.get(model_config)
-        if config:
+        if config is not None:
             chat_model_config[model_config] = config
 
     try:
@@ -267,6 +310,57 @@ def completion(**kwargs):
         conv.reference = [r for r in conv.reference if r]
         conv.reference.append({"chunks": [], "doc_aggs": []})
 
+        # Model card parameter merging: conversation > card > bot
+        # Step 1: Start with bot defaults (already in dia object)
+        # Step 2: Apply model card parameters if model_card_id provided
+        if model_card_id:
+            # Get access_token for law-workspace API authentication
+            auth_method = kwargs.get("auth_method")
+            access_token = None
+
+            if auth_method == "api_key":
+                # API key authentication - fetch user's access_token
+                user_id = kwargs.get("user_id") or conv.user_id
+                users = UserService.query(id=user_id)
+                if users:
+                    access_token = users[0].access_token
+            else:
+                # Session authentication
+                access_token = current_user.access_token if hasattr(current_user, 'access_token') else None
+
+            if access_token:
+                model_card = fetch_model_card(model_card_id, access_token)
+                if model_card:
+                    logging.info(f"[ModelCard] Applying card {model_card_id} parameters")
+                    # Override dialog's bot_id if card specifies different bot
+                    if model_card.get("bot_id") and model_card["bot_id"] != dia.id:
+                        logging.warning(f"[ModelCard] Card bot_id {model_card['bot_id']} differs from conv dialog_id {dia.id}")
+                        # Note: Not changing dialog here to maintain conversation integrity
+                        # The bot_id in card is mainly for reference
+
+                    # Apply card's parameter defaults (will be overridden by conversation params below)
+                    card_llm_setting = {}
+                    if "temperature" in model_card:
+                        card_llm_setting["temperature"] = model_card["temperature"]
+                    if "top_p" in model_card:
+                        card_llm_setting["top_p"] = model_card["top_p"]
+
+                    # Merge: start with card params
+                    merged_config = card_llm_setting.copy()
+                    # Override with conversation params
+                    merged_config.update(chat_model_config)
+                    chat_model_config = merged_config
+
+                    # Apply card's prompt as default if no conversation-level override
+                    if role_prompt is None and model_card.get("prompt"):
+                        role_prompt = model_card["prompt"]
+                        logging.info(f"[ModelCard] Using card prompt (length: {len(role_prompt)})")
+                else:
+                    logging.warning(f"[ModelCard] Failed to fetch card {model_card_id}")
+            else:
+                logging.warning(f"[ModelCard] No access_token available for fetching card {model_card_id}")
+
+        # Step 3: Apply conversation-level overrides (highest priority)
         if chat_model_id:
             if not TenantLLMService.get_api_key(tenant_id=dia.tenant_id, model_name=chat_model_id):
                 req.pop("chat_model_id", None)
@@ -274,6 +368,9 @@ def completion(**kwargs):
                 return get_data_error_result(message=f"Cannot use specified model {chat_model_id}.")
             dia.llm_id = chat_model_id
             dia.llm_setting = chat_model_config
+        elif chat_model_config:
+            # Apply merged config even without changing llm_id
+            dia.llm_setting = {**dia.llm_setting, **chat_model_config}
 
         # Temporarily override dialog's kb_ids if provided
         # BUG FIX: Use 'is not None' to allow empty list to clear kb_ids
