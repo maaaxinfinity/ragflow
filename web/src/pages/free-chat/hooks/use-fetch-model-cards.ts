@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useGetUserInfo } from '@/hooks/user-setting-hooks';
+import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
 
 export interface IModelCard {
   id: number;
@@ -23,7 +23,7 @@ const MODEL_CARDS_API_URL = 'http://localhost:3001/api/model-cards';
  * Uses access_token from RAGFlow user info for authentication
  */
 export const useFetchModelCards = () => {
-  const { data: userInfo } = useGetUserInfo();
+  const { data: userInfo } = useFetchUserInfo();
 
   return useQuery<IModelCard[]>({
     queryKey: ['modelCards', userInfo?.access_token],
