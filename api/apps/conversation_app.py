@@ -78,33 +78,42 @@ def list_model_cards(**kwargs):
     """
     Proxy endpoint to fetch model cards from law-workspace API
     Returns model cards list for the current user
+
+    Hybrid authentication approach:
+    - API Key: uses beta_token (from Authorization header)
+    - Session: uses access_token (from current_user, already in memory)
     """
     try:
-        # Get access_token based on authentication method
         auth_method = kwargs.get("auth_method")
-        access_token = None
+        auth_token = None
 
         if auth_method == "api_key":
-            # API key authentication - get user's access_token from beta token
-            tenant_id = kwargs.get("tenant_id")
-            users = UserService.query(id=tenant_id)
-            if users:
-                access_token = users[0].access_token
+            # API key authentication - use beta_token directly from header
+            # This is the token that law-workspace expects for API integrations
+            authorization_str = request.headers.get("Authorization")
+            if authorization_str:
+                parts = authorization_str.split()
+                if len(parts) == 2 and parts[0] == 'Bearer':
+                    auth_token = parts[1]  # beta_token
+                    logging.info(f"[ModelCards] Using beta_token from API key auth")
         elif auth_method == "session":
-            # Session authentication - current_user should have access_token
+            # Session authentication - use access_token directly from current_user
+            # No DB query needed, access_token is already loaded in memory
+            # law-workspace's /user/info supports both beta_token and access_token
             if current_user and current_user.is_authenticated:
-                access_token = current_user.access_token
+                auth_token = current_user.access_token
+                logging.info(f"[ModelCards] Using access_token from session auth")
 
-        # Fallback: if access_token is still None, log detailed info
-        if not access_token:
-            logging.error(f"[ModelCards] No access token - auth_method: {auth_method}, current_user: {current_user}, is_authenticated: {getattr(current_user, 'is_authenticated', False)}")
-            return get_data_error_result(message="No access token available. Please login with Authorization header.")
+        if not auth_token:
+            logging.error(f"[ModelCards] No auth token - auth_method: {auth_method}, current_user: {current_user}, is_authenticated: {getattr(current_user, 'is_authenticated', False)}")
+            return get_data_error_result(message="No auth token available. Please login with Authorization header.")
 
         # Fetch model cards from law-workspace
+        # Both beta_token and access_token work with /user/info endpoint
         response = requests.get(
             MODEL_CARDS_API_URL,
             headers={
-                "Authorization": f"Bearer {access_token}",
+                "Authorization": f"Bearer {auth_token}",
                 "Content-Type": "application/json",
             },
             timeout=5,
@@ -376,23 +385,27 @@ def completion(**kwargs):
         # Step 1: Start with bot defaults (already in dia object)
         # Step 2: Apply model card parameters if model_card_id provided
         if model_card_id:
-            # Get access_token for law-workspace API authentication
+            # Hybrid authentication approach for model card parameter fetching
+            # - API Key: uses beta_token (from Authorization header)
+            # - Session: uses access_token (from current_user, already in memory)
             auth_method = kwargs.get("auth_method")
-            access_token = None
+            auth_token = None
 
             if auth_method == "api_key":
-                # API key authentication - fetch user's access_token from beta token
-                user_id = kwargs.get("user_id") or conv.user_id
-                users = UserService.query(id=user_id)
-                if users:
-                    access_token = users[0].access_token
+                # API key authentication - use beta_token directly from header
+                authorization_str = request.headers.get("Authorization")
+                if authorization_str:
+                    parts = authorization_str.split()
+                    if len(parts) == 2 and parts[0] == 'Bearer':
+                        auth_token = parts[1]  # beta_token
             elif auth_method == "session":
-                # Session authentication - current_user should have access_token
+                # Session authentication - use access_token directly from current_user
+                # No DB query needed, access_token is already loaded in memory
                 if current_user and current_user.is_authenticated:
-                    access_token = current_user.access_token
+                    auth_token = current_user.access_token
 
-            if access_token:
-                model_card = fetch_model_card(model_card_id, access_token)
+            if auth_token:
+                model_card = fetch_model_card(model_card_id, auth_token)
                 if model_card:
                     logging.info(f"[ModelCard] Applying card {model_card_id} parameters")
                     # Override dialog's bot_id if card specifies different bot
