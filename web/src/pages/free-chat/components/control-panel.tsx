@@ -72,7 +72,7 @@ export function ControlPanel({
   }, [rolePrompt]);
 
   return (
-    <div className={`${isMobile ? 'w-full' : 'w-80 border-l'} flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto`}>
+    <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto">
       {/* Header */}
       <div className="p-4 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 space-y-3">
         <div className="flex items-center justify-between">

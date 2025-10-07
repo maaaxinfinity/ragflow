@@ -1,10 +1,11 @@
 import { Button } from '@/components/ui/button';
-import { MessageSquarePlus, MessageSquare, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { MessageSquarePlus, MessageSquare, ChevronLeft, ChevronRight, Sparkles, Pencil, Trash2, Check, X } from 'lucide-react';
 import { IFreeChatSession } from '../hooks/use-free-chat-session';
 import { useFetchModelCards } from '../hooks/use-fetch-model-cards';
 import { useTranslate } from '@/hooks/common-hooks';
 import { useState, useMemo } from 'react';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
+import { Input } from '@/components/ui/input';
 
 const formatTimeAgo = (timestamp: number, t: any) => {
   const now = Date.now();
@@ -26,6 +27,8 @@ interface SidebarDualTabsProps {
   onSessionSelect: (sessionId: string) => void;
   onModelCardSelect: (modelCardId: number) => void;
   onNewSession: () => void;
+  onSessionRename?: (sessionId: string, newName: string) => void;
+  onSessionDelete?: (sessionId: string) => void;
   // User info props (detailed)
   userId?: string;
   currentUserInfo?: any;
@@ -44,6 +47,8 @@ export function SidebarDualTabs({
   onSessionSelect,
   onModelCardSelect,
   onNewSession,
+  onSessionRename,
+  onSessionDelete,
   userId,
   currentUserInfo,
   userInfo,
@@ -60,6 +65,8 @@ export function SidebarDualTabs({
     }
     return false;
   });
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string>('');
 
   // Fetch model cards
   const { data: modelCards = [], isLoading } = useFetchModelCards();
@@ -72,7 +79,7 @@ export function SidebarDualTabs({
 
   return (
     <div className={`border-r flex flex-col h-full bg-gradient-to-b from-background to-muted/20 transition-all duration-300 relative ${
-      isCollapsed ? 'w-0 border-0' : 'w-72'
+      isCollapsed ? 'w-0 border-0' : 'w-96'
     }`}>
       {/* Toggle Button */}
       <Button
@@ -221,22 +228,61 @@ export function SidebarDualTabs({
                   filteredSessions.map((session) => {
                     const isActive = currentSessionId === session.id;
                     const card = modelCards.find(c => c.id === session.model_card_id);
+                    const isEditing = editingSessionId === session.id;
 
                     return (
                       <div
                         key={session.id}
-                        className={`group relative p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                        className={`group relative p-3 rounded-lg transition-all duration-200 ${
                           isActive
                             ? 'bg-primary/10 shadow-md border-2 border-primary/30'
                             : 'bg-card hover:bg-accent hover:shadow-sm border border-transparent'
-                        }`}
-                        onClick={() => onSessionSelect(session.id)}
+                        } ${!isEditing && 'cursor-pointer'}`}
+                        onClick={() => !isEditing && onSessionSelect(session.id)}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm truncate mb-1">
-                              {session.name}
-                            </div>
+                            {isEditing ? (
+                              <div className="flex items-center gap-2 mb-1" onClick={(e) => e.stopPropagation()}>
+                                <Input
+                                  value={editingName}
+                                  onChange={(e) => setEditingName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      onSessionRename?.(session.id, editingName);
+                                      setEditingSessionId(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingSessionId(null);
+                                    }
+                                  }}
+                                  className="h-7 text-sm flex-1"
+                                  autoFocus
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => {
+                                    onSessionRename?.(session.id, editingName);
+                                    setEditingSessionId(null);
+                                  }}
+                                >
+                                  <Check className="h-3.5 w-3.5 text-green-600" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => setEditingSessionId(null)}
+                                >
+                                  <X className="h-3.5 w-3.5 text-red-600" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="font-medium text-sm truncate mb-1">
+                                {session.name}
+                              </div>
+                            )}
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               {card && (
                                 <>
@@ -255,6 +301,35 @@ export function SidebarDualTabs({
                               <span>{formatTimeAgo(session.updated_at, t)}</span>
                             </div>
                           </div>
+                          {!isEditing && (
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => {
+                                  setEditingSessionId(session.id);
+                                  setEditingName(session.name);
+                                }}
+                                title="重命名"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => {
+                                  if (window.confirm(`确定要删除"${session.name}"吗？`)) {
+                                    onSessionDelete?.(session.id);
+                                  }
+                                }}
+                                title="删除"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

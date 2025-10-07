@@ -376,6 +376,8 @@ function FreeChatContent() {
         onSessionSelect={switchSession}
         onModelCardSelect={handleModelCardChange}
         onNewSession={handleNewSession}
+        onSessionRename={handleSessionRename}
+        onSessionDelete={deleteSession}
         userId={userId}
         currentUserInfo={currentUserInfo}
         userInfo={userInfo}
@@ -416,7 +418,7 @@ function FreeChatContent() {
 
       {/* Control Panel - Right Side (Collapsible) */}
       {isSettingsPanelOpen && (
-        <div className="w-80 border-l flex-shrink-0">
+        <div className="w-96 border-l flex-shrink-0">
           <ControlPanel
             currentModelCard={currentModelCard || undefined}
             rolePrompt={effectiveRolePrompt}
