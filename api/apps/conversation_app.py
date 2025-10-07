@@ -97,12 +97,33 @@ def list_model_cards(**kwargs):
                     auth_token = parts[1]  # beta_token
                     logging.info(f"[ModelCards] Using beta_token from API key auth")
         elif auth_method == "session":
-            # Session authentication - use access_token directly from current_user
-            # No DB query needed, access_token is already loaded in memory
-            # law-workspace's /user/info supports both beta_token and access_token
-            if current_user and current_user.is_authenticated:
-                auth_token = current_user.access_token
-                logging.info(f"[ModelCards] Using access_token from session auth")
+            # Session authentication - get or create beta_token for current user
+            # law-workspace's /user/info endpoint requires beta_token
+            from api.db.db_models import APIToken
+            from api.db.services.api_service import APITokenService
+            
+            tokens = APIToken.query(tenant_id=current_user.id)
+            if tokens and len(tokens) > 0:
+                auth_token = tokens[0].beta
+                logging.info(f"[ModelCards] Using existing beta_token for session user")
+            else:
+                # Create beta_token if not exists
+                from api.utils import get_uuid
+                from api.db import current_timestamp
+                
+                beta_token = "ragflow-" + get_uuid()[:32]
+                token_obj = {
+                    "tenant_id": current_user.id,
+                    "token": get_uuid(),
+                    "beta": beta_token,
+                    "dialog_id": None,
+                    "source": None,
+                    "create_time": current_timestamp(),
+                    "update_time": current_timestamp(),
+                }
+                APITokenService.save(**token_obj)
+                auth_token = beta_token
+                logging.info(f"[ModelCards] Created new beta_token for session user: {beta_token}")
 
         if not auth_token:
             logging.error(f"[ModelCards] No auth token - auth_method: {auth_method}, current_user: {current_user}, is_authenticated: {getattr(current_user, 'is_authenticated', False)}")
@@ -399,10 +420,30 @@ def completion(**kwargs):
                     if len(parts) == 2 and parts[0] == 'Bearer':
                         auth_token = parts[1]  # beta_token
             elif auth_method == "session":
-                # Session authentication - use access_token directly from current_user
-                # No DB query needed, access_token is already loaded in memory
-                if current_user and current_user.is_authenticated:
-                    auth_token = current_user.access_token
+                # Session authentication - get or create beta_token for current user
+                from api.db.db_models import APIToken
+                from api.db.services.api_service import APITokenService
+                
+                tokens = APIToken.query(tenant_id=current_user.id)
+                if tokens and len(tokens) > 0:
+                    auth_token = tokens[0].beta
+                else:
+                    # Create beta_token if not exists
+                    from api.utils import get_uuid
+                    from api.db import current_timestamp
+                    
+                    beta_token = "ragflow-" + get_uuid()[:32]
+                    token_obj = {
+                        "tenant_id": current_user.id,
+                        "token": get_uuid(),
+                        "beta": beta_token,
+                        "dialog_id": None,
+                        "source": None,
+                        "create_time": current_timestamp(),
+                        "update_time": current_timestamp(),
+                    }
+                    APITokenService.save(**token_obj)
+                    auth_token = beta_token
 
             if auth_token:
                 model_card = fetch_model_card(model_card_id, auth_token)
