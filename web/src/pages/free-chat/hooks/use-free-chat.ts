@@ -163,21 +163,24 @@ export const useFreeChat = (
       }
 
       // BUG FIX #7 & #12: Ensure kb_ids from enabledKBs has priority over params
-      const baseParams = customParams || settings?.model_params || {};
+      // Use session.params for conversation-level parameter overrides
+      // Backend will merge: conversation params > model card params > bot defaults
+      const baseParams = customParams || currentSession.params || {};
       const kbIdsArray = Array.from(enabledKBs);
 
       const requestBody = {
         conversation_id: conversationId,
         messages: [...derivedMessages, message],
-        // Dynamic parameters
-        ...baseParams,
+        // Dynamic parameters from session (temperature, top_p)
+        ...(baseParams.temperature !== undefined && { temperature: baseParams.temperature }),
+        ...(baseParams.top_p !== undefined && { top_p: baseParams.top_p }),
         // Model card ID (REQUIRED - for parameter merging on backend)
         // Type assertion: we've already validated model_card_id exists above
         model_card_id: currentSession.model_card_id!,
         // Dynamic knowledge base (always include, overrides any kb_ids in params)
         kb_ids: kbIdsArray,
-        // Dynamic role prompt (system prompt override)
-        role_prompt: settings?.role_prompt || '',
+        // Dynamic role prompt from session (system prompt override)
+        ...(baseParams.role_prompt !== undefined && { role_prompt: baseParams.role_prompt }),
       };
 
       const res = await send(requestBody, controller);
@@ -193,7 +196,6 @@ export const useFreeChat = (
       dialogId,
       currentSession,
       derivedMessages,
-      settings?.model_params,
       enabledKBs,
       send,
       controller,

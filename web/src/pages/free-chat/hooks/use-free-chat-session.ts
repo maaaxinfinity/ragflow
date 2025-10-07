@@ -10,6 +10,11 @@ export interface IFreeChatSession {
   messages: Message[];
   created_at: number;
   updated_at: number;
+  params?: {
+    temperature?: number;
+    top_p?: number;
+    role_prompt?: string;
+  }; // User-customized parameters for this conversation (overrides model card defaults)
 }
 
 interface UseFreeChatSessionProps {
@@ -74,7 +79,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     setSessions(prevSessions => {
       newSession = {
         id: uuid(),
-        name: name || `Chat ${prevSessions.length + 1}`,
+        name: name || '新对话',
         model_card_id,
         messages: [],
         created_at: Date.now(),

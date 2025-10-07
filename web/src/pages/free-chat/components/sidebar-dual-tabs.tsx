@@ -26,7 +26,12 @@ interface SidebarDualTabsProps {
   onSessionSelect: (sessionId: string) => void;
   onModelCardSelect: (modelCardId: number) => void;
   onNewSession: () => void;
-  // User info props
+  // User info props (detailed)
+  userId?: string;
+  currentUserInfo?: any;
+  userInfo?: any;
+  tenantInfo?: any;
+  // Legacy props (for backward compatibility)
   userAvatar?: string;
   userNickname?: string;
   teamName?: string;
@@ -39,6 +44,10 @@ export function SidebarDualTabs({
   onSessionSelect,
   onModelCardSelect,
   onNewSession,
+  userId,
+  currentUserInfo,
+  userInfo,
+  tenantInfo,
   userAvatar,
   userNickname,
   teamName,
@@ -70,13 +79,13 @@ export function SidebarDualTabs({
         variant="ghost"
         size="icon"
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute top-1/2 -translate-y-1/2 -right-3 z-20 h-16 w-6 rounded-r-md border bg-background shadow-md hover:shadow-lg transition-all"
+        className="absolute top-1/2 -translate-y-1/2 -right-3 z-20 h-20 w-8 rounded-r-md border bg-background shadow-md hover:shadow-lg transition-all"
         title={isCollapsed ? '展开侧边栏' : '收起侧边栏'}
       >
         {isCollapsed ? (
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-5 w-5" />
         ) : (
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-5 w-5" />
         )}
       </Button>
 
@@ -142,7 +151,16 @@ export function SidebarDualTabs({
                             : 'bg-card hover:bg-accent hover:shadow-sm border border-transparent'
                         }`}
                         onClick={() => {
-                          onModelCardSelect(card.id);
+                          // 找到该模型卡的所有对话
+                          const cardSessions = sessions.filter(s => s.model_card_id === card.id);
+                          if (cardSessions.length > 0) {
+                            // 有对话：跳转到最近更新的
+                            const latest = cardSessions.sort((a, b) => b.updated_at - a.updated_at)[0];
+                            onSessionSelect(latest.id);
+                          } else {
+                            // 无对话：只设置 model_card_id，不创建会话
+                            onModelCardSelect(card.id);
+                          }
                           setActiveTab('topics');
                         }}
                       >
@@ -261,25 +279,35 @@ export function SidebarDualTabs({
             )}
 
             {/* User Profile */}
-            {(userNickname || teamName) && (
-              <div className="flex items-center gap-3 p-2 border border-border rounded-lg bg-background/50">
+            {userId && (currentUserInfo || userInfo) && (
+              <div className="flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200">
                 <RAGFlowAvatar
-                  name={userNickname || 'User'}
-                  avatar={userAvatar}
+                  name={(userInfo?.nickname || userInfo?.email) || (currentUserInfo?.nickname || currentUserInfo?.email) || 'User'}
+                  avatar={userInfo?.avatar || currentUserInfo?.avatar}
                   isPerson={true}
-                  className="w-10 h-10"
+                  className="w-9 h-9 ring-2 ring-primary/20"
                 />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold truncate">
-                    {userNickname || 'User'}
-                  </div>
-                  {teamName && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-sm font-semibold flex items-center gap-2 truncate">
+                    {(userInfo?.nickname || userInfo?.email) || (currentUserInfo?.nickname || currentUserInfo?.email) || 'User'}
+                    {userInfo?.is_su && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm">
+                        SU
+                      </span>
+                    )}
+                  </span>
+                  {((userInfo?.nickname && userInfo?.email) || (currentUserInfo?.nickname && currentUserInfo?.email)) && (
+                    <span className="text-xs text-muted-foreground truncate">
+                      {userInfo?.email || currentUserInfo?.email}
+                    </span>
+                  )}
+                  {tenantInfo?.name && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
-                      <span className="truncate">{teamName}</span>
-                    </div>
+                      <span className="truncate">团队：{tenantInfo.name}</span>
+                    </span>
                   )}
                 </div>
               </div>

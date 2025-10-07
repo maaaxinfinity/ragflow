@@ -285,39 +285,65 @@ function FreeChatContent() {
 
   const handleModelCardChange = useCallback(
     (newModelCardId: number) => {
-      // Check if model card actually changed
-      const currentModelCardId = currentSession?.model_card_id;
-      if (currentModelCardId && currentModelCardId !== newModelCardId) {
-        // Model card changed - create new chat session with new card
-        createSession(undefined, newModelCardId);
-      } else if (!currentSession) {
-        // No session exists - create one
-        createSession(undefined, newModelCardId);
-      } else {
-        // Update current session's model_card_id
-        updateSession(currentSession.id, { model_card_id: newModelCardId });
-      }
+      // Create temporary session with "新对话" as placeholder name
+      // This session will be renamed when user sends first message
+      createSession('新对话', newModelCardId);
     },
-    [currentSession, createSession, updateSession],
+    [createSession],
   );
 
   const handleRolePromptChange = useCallback(
     (prompt: string) => {
-      if (userId && settings) {
-        updateField('role_prompt', prompt);
+      // Save role_prompt to current session instead of global settings
+      if (currentSession) {
+        updateSession(currentSession.id, {
+          params: {
+            ...currentSession.params,
+            role_prompt: prompt,
+          },
+        });
       }
     },
-    [userId, settings, updateField],
+    [currentSession, updateSession],
   );
 
   const handleModelParamsChange = useCallback(
     (params: any) => {
-      if (userId && settings) {
-        updateField('model_params', params);
+      // Save params to current session instead of global settings
+      if (currentSession) {
+        updateSession(currentSession.id, {
+          params: {
+            ...currentSession.params,
+            ...params,
+          },
+        });
       }
     },
-    [userId, settings, updateField],
+    [currentSession, updateSession],
   );
+
+  // Calculate effective model params for current session
+  // Priority: session.params > modelCard.params > system defaults
+  const effectiveModelParams = useMemo(() => {
+    const defaults = { temperature: 0.7, top_p: 0.9 };
+    const modelCardParams = currentModelCard ? {
+      temperature: currentModelCard.temperature,
+      top_p: currentModelCard.top_p,
+    } : {};
+    const sessionParams = currentSession?.params || {};
+
+    return {
+      ...defaults,
+      ...modelCardParams,
+      ...sessionParams,
+    };
+  }, [currentSession, currentModelCard]);
+
+  // Calculate effective role prompt
+  // Priority: session.params.role_prompt > modelCard.prompt > empty string
+  const effectiveRolePrompt = useMemo(() => {
+    return currentSession?.params?.role_prompt || currentModelCard?.prompt || '';
+  }, [currentSession, currentModelCard]);
 
   // Show loading state while settings are being loaded
   if (settingsLoading) {
@@ -350,9 +376,10 @@ function FreeChatContent() {
         onSessionSelect={switchSession}
         onModelCardSelect={handleModelCardChange}
         onNewSession={handleNewSession}
-        userAvatar={userAvatar}
-        userNickname={userNickname}
-        teamName={tenantInfo?.name}
+        userId={userId}
+        currentUserInfo={currentUserInfo}
+        userInfo={userInfo}
+        tenantInfo={displayTenantInfo}
       />
 
       {/* Chat Interface */}
@@ -391,19 +418,14 @@ function FreeChatContent() {
       {isSettingsPanelOpen && (
         <div className="w-80 border-l flex-shrink-0">
           <ControlPanel
-            modelCardId={currentSession?.model_card_id}
-            onModelCardChange={handleModelCardChange}
-            rolePrompt={settings?.role_prompt || ''}
+            currentModelCard={currentModelCard || undefined}
+            rolePrompt={effectiveRolePrompt}
             onRolePromptChange={handleRolePromptChange}
-            modelParams={settings?.model_params}
+            modelParams={effectiveModelParams}
             onModelParamsChange={handleModelParamsChange}
             saving={settingsSaving}
             hasUnsavedChanges={hasUnsavedChanges}
             onManualSave={manualSave}
-            userId={userId}
-            currentUserInfo={currentUserInfo}
-            userInfo={userInfo}
-            tenantInfo={tenantInfo}
           />
         </div>
       )}
