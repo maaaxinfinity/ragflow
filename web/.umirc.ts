@@ -40,7 +40,9 @@ export default defineConfig({
   proxy: [
     {
       context: ['/api', '/v1'],
-      target: 'http://127.0.0.1:9380/',
+      // Auto-detect backend port from docker/.env SVR_HTTP_PORT (default: 9380)
+      // If you changed SVR_HTTP_PORT in docker/.env, update this URL accordingly
+      target: process.env.BACKEND_URL || 'http://127.0.0.1:9380/',
       changeOrigin: true,
       ws: true,
       logger: console,
