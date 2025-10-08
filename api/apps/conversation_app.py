@@ -599,6 +599,9 @@ def completion(**kwargs):
         req["model_card_id"] = model_card_id
         req.update(chat_model_config)  # Add temperature, top_p, etc.
 
+        # Determine if this is an embedded chat (used to control conversation persistence)
+        is_embedded = bool(chat_model_id)
+        
         # CRITICAL FIX: Save user message BEFORE starting chat stream
         # This ensures user messages are persisted even if chat() throws exception
         # Without this, failed requests lose user messages (causing "third time success" bug)
@@ -607,8 +610,6 @@ def completion(**kwargs):
             # conv.message was already set to deepcopy(req["messages"]) at line 479
             ConversationService.update_by_id(conv.id, conv.to_dict())
             logging.info(f"[completion] Saved user messages before streaming for conv {conv.id}")
-
-        is_embedded = bool(chat_model_id)
         def stream():
             nonlocal dia, msg, req, conv
             try:
