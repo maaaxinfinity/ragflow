@@ -245,7 +245,12 @@ def get_conversation_messages(**kwargs):
         # Get conversation
         e, conv = ConversationService.get_by_id(conversation_id)
         if not e:
-            return get_data_error_result(message="Conversation not found")
+            # FIX: Return special code to indicate conversation was deleted
+            # Frontend should clear the conversation_id from session
+            return get_data_error_result(
+                message="Conversation not found",
+                code=settings.RetCode.DATA_ERROR  # Special code for deleted resource
+            )
         
         # Verify access permissions
         auth_method = kwargs.get("auth_method")

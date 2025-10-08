@@ -65,6 +65,10 @@ export const useFreeChat = (
   });
 
   const [dialogId, setDialogId] = useState<string>(settings?.dialog_id || '');
+  
+  // FIX: Track if we're in the middle of sending a message
+  // Use state instead of ref so lazy-load can react to changes
+  const [isSending, setIsSending] = useState<boolean>(false);
 
   // Sync dialogId from settings
   useEffect(() => {
@@ -91,11 +95,14 @@ export const useFreeChat = (
   } = useSelectDerivedMessages();
 
   // ✅ NEW: Lazy load messages when switching sessions (Principle 2: Lazy Loading)
+  // FIX: Disable lazy-load during message sending to prevent race conditions
   const {
     data: loadedMessagesData,
     isLoading: isLoadingMessages,
     error: messagesError,
-  } = useLazyLoadMessages(currentSession?.conversation_id);
+  } = useLazyLoadMessages(currentSession?.conversation_id, {
+    enabled: !isSending,  // Disable fetch when sending
+  });
 
   // ✅ NEW: Sync loaded messages to derivedMessages when data arrives or session changes
   useEffect(() => {
@@ -113,6 +120,28 @@ export const useFreeChat = (
       setDerivedMessages([]);
     }
   }, [currentSessionId, loadedMessagesData, currentSession?.conversation_id, setDerivedMessages]);
+
+  // FIX: Handle conversation deletion error
+  // When conversation is deleted but session still references it, clear the conversation_id
+  useEffect(() => {
+    if (messagesError && currentSession?.conversation_id) {
+      const error: any = messagesError;
+      // Check if this is a "conversation deleted" error (DATA_ERROR code)
+      if (error.code && error.conversationId === currentSession.conversation_id) {
+        logError(
+          `Conversation ${currentSession.conversation_id} not found, clearing from session`,
+          'useFreeChat.messagesError',
+          false
+        );
+        // Clear the invalid conversation_id from session
+        updateSession(currentSession.id, {
+          conversation_id: undefined,
+        });
+        // Clear messages
+        setDerivedMessages([]);
+      }
+    }
+  }, [messagesError, currentSession, updateSession, setDerivedMessages]);
 
   // Stop output
   const stopOutputMessage = useCallback(() => {
@@ -150,22 +179,84 @@ export const useFreeChat = (
   // Send message (core logic)
   const sendMessage = useCallback(
     async (message: Message, customParams?: DynamicModelParams) => {
-      if (!dialogId) {
-        logError(
-          t('noDialogIdError'),
-          'useFreeChat.sendMessage',
-          true,
-          t('noDialogIdError')
-        );
-        return;
-      }
+      // FIX: Set sending flag to prevent lazy-load from clearing messages
+      setIsSending(true);
+      
+      try {
+        if (!dialogId) {
+          logError(
+            t('noDialogIdError'),
+            'useFreeChat.sendMessage',
+            true,
+            t('noDialogIdError')
+          );
+          return;
+        }
 
-      let conversationId = currentSession?.conversation_id;
+        let conversationId = currentSession?.conversation_id;
 
-      // Create conversation if not exists
-      if (!conversationId) {
-        // FIX: Ensure model_card_id exists before creating conversation
-        // Without model_card_id, backend cannot apply model card parameters
+        // Create conversation if not exists
+        if (!conversationId) {
+          // FIX: Ensure model_card_id exists before creating conversation
+          // Without model_card_id, backend cannot apply model card parameters
+          if (!currentSession?.model_card_id) {
+            logError(
+              'Please select an assistant first',
+              'useFreeChat.sendMessage',
+              true,
+              t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
+            );
+            removeLatestMessage();
+            return;
+          }
+
+          // ✅ UI Improvement: Auto-generate session title from first message (30 chars max)
+          // Use session name if user renamed it (not the default "新对话")
+          // Otherwise auto-generate from first message content
+          let conversationName = currentSession.name;
+          if (!conversationName || conversationName === '新对话') {
+            // Auto-generate: take first 30 chars, replace newlines, add ellipsis if truncated
+            const cleanContent = message.content.replace(/[\n\r]+/g, ' ').trim();
+            conversationName = cleanContent.slice(0, 30) + (cleanContent.length > 30 ? '...' : '');
+          }
+
+          const convData = await updateConversation({
+            dialog_id: dialogId,
+            name: conversationName,
+            is_new: true,
+            model_card_id: currentSession.model_card_id,  // Add model_card_id
+            message: [
+              {
+                role: MessageType.Assistant,
+                content: '',
+              },
+            ],
+          });
+
+          if (convData.code === 0) {
+            conversationId = convData.data.id;
+            // Update session with conversation_id AND auto-generated name
+            // This ensures the session is renamed when user sends first message
+            if (currentSession) {
+              updateSession(currentSession.id, { 
+                conversation_id: conversationId,
+                name: conversationName  // Auto-rename session to match conversation
+              });
+            }
+          } else {
+            logError(
+              t('failedToCreateConversation'),
+              'useFreeChat.sendMessage',
+              true,
+              t('failedToCreateConversation')
+            );
+            removeLatestMessage();
+            return;
+          }
+        }
+
+        // FIX: Ensure model_card_id exists before sending message
+        // This check prevents sending messages without an associated assistant
         if (!currentSession?.model_card_id) {
           logError(
             'Please select an assistant first',
@@ -177,100 +268,46 @@ export const useFreeChat = (
           return;
         }
 
-        // ✅ UI Improvement: Auto-generate session title from first message (30 chars max)
-        // Use session name if user renamed it (not the default "新对话")
-        // Otherwise auto-generate from first message content
-        let conversationName = currentSession.name;
-        if (!conversationName || conversationName === '新对话') {
-          // Auto-generate: take first 30 chars, replace newlines, add ellipsis if truncated
-          const cleanContent = message.content.replace(/[\n\r]+/g, ' ').trim();
-          conversationName = cleanContent.slice(0, 30) + (cleanContent.length > 30 ? '...' : '');
-        }
+        // BUG FIX #7 & #12: Ensure kb_ids from enabledKBs has priority over params
+        // Use session.params for conversation-level parameter overrides
+        // Backend will merge: conversation params > model card params > bot defaults
+        const baseParams = customParams || currentSession.params || {};
+        const kbIdsArray = Array.from(enabledKBs);
 
-        const convData = await updateConversation({
-          dialog_id: dialogId,
-          name: conversationName,
-          is_new: true,
-          model_card_id: currentSession.model_card_id,  // Add model_card_id
-          message: [
-            {
-              role: MessageType.Assistant,
-              content: '',
-            },
-          ],
-        });
+        const requestBody = {
+          conversation_id: conversationId,
+          messages: [...derivedMessages, message],
+          // Dynamic parameters from session (temperature, top_p)
+          ...(baseParams.temperature !== undefined && { temperature: baseParams.temperature }),
+          ...(baseParams.top_p !== undefined && { top_p: baseParams.top_p }),
+          // Model card ID (REQUIRED - for parameter merging on backend)
+          // Type assertion: we've already validated model_card_id exists above
+          model_card_id: currentSession.model_card_id!,
+          // Dynamic knowledge base (always include, overrides any kb_ids in params)
+          kb_ids: kbIdsArray,
+          // Dynamic role prompt from session (system prompt override)
+          ...(baseParams.role_prompt !== undefined && { role_prompt: baseParams.role_prompt }),
+        };
 
-        if (convData.code === 0) {
-          conversationId = convData.data.id;
-          // Update session with conversation_id AND auto-generated name
-          // This ensures the session is renamed when user sends first message
+        const res = await send(requestBody, controller);
+
+        if (res && (res?.response.status !== 200 || res?.data?.code !== 0)) {
+          setValue(message.content);
+          removeLatestMessage();
+        } else {
+          // ✅ NEW: Update session metadata ONLY (Principle 3: Differentiated Write Strategy)
+          // Messages already written to conversation table by backend
+          // Here we only update UI metadata with 30s debounce (via onSessionsChange)
           if (currentSession) {
-            updateSession(currentSession.id, { 
-              conversation_id: conversationId,
-              name: conversationName  // Auto-rename session to match conversation
+            updateSession(currentSession.id, {
+              updated_at: Date.now(),
+              message_count: (currentSession.message_count || 0) + 1,
             });
           }
-        } else {
-          logError(
-            t('failedToCreateConversation'),
-            'useFreeChat.sendMessage',
-            true,
-            t('failedToCreateConversation')
-          );
-          removeLatestMessage();
-          return;
         }
-      }
-
-      // FIX: Ensure model_card_id exists before sending message
-      // This check prevents sending messages without an associated assistant
-      if (!currentSession?.model_card_id) {
-        logError(
-          'Please select an assistant first',
-          'useFreeChat.sendMessage',
-          true,
-          t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
-        );
-        removeLatestMessage();
-        return;
-      }
-
-      // BUG FIX #7 & #12: Ensure kb_ids from enabledKBs has priority over params
-      // Use session.params for conversation-level parameter overrides
-      // Backend will merge: conversation params > model card params > bot defaults
-      const baseParams = customParams || currentSession.params || {};
-      const kbIdsArray = Array.from(enabledKBs);
-
-      const requestBody = {
-        conversation_id: conversationId,
-        messages: [...derivedMessages, message],
-        // Dynamic parameters from session (temperature, top_p)
-        ...(baseParams.temperature !== undefined && { temperature: baseParams.temperature }),
-        ...(baseParams.top_p !== undefined && { top_p: baseParams.top_p }),
-        // Model card ID (REQUIRED - for parameter merging on backend)
-        // Type assertion: we've already validated model_card_id exists above
-        model_card_id: currentSession.model_card_id!,
-        // Dynamic knowledge base (always include, overrides any kb_ids in params)
-        kb_ids: kbIdsArray,
-        // Dynamic role prompt from session (system prompt override)
-        ...(baseParams.role_prompt !== undefined && { role_prompt: baseParams.role_prompt }),
-      };
-
-      const res = await send(requestBody, controller);
-
-      if (res && (res?.response.status !== 200 || res?.data?.code !== 0)) {
-        setValue(message.content);
-        removeLatestMessage();
-      } else {
-        // ✅ NEW: Update session metadata ONLY (Principle 3: Differentiated Write Strategy)
-        // Messages already written to conversation table by backend
-        // Here we only update UI metadata with 30s debounce (via onSessionsChange)
-        if (currentSession) {
-          updateSession(currentSession.id, {
-            updated_at: Date.now(),
-            message_count: (currentSession.message_count || 0) + 1,
-          });
-        }
+      } finally {
+        // FIX: Always clear sending flag, even if there was an error
+        setIsSending(false);
       }
     },
     [

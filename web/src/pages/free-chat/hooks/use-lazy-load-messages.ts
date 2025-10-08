@@ -50,7 +50,12 @@ export const useLazyLoadMessages = (
       });
 
       if (data.code !== 0) {
-        throw new Error(data.message || 'Failed to load messages');
+        // FIX: Include error code in error object for upstream handling
+        // Backend returns RetCode.DATA_ERROR when conversation is deleted
+        const error: any = new Error(data.message || 'Failed to load messages');
+        error.code = data.code;
+        error.conversationId = conversationId;
+        throw error;
       }
 
       return data.data;
