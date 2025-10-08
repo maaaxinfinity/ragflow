@@ -209,6 +209,13 @@ export const useFreeChat = (
           return;
         }
 
+        // CRITICAL: Convert draft session to persistent when sending first message
+        // This ensures temporary "新对话" becomes a real saved conversation
+        if (currentSession?.isDraft) {
+          console.log('[useFreeChat] Converting draft session to persistent:', currentSession.id);
+          updateSession(currentSession.id, { isDraft: undefined });
+        }
+
         let conversationId = currentSession?.conversation_id;
 
         // Create conversation if not exists

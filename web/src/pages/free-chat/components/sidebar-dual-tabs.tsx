@@ -229,12 +229,16 @@ export function SidebarDualTabs({
                     </Button>
                   </div>
                 ) : (
-                  filteredSessions.map((session) => {
-                    const isActive = currentSessionId === session.id;
-                    const card = modelCards.find(c => c.id === session.model_card_id);
-                    const isEditing = editingSessionId === session.id;
+                  filteredSessions
+                    // IMPORTANT: Filter out draft sessions (temporary, not shown in list)
+                    // Draft sessions are only visible when active (currentSessionId)
+                    .filter(session => !session.isDraft || session.id === currentSessionId)
+                    .map((session) => {
+                      const isActive = currentSessionId === session.id;
+                      const card = modelCards.find(c => c.id === session.model_card_id);
+                      const isEditing = editingSessionId === session.id;
 
-                    return (
+                      return (
                       <div
                         key={session.id}
                         className={`group relative p-3 rounded-lg transition-all duration-200 ${

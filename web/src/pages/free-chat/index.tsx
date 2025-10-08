@@ -289,7 +289,8 @@ function FreeChatContent() {
   const handleNewSession = useCallback(() => {
     // FIX: Always pass current model_card_id when creating new session
     // This ensures the new session is associated with the current assistant
-    createSession(undefined, currentSession?.model_card_id);
+    // IMPORTANT: Create as DRAFT (temporary, not saved until first message sent)
+    createSession(undefined, currentSession?.model_card_id, true);  // isDraft=true
   }, [createSession, currentSession?.model_card_id]);
 
   const handleSessionRename = useCallback(
@@ -390,9 +391,12 @@ function FreeChatContent() {
 
   const handleModelCardChange = useCallback(
     (newModelCardId: number) => {
-      // Create temporary session with "新对话" as placeholder name
-      // This session will be renamed when user sends first message
-      createSession('新对话', newModelCardId);
+      // IMPORTANT: Create DRAFT session (temporary, not saved to settings)
+      // - Draft sessions are NOT saved to settings (won't persist on refresh)
+      // - Automatically cleaned up when switching to another session
+      // - Converted to persistent session when user sends first message
+      // This prevents cluttering the session list with empty "新对话"
+      createSession('新对话', newModelCardId, true);  // isDraft=true
     },
     [createSession],
   );

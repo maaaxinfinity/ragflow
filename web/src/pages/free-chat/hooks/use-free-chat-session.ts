@@ -22,6 +22,7 @@ export interface IFreeChatSession {
   created_at: number;
   updated_at: number;
   message_count?: number; // ✅ NEW: Cached message count for UI display (not full messages!)
+  isDraft?: boolean; // ✅ NEW: Temporary session (not saved to settings, auto-deleted on switch)
   params?: {
     temperature?: number;
     top_p?: number;
@@ -86,9 +87,13 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   }, [initialSessions]);
 
   // Save sessions callback
+  // IMPORTANT: Filter out draft sessions (temporary, not persisted)
   const saveSessions = useCallback(
     (newSessions: IFreeChatSession[]) => {
-      onSessionsChange?.(newSessions);
+      // Only save non-draft sessions to settings
+      const persistentSessions = newSessions.filter(s => !s.isDraft);
+      console.log('[useFreeChatSession] Saving sessions - total:', newSessions.length, 'persistent:', persistentSessions.length);
+      onSessionsChange?.(persistentSessions);
     },
     [onSessionsChange],
   );
@@ -98,24 +103,31 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
 
   // BUG FIX #3: Use functional setState to avoid closure issues
   // Create new session
-  const createSession = useCallback((name?: string, model_card_id?: number) => {
+  // isDraft: true = temporary session (not saved, auto-deleted on switch)
+  const createSession = useCallback((name?: string, model_card_id?: number, isDraft: boolean = false) => {
     let newSession: IFreeChatSession;
 
     setSessions(prevSessions => {
+      // Clean up existing draft session if creating a new one
+      const filteredSessions = isDraft 
+        ? prevSessions.filter(s => !s.isDraft)
+        : prevSessions;
+
       newSession = {
         id: uuid(),
         name: name || '新对话',
         model_card_id,
-        messages: [],
         created_at: Date.now(),
         updated_at: Date.now(),
+        isDraft,  // Mark as draft if specified
       };
-      const updatedSessions = [newSession, ...prevSessions];
-      saveSessions(updatedSessions);
+      const updatedSessions = [newSession, ...filteredSessions];
+      saveSessions(updatedSessions);  // saveSessions will filter out drafts
       return updatedSessions;
     });
 
     setCurrentSessionId(newSession!.id);
+    console.log('[useFreeChatSession] Created session:', newSession!.id, 'isDraft:', isDraft);
     return newSession!;
   }, [saveSessions]);
 
@@ -133,18 +145,26 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   }, [saveSessions]);
 
   // Delete session
-  const deleteSession = useCallback((sessionId: string) => {
+  const deleteSession = useCallback((sessionId: string, options?: { skipSave?: boolean }) => {
     let shouldUpdateCurrentId = false;
     let newCurrentId = '';
 
     setSessions(prevSessions => {
       const updatedSessions = prevSessions.filter(s => s.id !== sessionId);
-      saveSessions(updatedSessions);
+      
+      // Save unless explicitly skipped (used for draft cleanup)
+      if (!options?.skipSave) {
+        saveSessions(updatedSessions);
+      }
 
       // Check if we need to update current session ID
       if (sessionId === currentSessionId) {
         shouldUpdateCurrentId = true;
-        if (updatedSessions.length > 0) {
+        // Switch to first non-draft session if available
+        const nonDraftSession = updatedSessions.find(s => !s.isDraft);
+        if (nonDraftSession) {
+          newCurrentId = nonDraftSession.id;
+        } else if (updatedSessions.length > 0) {
           newCurrentId = updatedSessions[0].id;
         }
       }
@@ -156,17 +176,34 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     if (shouldUpdateCurrentId) {
       setCurrentSessionId(newCurrentId);
     }
+    console.log('[useFreeChatSession] Deleted session:', sessionId);
   }, [currentSessionId, saveSessions]);
 
   // BUG FIX #11: Switch session without closure dependency
+  // Auto-cleanup draft sessions when switching
   const switchSession = useCallback((sessionId: string) => {
     setSessions(prevSessions => {
-      if (prevSessions.find(s => s.id === sessionId)) {
+      const targetSession = prevSessions.find(s => s.id === sessionId);
+      if (targetSession) {
+        // Clean up old draft sessions (except the one we're switching to)
+        const cleanedSessions = prevSessions.filter(s => 
+          !s.isDraft || s.id === sessionId
+        );
+        
         setCurrentSessionId(sessionId);
+        console.log('[useFreeChatSession] Switched to session:', sessionId, 'isDraft:', targetSession.isDraft);
+        
+        // If cleaned any drafts, save the updated list
+        if (cleanedSessions.length !== prevSessions.length) {
+          console.log('[useFreeChatSession] Cleaned up', prevSessions.length - cleanedSessions.length, 'draft sessions');
+          saveSessions(cleanedSessions);
+          return cleanedSessions;
+        }
+        return prevSessions;
       }
-      return prevSessions; // No change to sessions
+      return prevSessions;
     });
-  }, []);
+  }, [saveSessions]);
 
   // Clear all sessions
   const clearAllSessions = useCallback(() => {
