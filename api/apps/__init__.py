@@ -76,7 +76,12 @@ swagger = Swagger(
     },
 )
 
-CORS(app, supports_credentials=True, max_age=2592000)
+CORS(app, 
+     supports_credentials=True, 
+     max_age=2592000,
+     origins=["*"],  # Allow all origins for development
+     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+     expose_headers=["Authorization"])
 app.url_map.strict_slashes = False
 app.json_encoder = CustomJSONEncoder
 app.errorhandler(Exception)(server_error_response)
