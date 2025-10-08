@@ -19,15 +19,15 @@ MIGRATION_SCRIPT="api/db/migrations/${MIGRATION_NUMBER}_*.py"
 echo "=========================================="
 echo "RAGFlow 迁移脚本执行工具"
 echo "=========================================="
-echo "容器: ragflow-server"
+echo "容器: ragflow"
 echo "迁移脚本: ${MIGRATION_SCRIPT}"
 echo "模式: ${DRY_RUN_FLAG:-production}"
 echo "=========================================="
 echo ""
 
 # 检查容器是否运行
-if ! docker compose ps ragflow-server | grep -q "Up"; then
-    echo "❌ 错误: ragflow-server 容器未运行"
+if ! docker compose ps ragflow | grep -q "Up"; then
+    echo "❌ 错误: ragflow 容器未运行"
     echo "请先启动容器: docker compose up -d"
     exit 1
 fi
@@ -37,13 +37,13 @@ echo ""
 
 # 列出匹配的迁移脚本
 echo "📋 查找迁移脚本..."
-SCRIPT_PATH=$(docker compose exec -T ragflow-server bash -c "ls ${MIGRATION_SCRIPT} 2>/dev/null | head -1")
+SCRIPT_PATH=$(docker compose exec -T ragflow bash -c "ls ${MIGRATION_SCRIPT} 2>/dev/null | head -1")
 
 if [ -z "$SCRIPT_PATH" ]; then
     echo "❌ 错误: 未找到迁移脚本 ${MIGRATION_SCRIPT}"
     echo ""
     echo "可用的迁移脚本:"
-    docker compose exec -T ragflow-server bash -c "ls /ragflow/api/db/migrations/*.py 2>/dev/null"
+    docker compose exec -T ragflow bash -c "ls /ragflow/api/db/migrations/*.py 2>/dev/null"
     exit 1
 fi
 
@@ -69,7 +69,7 @@ echo ""
 echo "🚀 开始执行迁移..."
 echo "=========================================="
 
-docker compose exec -T ragflow-server python $SCRIPT_PATH $DRY_RUN_FLAG
+docker compose exec -T ragflow python $SCRIPT_PATH $DRY_RUN_FLAG
 
 EXIT_CODE=$?
 
@@ -83,4 +83,4 @@ fi
 
 echo ""
 echo "📝 建议: 检查日志确认结果"
-echo "  docker compose logs ragflow-server --tail 50"
+echo "  docker compose logs ragflow --tail 50"
