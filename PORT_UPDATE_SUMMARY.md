@@ -4,12 +4,17 @@
 
 ### 1. 核心配置文件
 
-**`web/package.json`** - 已修改 dev 脚本
+**`web/.env`** - 端口配置（优先级最高）
+```bash
+PORT=10080  # ← 修改：UmiJS 开发服务器端口
+```
+
+**`web/package.json`** - dev 脚本
 ```json
 {
   "scripts": {
-    "dev": "cross-env UMI_DEV_SERVER_COMPRESS=none PORT=10080 umi dev",
-    // ← 新增：通过环境变量 PORT=10080 指定开发服务器端口
+    "dev": "cross-env UMI_DEV_SERVER_COMPRESS=none umi dev",
+    // 注意：端口从 .env 文件读取，不在这里配置
   }
 }
 ```
