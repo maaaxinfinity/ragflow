@@ -610,6 +610,7 @@ def completion(**kwargs):
             # conv.message was already set to deepcopy(req["messages"]) at line 479
             ConversationService.update_by_id(conv.id, conv.to_dict())
             logging.info(f"[completion] Saved user messages before streaming for conv {conv.id}")
+        
         def stream():
             nonlocal dia, msg, req, conv
             try:
