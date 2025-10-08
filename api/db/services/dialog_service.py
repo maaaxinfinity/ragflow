@@ -177,6 +177,10 @@ class DialogService(CommonService):
         return res
 
 def chat_solo(dialog, messages, stream=True):
+    # CRITICAL FIX: Validate messages array is not empty
+    if not messages or len(messages) == 0:
+        raise ValueError("Messages array cannot be empty in chat_solo")
+    
     if TenantLLMService.llm_id2llm_type(dialog.llm_id) == "image2text":
         chat_mdl = LLMBundle(dialog.tenant_id, LLMType.IMAGE2TEXT, dialog.llm_id)
     else:
@@ -187,6 +191,11 @@ def chat_solo(dialog, messages, stream=True):
     if prompt_config.get("tts"):
         tts_mdl = LLMBundle(dialog.tenant_id, LLMType.TTS)
     msg = [{"role": m["role"], "content": re.sub(r"##\d+\$\$", "", m["content"])} for m in messages if m["role"] != "system"]
+    
+    # CRITICAL FIX: Check if msg is empty after filtering (all messages were system messages)
+    if not msg or len(msg) == 0:
+        raise ValueError("No valid messages after filtering system messages in chat_solo")
+    
     # BUG FIX #5: Initialize answer to avoid NameError if stream is empty
     if stream:
         last_ans = ""
