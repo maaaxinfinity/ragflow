@@ -160,6 +160,12 @@ def get_user_settings(**kwargs):
                 for session in sessions:
                     conversation_id = session.get('conversation_id')
                     
+                    # ❌ CRITICAL FIX: Filter out sessions with null model_card_id
+                    # These are legacy data or incomplete sessions that should not be exposed
+                    if session.get('model_card_id') is None:
+                        logging.warning(f"[FreeChat] Skipping session {session.get('id')} with null model_card_id")
+                        continue  # Skip this session
+                    
                     # Create lightweight session metadata
                     stripped_session = {
                         'id': session.get('id'),
@@ -250,6 +256,15 @@ def save_user_settings(**kwargs):
         
         sessions_stripped = []
         for session in sessions_raw:
+            # ❌ CRITICAL FIX: Reject sessions with null model_card_id
+            # These sessions cannot be used (frontend will disable input)
+            if session.get('model_card_id') is None:
+                logging.error(f"[FreeChat] Rejecting session {session.get('id')} with null model_card_id")
+                return get_data_error_result(
+                    message="Invalid session: model_card_id is required for all sessions",
+                    code=settings.RetCode.ARGUMENT_ERROR
+                )
+            
             # Only save metadata to free_chat_user_settings
             stripped_session = {
                 'id': session.get('id'),

@@ -50,23 +50,35 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
       const newCount = initialSessions.length;
       const currentCount = sessions.length;
 
-      // Only sync if:
-      // 1. First load (lastSyncedCount === 0)
-      // 2. Sessions count changed (add/delete operations)
-      if (lastSyncedCount === 0 || newCount !== currentCount) {
-        console.log('[useFreeChatSession] Syncing with initialSessions:', {
-          reason: lastSyncedCount === 0 ? 'first_load' : 'count_changed',
-          oldCount: currentCount,
-          newCount,
-        });
+      if (lastSyncedCount === 0) {
+        // First load: complete sync
+        console.log('[useFreeChatSession] First load sync');
         setSessions(initialSessions);
         setLastSyncedCount(newCount);
-
+        
         // Auto-select first session if none selected
         if (!currentSessionId && initialSessions.length > 0) {
           setCurrentSessionId(initialSessions[0].id);
         }
+      } else if (newCount !== currentCount) {
+        // Count changed: sync but preserve local conversation_id
+        console.log('[useFreeChatSession] Count changed, merging local state');
+        setSessions(prevSessions => {
+          const mergedSessions = initialSessions.map(incomingSession => {
+            const localSession = prevSessions.find(s => s.id === incomingSession.id);
+            // If local has conversation_id but remote doesn't, keep local
+            // This prevents loss of conversation_id during debounced save window
+            if (localSession?.conversation_id && !incomingSession.conversation_id) {
+              console.log('[useFreeChatSession] Preserving local conversation_id for session:', incomingSession.id);
+              return { ...incomingSession, conversation_id: localSession.conversation_id };
+            }
+            return incomingSession;
+          });
+          return mergedSessions;
+        });
+        setLastSyncedCount(newCount);
       } else {
+        // Count unchanged: skip sync to preserve local modifications
         console.log('[useFreeChatSession] Skipping sync to preserve local changes');
       }
     }
