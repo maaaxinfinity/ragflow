@@ -1,52 +1,37 @@
-$url = "https://rag.limitee.cn/v1/conversation/completion"
+# Check what's the exact error from the API
+
+$url = "https://rag.limitee.cn/v1/admin/cleanup/test-reset"
 $headers = @{
     "Authorization" = "Bearer Q4OTk4ODM2OWVjNTExZjBiMTA2ZjY4YT"
     "Content-Type" = "application/json"
 }
-$body = @{
-    conversation_id = "7728c8161bc6441eada0d58c45514b2d"
-    messages = @(
-        @{
-            id = "check-$(Get-Date -Format 'HHmmss')"
-            role = "user"
-            content = "当前测试"
-        }
-    )
-    model_card_id = 1
-    kb_ids = @()
-} | ConvertTo-Json -Depth 10
 
-Write-Host "Testing current API state..."
-Write-Host "Request body: $body"
-Write-Host "`n"
+$body = @{
+    tenant_id = "c06096ce9e3411f09866eedd5edd0033"
+    confirm = "yes"
+} | ConvertTo-Json
+
+Write-Host "Sending request to admin API..."
+Write-Host "URL: $url"
+Write-Host "Body: $body"
+Write-Host ""
 
 try {
-    $response = Invoke-WebRequest -Uri $url -Method POST -Headers $headers -Body $body -TimeoutSec 10
-    
-    Write-Host "Success! Status: $($response.StatusCode)"
-    Write-Host "Content-Type: $($response.Headers['Content-Type'])"
-    
-    $content = $response.Content
-    if ($content -match 'ERROR') {
-        Write-Host "`nERROR found in response:"
-        Write-Host $content
-    } elseif ($content -match '^data:') {
-        Write-Host "`nStreaming response (SSE):"
-        Write-Host $content.Substring(0, [Math]::Min(300, $content.Length))
-    } else {
-        Write-Host "`nUnexpected response format:"
-        Write-Host $content
-    }
+    $response = Invoke-WebRequest -Uri $url -Method POST -Headers $headers -Body $body
+    Write-Host "Success!"
+    Write-Host "Status: $($response.StatusCode)"
+    Write-Host "Response: $($response.Content)"
 } catch {
-    Write-Host "Request failed: $($_.Exception.Message)"
-    if ($_.Exception.Response) {
-        try {
-            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-            $errorBody = $reader.ReadToEnd()
-            Write-Host "`nError response body:"
-            Write-Host $errorBody
-        } catch {
-            Write-Host "Could not read error response"
-        }
+    Write-Host "Error occurred:"
+    Write-Host "Message: $($_.Exception.Message)"
+    Write-Host "Status: $($_.Exception.Response.StatusCode.value__)"
+    
+    # Try to read response body
+    try {
+        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+        $responseBody = $reader.ReadToEnd()
+        Write-Host "Response Body: $responseBody"
+    } catch {
+        Write-Host "Could not read response body"
     }
 }
