@@ -121,15 +121,23 @@ export const useFreeChat = (
     }
   }, [currentSessionId, loadedMessagesData, currentSession?.conversation_id, setDerivedMessages]);
 
-  // FIX: Handle conversation deletion error
-  // When conversation is deleted but session still references it, clear the conversation_id
+  // BUGFIX: Handle conversation deletion error with strict error code checking
+  // Only clear conversation_id for DATA_ERROR (102) or NOT_FOUND (404) codes
+  // Other errors (network, auth, etc.) should NOT clear the session data
   useEffect(() => {
     if (messagesError && currentSession?.conversation_id) {
       const error: any = messagesError;
-      // Check if this is a "conversation deleted" error (DATA_ERROR code)
-      if (error.code && error.conversationId === currentSession.conversation_id) {
+      
+      // STRICT CHECK: Only handle "resource not found" errors
+      // DATA_ERROR (102): Backend returned explicit "conversation not found"
+      // NOT_FOUND (404): HTTP 404 status
+      const isResourceNotFoundError = 
+        (error.code === 102 || error.code === 404) && 
+        error.conversationId === currentSession.conversation_id;
+      
+      if (isResourceNotFoundError) {
         logError(
-          `Conversation ${currentSession.conversation_id} not found, clearing from session`,
+          `Conversation ${currentSession.conversation_id} not found (code: ${error.code}), clearing from session`,
           'useFreeChat.messagesError',
           false
         );
@@ -139,6 +147,14 @@ export const useFreeChat = (
         });
         // Clear messages
         setDerivedMessages([]);
+      } else {
+        // Other errors: just log, don't clear session data
+        // This prevents data loss from transient network/auth issues
+        logError(
+          `Failed to load messages (code: ${error.code}), keeping session data intact`,
+          'useFreeChat.messagesError',
+          false
+        );
       }
     }
   }, [messagesError, currentSession, updateSession, setDerivedMessages]);

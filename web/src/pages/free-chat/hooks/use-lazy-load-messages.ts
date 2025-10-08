@@ -62,12 +62,17 @@ export const useLazyLoadMessages = (
     },
     // Only fetch when conversation_id exists and options.enabled is not false
     enabled: !!conversationId && (options?.enabled !== false),
-    // Don't cache data - always fetch fresh when switching sessions
-    // This ensures we see the latest messages including those from other devices
-    staleTime: 0,
-    // Keep in cache for 5 minutes after unmount
-    gcTime: 5 * 60 * 1000,
+    // BUGFIX: Keep messages stable for 5 minutes to prevent unnecessary refetches
+    // Messages in a conversation are append-only, no need for aggressive freshness checks
+    staleTime: 5 * 60 * 1000,
+    // Keep in cache for 10 minutes after unmount
+    gcTime: 10 * 60 * 1000,
     // Retry once on failure
     retry: 1,
+    // BUGFIX: Disable automatic refetch triggers to prevent "ghost refetch" clearing messages
+    // These auto-refetches can race with message sending and cause UI flickering
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 };

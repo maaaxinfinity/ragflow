@@ -107,13 +107,35 @@ function FreeChatContent() {
 
   // Handle sessions change with debounce (5 seconds)
   // Sessions are saved silently without triggering "unsaved changes" indicator
+  // BUGFIX: Detect first conversation_id creation and save immediately to prevent session loss
+  const prevSessionsRef = useRef<any[]>([]);
   const handleSessionsChange = useCallback(
     (sessions: any[]) => {
       console.log('[SessionsChange] Called with', sessions.length, 'sessions');
       console.log('[SessionsChange] userId:', userId, 'settings:', !!settings);
+      
       if (userId && settings) {
-        console.log('[SessionsChange] Calling updateField (silent mode)');
-        updateField('sessions', sessions, { silent: true });
+        // BUGFIX: Check if any session just got its first conversation_id
+        // This indicates a new conversation was created and needs immediate persistence
+        let needsImmediateSave = false;
+        for (const session of sessions) {
+          const prevSession = prevSessionsRef.current.find(s => s.id === session.id);
+          if (session.conversation_id && (!prevSession || !prevSession.conversation_id)) {
+            console.log('[SessionsChange] Detected new conversation_id for session:', session.id);
+            needsImmediateSave = true;
+            break;
+          }
+        }
+        
+        prevSessionsRef.current = sessions;
+        
+        if (needsImmediateSave) {
+          console.log('[SessionsChange] Calling updateField with immediate save');
+          updateField('sessions', sessions, { silent: true, immediate: true });
+        } else {
+          console.log('[SessionsChange] Calling updateField (silent mode, debounced)');
+          updateField('sessions', sessions, { silent: true });
+        }
       } else {
         console.warn('[SessionsChange] Skipped - missing userId or settings');
       }
