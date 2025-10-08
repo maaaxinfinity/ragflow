@@ -94,7 +94,7 @@ export const useFreeChat = (
   // Press Enter to send
   const handlePressEnter = useCallback(() => {
     if (trim(value) === '') return;
-    if (sendLoading) return;
+    if (!done) return;  // FIX: Use 'done' instead of 'sendLoading' to avoid reference error
 
     // Validate model_card_id before sending
     if (!currentSession?.model_card_id) {
@@ -116,7 +116,7 @@ export const useFreeChat = (
     addNewestQuestion(message);
     setValue('');
     sendMessage(message);
-  }, [value, sendLoading, currentSession, addNewestQuestion, setValue, sendMessage, t]);
+  }, [value, done, currentSession, addNewestQuestion, setValue, sendMessage, t]);
 
   // Send message (core logic)
   const sendMessage = useCallback(
