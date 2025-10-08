@@ -41,7 +41,7 @@ docker/.env
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| **前端热重载** | 8000 | UmiJS 开发服务器（仅热重载模式） |
+| **前端热重载** | 10080 | UmiJS 开发服务器（仅热重载模式，与 Nginx HTTP 端口一致） |
 
 ---
 
@@ -174,23 +174,23 @@ kill -9 <PID>
 
 ---
 
-### 场景2：前端热重载 8000 端口被占用
+### 场景2：前端热重载 10080 端口被占用
 
 **检查占用**：
 ```bash
 # Windows
-netstat -ano | findstr 8000
+netstat -ano | findstr 10080
 
 # Linux/MacOS
-lsof -i :8000
+lsof -i :10080
 ```
 
 **解决方法1：修改前端端口**
 ```bash
 # 编辑 web/.umirc.ts
 export default defineConfig({
-  // 添加 port 配置
-  port: 8001,
+  // 修改 port 配置
+  port: 10081,
   
   // 其他配置...
 });
@@ -203,7 +203,7 @@ bash build-and-run-dev.sh --hot
 **解决方法2：使用环境变量**
 ```bash
 # 临时使用不同端口
-PORT=8001 bash build-and-run-dev.sh --hot
+PORT=10081 bash build-and-run-dev.sh --hot
 ```
 
 ---
@@ -270,13 +270,13 @@ bash build-and-run-dev.sh --hot
 **步骤**：
 ```bash
 # 1. 确保安全组/防火墙开放端口
-# 需要开放：9380, 8000（如果使用热重载）
+# 需要开放：9380, 10080（如果使用热重载）
 
 # 2. 启动服务
 bash build-and-run-dev.sh --hot
 
 # 3. 本地浏览器访问
-# 前端：http://<服务器公网IP>:8000
+# 前端：http://<服务器公网IP>:10080
 # 后端：http://<服务器公网IP>:9380
 ```
 

@@ -22,6 +22,8 @@ export default defineConfig({
   history: {
     type: 'browser',
   },
+  // Development server port (matches docker-compose.yml Nginx HTTP port)
+  port: 10080,
   plugins: [
     '@react-dev-inspector/umi4-plugin',
     '@umijs/plugins/dist/tailwindcss',
