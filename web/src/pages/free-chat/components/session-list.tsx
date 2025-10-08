@@ -175,7 +175,7 @@ export function SessionList({
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <MessageSquare className="h-3 w-3" />
-                              {session.messages.length}
+                              {session.messages?.length ?? 0}
                             </span>
                             <span>•</span>
                             <span>{formatTimeAgo(session.updated_at, t)}</span>
