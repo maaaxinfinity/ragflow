@@ -178,6 +178,15 @@ def cleanup_null_conversations(connection, dry_run=False, auto_confirm=False):
     cursor = connection.cursor(pymysql.cursors.DictCursor)
     
     try:
+        # 检查列是否存在
+        if not check_column_exists(cursor, 'conversation', 'model_card_id'):
+            if dry_run:
+                print("[DRY RUN] model_card_id 列尚不存在，迁移后将可以执行清理操作")
+                return True
+            else:
+                print("✗ model_card_id 列不存在，请先执行迁移")
+                return False
+        
         # 统计数量
         cursor.execute("SELECT COUNT(*) as count FROM conversation WHERE model_card_id IS NULL")
         null_count = cursor.fetchone()['count']
