@@ -202,9 +202,13 @@ export const useFreeChat = (
 
         if (convData.code === 0) {
           conversationId = convData.data.id;
-          // Update session with conversation_id
+          // Update session with conversation_id AND auto-generated name
+          // This ensures the session is renamed when user sends first message
           if (currentSession) {
-            updateSession(currentSession.id, { conversation_id: conversationId });
+            updateSession(currentSession.id, { 
+              conversation_id: conversationId,
+              name: conversationName  // Auto-rename session to match conversation
+            });
           }
         } else {
           logError(
