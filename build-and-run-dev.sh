@@ -1,18 +1,20 @@
 #!/bin/bash
 
 ###############################################################################
-# RAGFlow Development Mode Script (Fast Iteration)
+# RAGFlow Development Mode Script (Fast Iteration + Hot Reload)
 #
 # This script enables fast development by:
 # 1. Using existing Docker image (no rebuild needed)
 # 2. Mounting local code into container
-# 3. Building frontend on host machine
+# 3. Frontend hot reload (changes appear instantly in browser)
+# 4. Backend auto-restart (Flask debug mode)
 #
 # Usage:
 #   ./build-and-run-dev.sh [options]
 #
 # Options:
 #   --init            First-time setup (pull image, install npm deps)
+#   --hot             Start with frontend hot reload (HMR) - Recommended!
 #   --rebuild-fe      Rebuild frontend only (30s vs 10min full rebuild)
 #   --restart         Restart containers (code changes auto-applied)
 #   --stop            Stop development services
@@ -20,13 +22,20 @@
 #   --clean           Clean up and start fresh
 #   --help            Show this help message
 #
-# Quick Start:
+# Quick Start (Hot Reload Mode):
+#   1. First time:     ./build-and-run-dev.sh --init
+#   2. Start hot reload: ./build-and-run-dev.sh --hot
+#   3. Edit frontend:  Changes appear INSTANTLY in browser (no rebuild!)
+#   4. Edit backend:   Changes auto-reload in 2 seconds
+#
+# Quick Start (Build Mode):
 #   1. First time:     ./build-and-run-dev.sh --init
 #   2. Edit frontend:  Edit code, then ./build-and-run-dev.sh --rebuild-fe
 #   3. Edit backend:   Edit code, then ./build-and-run-dev.sh --restart
 #   4. View logs:      ./build-and-run-dev.sh --logs
 #
 # Performance:
+#   - Hot reload mode: Instant changes (0s!)
 #   - Frontend rebuild: 10min → 30s (20x faster)
 #   - Backend restart:  5min → 2s (150x faster)
 #   - No Docker image rebuild needed!
@@ -45,6 +54,7 @@ NC='\033[0m' # No Color
 
 # Default values
 INIT=false
+HOT=false
 REBUILD_FE=false
 RESTART=false
 STOP=false
@@ -57,6 +67,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --init)
             INIT=true
+            shift
+            ;;
+        --hot)
+            HOT=true
             shift
             ;;
         --rebuild-fe)
@@ -320,11 +334,63 @@ if [ "$RESTART" = true ]; then
     exit 0
 fi
 
+# Handle --hot (Hot reload mode)
+if [ "$HOT" = true ]; then
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║              🔥 Frontend Hot Reload Mode (Instant!) 🔥            ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    # Check if Node.js is installed
+    if ! command -v node &> /dev/null; then
+        echo -e "${RED}✗ Node.js is not installed${NC}"
+        echo -e "${YELLOW}Run with --init first to set up the environment${NC}"
+        exit 1
+    fi
+
+    # Check if backend is running
+    if ! docker ps | grep -q "ragflow-server-dev"; then
+        echo -e "${YELLOW}⚠ Backend container not running${NC}"
+        echo -e "${YELLOW}Starting backend services first...${NC}"
+        cd docker
+        docker compose -f docker-compose-dev.yml up -d
+        cd ..
+        echo -e "${GREEN}✓ Backend services started${NC}"
+        echo ""
+        sleep 3
+    fi
+
+    # Start frontend dev server with hot reload
+    echo -e "${YELLOW}► Starting UmiJS development server with Hot Module Replacement...${NC}"
+    echo ""
+    echo -e "${CYAN}What you'll get:${NC}"
+    echo -e "  ✅ ${GREEN}Instant hot reload${NC} - changes appear in browser without refresh"
+    echo -e "  ✅ ${GREEN}Source maps${NC} - debug original TypeScript code"
+    echo -e "  ✅ ${GREEN}API proxy${NC} - frontend talks to Docker backend seamlessly"
+    echo -e "  ✅ ${GREEN}React Fast Refresh${NC} - preserve component state during edits"
+    echo ""
+    echo -e "${YELLOW}Access URLs after startup:${NC}"
+    echo -e "  Frontend (Hot Reload): ${GREEN}http://localhost:8000${NC}"
+    echo -e "  Backend API:           ${GREEN}http://localhost:9380${NC}"
+    echo ""
+    echo -e "${YELLOW}Press Ctrl+C to stop the dev server${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    # Change to web directory and start dev server
+    cd web
+    npm run dev
+    exit 0
+fi
+
 # Default: Show usage if no option provided
 echo -e "${YELLOW}No option specified. Showing quick help:${NC}"
 echo ""
-echo -e "${CYAN}Quick Commands:${NC}"
+echo -e "${CYAN}Quick Commands (Recommended - Hot Reload):${NC}"
 echo -e "  First-time setup:      ${GREEN}./build-and-run-dev.sh --init${NC}"
+echo -e "  Start hot reload:      ${GREEN}./build-and-run-dev.sh --hot${NC}  ${YELLOW}← Instant changes!${NC}"
+echo ""
+echo -e "${CYAN}Quick Commands (Alternative - Build Mode):${NC}"
 echo -e "  Rebuild frontend:      ${GREEN}./build-and-run-dev.sh --rebuild-fe${NC}"
 echo -e "  Restart backend:       ${GREEN}./build-and-run-dev.sh --restart${NC}"
 echo -e "  View logs:             ${GREEN}./build-and-run-dev.sh --logs${NC}"
