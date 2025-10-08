@@ -370,7 +370,7 @@ if [ "$HOT" = true ]; then
     echo -e "  ✅ ${GREEN}React Fast Refresh${NC} - preserve component state during edits"
     echo ""
     echo -e "${YELLOW}Access URLs after startup:${NC}"
-    echo -e "  Frontend (Hot Reload): ${GREEN}http://localhost:8000${NC}"
+    echo -e "  Frontend (Hot Reload): ${GREEN}http://localhost:10080${NC}"
     echo -e "  Backend API:           ${GREEN}http://localhost:9380${NC}"
     echo ""
     echo -e "${YELLOW}Press Ctrl+C to stop the dev server${NC}"
