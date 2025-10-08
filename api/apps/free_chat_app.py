@@ -256,14 +256,11 @@ def save_user_settings(**kwargs):
         
         sessions_stripped = []
         for session in sessions_raw:
-            # ❌ CRITICAL FIX: Reject sessions with null model_card_id
-            # These sessions cannot be used (frontend will disable input)
+            # ❌ CRITICAL FIX: Filter out (not reject) sessions with null model_card_id
+            # Rejecting would break user flow, instead we auto-clean invalid sessions
             if session.get('model_card_id') is None:
-                logging.error(f"[FreeChat] Rejecting session {session.get('id')} with null model_card_id")
-                return get_data_error_result(
-                    message="Invalid session: model_card_id is required for all sessions",
-                    code=settings.RetCode.ARGUMENT_ERROR
-                )
+                logging.warning(f"[FreeChat] Auto-filtering session {session.get('id')} with null model_card_id during save")
+                continue  # Skip this session, don't save it
             
             # Only save metadata to free_chat_user_settings
             stripped_session = {
