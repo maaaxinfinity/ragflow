@@ -158,16 +158,20 @@ export function SidebarDualTabs({
                             : 'bg-card hover:bg-accent hover:shadow-sm border border-transparent'
                         }`}
                         onClick={() => {
-                          // 找到该模型卡的所有对话
+                          // FIX: Clarified assistant card click behavior
+                          // Find all sessions associated with this model card
                           const cardSessions = sessions.filter(s => s.model_card_id === card.id);
                           if (cardSessions.length > 0) {
-                            // 有对话：跳转到最近更新的
+                            // Has existing sessions: switch to the most recently updated one
                             const latest = cardSessions.sort((a, b) => b.updated_at - a.updated_at)[0];
                             onSessionSelect(latest.id);
                           } else {
-                            // 无对话：只设置 model_card_id，不创建会话
+                            // No existing sessions: create a new session with this model card
+                            // onModelCardSelect triggers handleModelCardChange in parent component
+                            // which calls createSession('新对话', newModelCardId)
                             onModelCardSelect(card.id);
                           }
+                          // Always switch to Topics tab to show the session list
                           setActiveTab('topics');
                         }}
                       >
@@ -290,6 +294,12 @@ export function SidebarDualTabs({
                                     <Sparkles className="h-3 w-3" />
                                     {card.name}
                                   </span>
+                                  <span>•</span>
+                                </>
+                              )}
+                              {!session.model_card_id && (
+                                <>
+                                  <span className="text-xs text-red-500 font-medium">⚠️ 缺少助手</span>
                                   <span>•</span>
                                 </>
                               )}

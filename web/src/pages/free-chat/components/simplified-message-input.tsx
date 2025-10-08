@@ -66,6 +66,13 @@ export function SimplifiedMessageInput({
 
   return (
     <div className="flex-shrink-0 p-3 max-w-4xl w-full mx-auto">
+      {/* Warning Message */}
+      {disabled && (
+        <div className="mb-2 text-xs text-amber-600 dark:text-amber-500 text-center bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md py-1.5 px-3">
+          ⚠️ 请先在左侧"助手"标签中选择一个助手
+        </div>
+      )}
+
       {/* Input Container */}
       <div className="relative flex items-end bg-muted/50 border rounded-lg p-3">
         <textarea
@@ -74,7 +81,7 @@ export function SimplifiedMessageInput({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder={t('inputPlaceholder', '输入您的问题...')}
+          placeholder={disabled ? '请先选择助手...' : t('inputPlaceholder', '输入您的问题...')}
           className="flex-1 bg-transparent border-none outline-none resize-none min-h-[24px] max-h-[200px] text-sm pr-12"
           rows={1}
         />

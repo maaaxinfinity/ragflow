@@ -265,8 +265,10 @@ function FreeChatContent() {
   }, [searchParams, loadedConversationId, switchSession, createSession, updateSession]);
 
   const handleNewSession = useCallback(() => {
-    createSession();
-  }, [createSession]);
+    // FIX: Always pass current model_card_id when creating new session
+    // This ensures the new session is associated with the current assistant
+    createSession(undefined, currentSession?.model_card_id);
+  }, [createSession, currentSession?.model_card_id]);
 
   const handleSessionRename = useCallback(
     async (sessionId: string, newName: string) => {
@@ -478,7 +480,7 @@ function FreeChatContent() {
           onSend={handlePressEnter}
           onNewTopic={handleNewSession}
           onClearMessages={removeAllMessages}
-          disabled={!dialogId}
+          disabled={!dialogId || !currentSession?.model_card_id}
           sendLoading={sendLoading}
         />
       </div>

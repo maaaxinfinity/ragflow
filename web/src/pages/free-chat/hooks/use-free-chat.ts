@@ -90,6 +90,34 @@ export const useFreeChat = (
     controller.abort();
   }, [controller]);
 
+  // FIX: Add validation to handlePressEnter before sending
+  // Press Enter to send
+  const handlePressEnter = useCallback(() => {
+    if (trim(value) === '') return;
+    if (sendLoading) return;
+
+    // Validate model_card_id before sending
+    if (!currentSession?.model_card_id) {
+      logError(
+        'Please select an assistant first',
+        'useFreeChat.handlePressEnter',
+        true,
+        t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
+      );
+      return;
+    }
+
+    const message: Message = {
+      id: buildMessageUuid(),
+      role: MessageType.User,
+      content: value,
+    };
+
+    addNewestQuestion(message);
+    setValue('');
+    sendMessage(message);
+  }, [value, sendLoading, currentSession, addNewestQuestion, setValue, sendMessage, t]);
+
   // Send message (core logic)
   const sendMessage = useCallback(
     async (message: Message, customParams?: DynamicModelParams) => {
@@ -107,13 +135,14 @@ export const useFreeChat = (
 
       // Create conversation if not exists
       if (!conversationId) {
-        // Ensure model_card_id exists before creating conversation
+        // FIX: Ensure model_card_id exists before creating conversation
+        // Without model_card_id, backend cannot apply model card parameters
         if (!currentSession?.model_card_id) {
           logError(
-            'model_card_id is required',
+            'Please select an assistant first',
             'useFreeChat.sendMessage',
             true,
-            'Please select a model card first'
+            t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
           );
           removeLatestMessage();
           return;
@@ -155,13 +184,14 @@ export const useFreeChat = (
         }
       }
 
-      // Ensure model_card_id exists before sending message
+      // FIX: Ensure model_card_id exists before sending message
+      // This check prevents sending messages without an associated assistant
       if (!currentSession?.model_card_id) {
         logError(
-          'model_card_id is required',
+          'Please select an assistant first',
           'useFreeChat.sendMessage',
           true,
-          'Please select a model card first'
+          t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
         );
         removeLatestMessage();
         return;
@@ -212,82 +242,49 @@ export const useFreeChat = (
     ],
   );
 
-  // BUG FIX #2: Handle session creation and message sending properly
-  // Store pending message content when session is being created
-  const pendingMessageRef = useRef<string | null>(null);
+  // REMOVED: handleSendMessage and pendingMessage mechanism
+  // Replaced with direct validation in handlePressEnter
+  // This simplifies the code and prevents message loss issues
 
-  const handleSendMessage = useCallback(
-    async (content: string) => {
-      if (trim(content) === '') return;
-
-      // Create session if not exists and mark message as pending
-      if (!currentSession) {
-        // Extract meaningful title: trim, limit to 50 chars, remove newlines
-        const title = content.trim().replace(/\n+/g, ' ').slice(0, 50);
-        createSession(title);
-        // Store pending message to be sent after session is created
-        pendingMessageRef.current = content;
-        return;
-      }
-
-      const id = uuid();
-      const message: Message = {
-        id,
-        content: content.trim(),
-        role: MessageType.User,
-      };
-
-      // Add user message
-      addNewestQuestion(message);
-
-      if (done) {
-        setValue('');
-        await sendMessage(message);
-      }
-    },
-    [currentSession, createSession, addNewestQuestion, done, setValue, sendMessage],
-  );
-
-  // Send pending message when session becomes available
-  useEffect(() => {
-    if (currentSession && pendingMessageRef.current) {
-      const content = pendingMessageRef.current;
-      pendingMessageRef.current = null; // Clear pending
-
-      const id = uuid();
-      const message: Message = {
-        id,
-        content: content.trim(),
-        role: MessageType.User,
-      };
-
-      addNewestQuestion(message);
-
-      if (done) {
-        setValue('');
-        sendMessage(message);
-      }
-    }
-  }, [currentSession, addNewestQuestion, done, setValue, sendMessage]);
-
-  // Press Enter to send
-  const handlePressEnter = useCallback(() => {
-    handleSendMessage(value);
-  }, [handleSendMessage, value]);
-
-  // Regenerate answer
+  // FIX: Regenerate answer with proper error handling
+  // Prevents message loss when regeneration fails
   const regenerateMessage = useCallback(
     async (message: Message) => {
+      // Validate model_card_id before attempting regeneration
+      if (!currentSession?.model_card_id) {
+        logError(
+          'Cannot regenerate: no assistant selected',
+          'useFreeChat.regenerateMessage',
+          true,
+          t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
+        );
+        return;  // Don't delete messages, just return
+      }
+
       if (message.id) {
         const index = derivedMessages.findIndex((x) => x.id === message.id);
         if (index !== -1) {
+          // Save original messages for rollback on failure
+          const originalMessages = [...derivedMessages];
           const newMessages = derivedMessages.slice(0, index + 1);
           setDerivedMessages(newMessages);
-          await sendMessage(message);
+          
+          try {
+            await sendMessage(message);
+          } catch (error) {
+            // Rollback to original messages on failure
+            setDerivedMessages(originalMessages);
+            logError(
+              'Failed to regenerate message',
+              'useFreeChat.regenerateMessage',
+              true,
+              error instanceof Error ? error.message : t('unknownError', '未知错误')
+            );
+          }
         }
       }
     },
-    [derivedMessages, setDerivedMessages, sendMessage],
+    [currentSession, derivedMessages, setDerivedMessages, sendMessage, t],
   );
 
   // Listen to answer updates
@@ -342,7 +339,6 @@ export const useFreeChat = (
   return {
     // Message related
     handlePressEnter,
-    handleSendMessage,
     handleInputChange,
     value,
     setValue,
