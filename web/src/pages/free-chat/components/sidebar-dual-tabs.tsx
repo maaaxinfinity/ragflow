@@ -305,7 +305,7 @@ export function SidebarDualTabs({
                               )}
                               <span className="flex items-center gap-1">
                                 <MessageSquare className="h-3 w-3" />
-                                {session.messages.length}
+                                {session.message_count ?? 0}
                               </span>
                               <span>•</span>
                               <span>{formatTimeAgo(session.updated_at, t)}</span>
