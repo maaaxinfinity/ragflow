@@ -6,7 +6,6 @@ import {
 } from '@/hooks/logic-hooks';
 import { Message } from '@/interfaces/database/chat';
 import api from '@/utils/api';
-import { buildMessageUuid } from '@/utils/chat';
 import { trim } from 'lodash';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
@@ -108,7 +107,7 @@ export const useFreeChat = (
     }
 
     const message: Message = {
-      id: buildMessageUuid(),
+      id: uuid(),  // FIX: Use uuid() directly instead of buildMessageUuid() without args
       role: MessageType.User,
       content: value,
     };

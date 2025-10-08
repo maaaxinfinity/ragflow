@@ -283,11 +283,18 @@ function FreeChatContent() {
       // If session has conversation_id, update backend as well
       if (session.conversation_id) {
         try {
+          // FIX: Add Authorization header with beta token from URL
+          const authToken = searchParams.get('auth');
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+          };
+          if (authToken) {
+            headers['Authorization'] = `Bearer ${authToken}`;
+          }
+
           const response = await fetch('/v1/conversation/set', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers,
             credentials: 'include',
             body: JSON.stringify({
               conversation_id: session.conversation_id,
@@ -311,7 +318,7 @@ function FreeChatContent() {
         manualSave();
       }, 50);
     },
-    [sessions, updateSession, manualSave],
+    [sessions, updateSession, manualSave, searchParams],
   );
 
   const handleSessionDelete = useCallback(
@@ -322,11 +329,18 @@ function FreeChatContent() {
       // If session has conversation_id, delete from backend first
       if (session.conversation_id) {
         try {
+          // FIX: Add Authorization header with beta token from URL
+          const authToken = searchParams.get('auth');
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+          };
+          if (authToken) {
+            headers['Authorization'] = `Bearer ${authToken}`;
+          }
+
           const response = await fetch('/v1/conversation/rm', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers,
             credentials: 'include',
             body: JSON.stringify({
               conversation_ids: [session.conversation_id],
@@ -349,7 +363,7 @@ function FreeChatContent() {
       // Delete from local state
       deleteSession(sessionId);
     },
-    [sessions, deleteSession],
+    [sessions, deleteSession, searchParams],
   );
 
   const handleModelCardChange = useCallback(
