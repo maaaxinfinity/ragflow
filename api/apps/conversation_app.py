@@ -18,6 +18,7 @@ import re
 import logging
 import os
 import requests
+import time
 from copy import deepcopy
 from flask import Response, request
 from flask_login import current_user, login_required
@@ -598,6 +599,15 @@ def completion(**kwargs):
         req["model_card_id"] = model_card_id
         req.update(chat_model_config)  # Add temperature, top_p, etc.
 
+        # CRITICAL FIX: Save user message BEFORE starting chat stream
+        # This ensures user messages are persisted even if chat() throws exception
+        # Without this, failed requests lose user messages (causing "third time success" bug)
+        if not is_embedded:
+            # Save conversation state before streaming (includes user messages from req["messages"])
+            # conv.message was already set to deepcopy(req["messages"]) at line 479
+            ConversationService.update_by_id(conv.id, conv.to_dict())
+            logging.info(f"[completion] Saved user messages before streaming for conv {conv.id}")
+
         is_embedded = bool(chat_model_id)
         def stream():
             nonlocal dia, msg, req, conv
@@ -605,10 +615,28 @@ def completion(**kwargs):
                 for ans in chat(dia, msg, True, **req):
                     ans = structure_answer(conv, ans, message_id, conv.id)
                     yield "data:" + json.dumps({"code": 0, "message": "", "data": ans}, ensure_ascii=False) + "\n\n"
+                # Save conversation again after successful completion (includes assistant response)
                 if not is_embedded:
                     ConversationService.update_by_id(conv.id, conv.to_dict())
+                    logging.info(f"[completion] Saved assistant response after streaming for conv {conv.id}")
             except Exception as e:
                 logging.exception(e)
+                # CRITICAL FIX: Save conversation even on error
+                # This ensures error messages are persisted for debugging
+                if not is_embedded:
+                    # Append error message to conversation
+                    error_msg = {
+                        "role": "assistant",
+                        "content": f"**ERROR**: {str(e)}",
+                        "created_at": time.time(),
+                        "id": message_id
+                    }
+                    if not conv.message or conv.message[-1].get("role") != "assistant":
+                        conv.message.append(error_msg)
+                    else:
+                        conv.message[-1] = error_msg
+                    ConversationService.update_by_id(conv.id, conv.to_dict())
+                    logging.error(f"[completion] Saved error message for conv {conv.id}: {str(e)}")
                 yield "data:" + json.dumps({"code": 500, "message": str(e), "data": {"answer": "**ERROR**: " + str(e), "reference": []}}, ensure_ascii=False) + "\n\n"
             yield "data:" + json.dumps({"code": 0, "message": "", "data": True}, ensure_ascii=False) + "\n\n"
 
