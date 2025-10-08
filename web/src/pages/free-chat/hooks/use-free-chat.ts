@@ -1,3 +1,18 @@
+/**
+ * FreeChat Core Hook - Refactored for Lazy Loading Architecture
+ * 
+ * ✅ Architecture Principles Implemented:
+ * 1. Separation of Concerns: Messages stored in conversation table, metadata in sessions
+ * 2. Lazy Loading: Messages loaded on-demand when switching sessions
+ * 3. Real-time Write: User messages immediately written to conversation table
+ * 
+ * Key Changes:
+ * - Sessions no longer contain 'messages' field
+ * - Messages managed separately in 'currentMessages' state
+ * - Lazy loading via useLazyLoadMessages hook
+ * - Session updates only write metadata (30s debounce)
+ */
+
 import { MessageType } from '@/constants/chat';
 import {
   useHandleMessageInputChange,
@@ -12,6 +27,7 @@ import { v4 as uuid } from 'uuid';
 import { DynamicModelParams } from '../types';
 import { useKBContext } from '../contexts/kb-context';
 import { useFreeChatSession } from './use-free-chat-session';
+import { useLazyLoadMessages } from './use-lazy-load-messages';
 import { useUpdateConversation } from '@/hooks/use-chat-request';
 import { logError, logInfo } from '../utils/error-handler';
 import { useTranslate } from '@/hooks/common-hooks';
@@ -74,15 +90,29 @@ export const useFreeChat = (
     removeAllMessages,
   } = useSelectDerivedMessages();
 
-  // BUG FIX #10: Only sync when currentSessionId changes, not when currentSession object changes
-  // This prevents overwriting derivedMessages when session is updated
+  // ✅ NEW: Lazy load messages when switching sessions (Principle 2: Lazy Loading)
+  const {
+    data: loadedMessagesData,
+    isLoading: isLoadingMessages,
+    error: messagesError,
+  } = useLazyLoadMessages(currentSession?.conversation_id);
+
+  // ✅ NEW: Sync loaded messages to derivedMessages when data arrives or session changes
   useEffect(() => {
-    if (currentSession) {
-      setDerivedMessages(currentSession.messages || []);
+    if (currentSessionId) {
+      if (loadedMessagesData?.messages) {
+        // Lazy load succeeded - use loaded messages
+        setDerivedMessages(loadedMessagesData.messages);
+        logInfo(`[useFreeChat] Loaded ${loadedMessagesData.messages.length} messages for session ${currentSessionId}`);
+      } else if (!currentSession?.conversation_id) {
+        // New session without conversation_id - start with empty messages
+        setDerivedMessages([]);
+      }
+      // else: loading in progress or error - keep current messages
     } else {
       setDerivedMessages([]);
     }
-  }, [currentSessionId, setDerivedMessages]); // Remove currentSession from deps
+  }, [currentSessionId, loadedMessagesData, currentSession?.conversation_id, setDerivedMessages]);
 
   // Stop output
   const stopOutputMessage = useCallback(() => {
@@ -147,10 +177,15 @@ export const useFreeChat = (
           return;
         }
 
-        // Use session name if user renamed it (not the default "新对话"), otherwise use message content
-        const conversationName = currentSession.name && currentSession.name !== '新对话'
-          ? currentSession.name
-          : message.content.slice(0, 50);
+        // ✅ UI Improvement: Auto-generate session title from first message (30 chars max)
+        // Use session name if user renamed it (not the default "新对话")
+        // Otherwise auto-generate from first message content
+        let conversationName = currentSession.name;
+        if (!conversationName || conversationName === '新对话') {
+          // Auto-generate: take first 30 chars, replace newlines, add ellipsis if truncated
+          const cleanContent = message.content.replace(/[\n\r]+/g, ' ').trim();
+          conversationName = cleanContent.slice(0, 30) + (cleanContent.length > 30 ? '...' : '');
+        }
 
         const convData = await updateConversation({
           dialog_id: dialogId,
@@ -222,9 +257,17 @@ export const useFreeChat = (
       if (res && (res?.response.status !== 200 || res?.data?.code !== 0)) {
         setValue(message.content);
         removeLatestMessage();
+      } else {
+        // ✅ NEW: Update session metadata ONLY (Principle 3: Differentiated Write Strategy)
+        // Messages already written to conversation table by backend
+        // Here we only update UI metadata with 30s debounce (via onSessionsChange)
+        if (currentSession) {
+          updateSession(currentSession.id, {
+            updated_at: Date.now(),
+            message_count: (currentSession.message_count || 0) + 1,
+          });
+        }
       }
-      // BUG FIX #1: Remove duplicate session update here
-      // The session will be updated by the derivedMessages sync effect
     },
     [
       dialogId,
@@ -293,47 +336,12 @@ export const useFreeChat = (
     }
   }, [answer, addNewestAnswer]);
 
-  // BUG FIX #1, #9 & #13: Properly sync derivedMessages to session storage
-  // Use refs to avoid circular dependency issues
-  const currentSessionIdRef = useRef(currentSessionId);
-  const sessionsRef = useRef(sessions);
-  const isSyncingRef = useRef(false);
-
-  useEffect(() => {
-    currentSessionIdRef.current = currentSessionId;
-  }, [currentSessionId]);
-
-  useEffect(() => {
-    sessionsRef.current = sessions;
-  }, [sessions]);
-
-  useEffect(() => {
-    const sessionId = currentSessionIdRef.current;
-    if (sessionId && derivedMessages.length > 0 && !isSyncingRef.current) {
-      // Find the current session from the ref to avoid circular dependency
-      const session = sessionsRef.current.find(s => s.id === sessionId);
-      if (!session) return;
-
-      const currentMessages = session.messages || [];
-      const messagesChanged =
-        derivedMessages.length !== currentMessages.length ||
-        derivedMessages.some((msg, idx) => {
-          const current = currentMessages[idx];
-          return !current || msg.id !== current.id || msg.content !== current.content;
-        });
-
-      if (messagesChanged) {
-        isSyncingRef.current = true;
-        updateSession(sessionId, {
-          messages: derivedMessages,
-        });
-        // Use Promise.resolve() instead of setTimeout for more reliable microtask scheduling
-        Promise.resolve().then(() => {
-          isSyncingRef.current = false;
-        });
-      }
-    }
-  }, [derivedMessages, updateSession]); // BUG FIX: Remove sessions dependency to avoid circular updates
+  // ✅ REMOVED: derivedMessages sync to session
+  // OLD ARCHITECTURE: Session stored full message arrays - required sync effect
+  // NEW ARCHITECTURE: Messages stored in conversation table only
+  //   - No need to sync derivedMessages to session
+  //   - Session only stores metadata (name, model_card_id, params, etc.)
+  //   - Updated_at and message_count synced on message send (see sendMessage below)
 
   return {
     // Message related
@@ -348,6 +356,7 @@ export const useFreeChat = (
 
     // Status
     sendLoading: !done,
+    isLoadingMessages,  // ✅ NEW: Loading state for lazy-loaded messages
     scrollRef,
     messageContainerRef,
     stopOutputMessage,

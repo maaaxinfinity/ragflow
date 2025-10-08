@@ -217,6 +217,82 @@ def set_conversation(**kwargs):
         return server_error_response(e)
 
 
+@manager.route("/messages", methods=["GET"])  # noqa: F821
+@api_key_or_login_required
+def get_conversation_messages(**kwargs):
+    """
+    Lazy load conversation messages (Principle 2: Lazy Loading for Performance).
+    Returns ONLY the message array, not full conversation metadata.
+    
+    Query Params:
+        - conversation_id: Conversation ID (required)
+    
+    Response:
+        {
+            "code": 0,
+            "data": {
+                "conversation_id": "conv_abc",
+                "messages": [{"role": "user", "content": "..."}, ...],
+                "message_count": 15
+            }
+        }
+    """
+    try:
+        conversation_id = request.args.get("conversation_id")
+        if not conversation_id:
+            return get_data_error_result(message="conversation_id is required")
+        
+        # Get conversation
+        e, conv = ConversationService.get_by_id(conversation_id)
+        if not e:
+            return get_data_error_result(message="Conversation not found")
+        
+        # Verify access permissions
+        auth_method = kwargs.get("auth_method")
+        if auth_method == "api_key":
+            tenant_id = kwargs.get("tenant_id")
+            # Verify dialog belongs to this tenant
+            dialog = DialogService.query(tenant_id=tenant_id, id=conv.dialog_id)
+            if not dialog or len(dialog) == 0:
+                return get_json_result(
+                    data=False,
+                    message="Only owner of conversation authorized for this operation.",
+                    code=settings.RetCode.OPERATING_ERROR
+                )
+        else:
+            # Session authentication
+            tenants = UserTenantService.query(user_id=current_user.id)
+            has_permission = False
+            for tenant in tenants:
+                dialog = DialogService.query(tenant_id=tenant.tenant_id, id=conv.dialog_id)
+                if dialog and len(dialog) > 0:
+                    has_permission = True
+                    break
+            
+            if not has_permission:
+                return get_json_result(
+                    data=False,
+                    message="Only owner of conversation authorized for this operation.",
+                    code=settings.RetCode.OPERATING_ERROR
+                )
+        
+        # Get messages using service method
+        success, messages = ConversationService.get_messages(conversation_id)
+        if not success:
+            return get_data_error_result(message="Failed to fetch messages")
+        
+        # Return lightweight response (only messages, no full conversation object)
+        return get_json_result(data={
+            "conversation_id": conversation_id,
+            "messages": messages,
+            "message_count": len(messages)
+        })
+        
+    except Exception as e:
+        logging.exception(e)
+        return server_error_response(e)
+
+
 @manager.route("/get", methods=["GET"])  # noqa: F821
 @api_key_or_login_required
 def get(**kwargs):

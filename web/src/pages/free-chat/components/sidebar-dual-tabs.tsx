@@ -79,20 +79,20 @@ export function SidebarDualTabs({
 
   return (
     <div className={`border-r flex flex-col h-full bg-gradient-to-b from-background to-muted/20 transition-all duration-300 relative ${
-      isCollapsed ? 'w-0 border-0' : 'w-96'
+      isCollapsed ? 'w-0 border-0' : 'w-60'
     }`}>
-      {/* Toggle Button */}
+      {/* Toggle Button - ✅ UI Improvement: Larger size (h-8 w-8) + Hover scale effect */}
       <Button
         variant="ghost"
         size="icon"
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute top-1/2 -translate-y-1/2 -right-3 z-20 h-20 w-8 rounded-r-md border bg-background shadow-md hover:shadow-lg transition-all"
+        className="absolute top-1/2 -translate-y-1/2 -right-4 z-20 h-8 w-8 rounded-r-md border bg-background shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200"
         title={isCollapsed ? '展开侧边栏' : '收起侧边栏'}
       >
         {isCollapsed ? (
-          <ChevronRight className="h-5 w-5" />
+          <ChevronRight className="h-6 w-6" />
         ) : (
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronLeft className="h-6 w-6" />
         )}
       </Button>
 

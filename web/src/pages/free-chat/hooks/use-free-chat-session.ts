@@ -2,19 +2,32 @@ import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { Message } from '@/interfaces/database/chat';
 
+/**
+ * FreeChat Session Interface - Metadata ONLY (no messages)
+ * 
+ * ✅ Principle 1: Separation of Concerns
+ * - Sessions in this interface contain ONLY metadata
+ * - Message content is stored in conversation table (Single Source of Truth)
+ * - Messages are lazy-loaded on-demand when switching sessions
+ * 
+ * ❌ CRITICAL: The 'messages' field has been REMOVED from this interface
+ * - Old architecture: IFreeChatSession.messages stored full message arrays
+ * - New architecture: Messages loaded separately via GET /conversation/messages
+ */
 export interface IFreeChatSession {
   id: string;
-  conversation_id?: string; // RAGFlow conversation ID
+  conversation_id?: string; // RAGFlow conversation ID (link to message source)
   model_card_id?: number; // Model card ID from law-workspace
   name: string;
-  messages: Message[];
   created_at: number;
   updated_at: number;
+  message_count?: number; // ✅ NEW: Cached message count for UI display (not full messages!)
   params?: {
     temperature?: number;
     top_p?: number;
     role_prompt?: string;
   }; // User-customized parameters for this conversation (overrides model card defaults)
+  // ❌ REMOVED: messages: Message[] - Now loaded separately via lazy loading
 }
 
 interface UseFreeChatSessionProps {

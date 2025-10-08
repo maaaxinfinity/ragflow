@@ -14,13 +14,14 @@
 #  limitations under the License.
 #
 import time
+import logging
 from uuid import uuid4
 from api.db import StatusEnum
 from api.db.db_models import Conversation, DB
 from api.db.services.api_service import API4ConversationService
 from api.db.services.common_service import CommonService
 from api.db.services.dialog_service import DialogService, chat
-from api.utils import get_uuid
+from api.utils import get_uuid, current_timestamp
 import json
 
 from rag.prompts.generator import chunks_format
@@ -63,6 +64,96 @@ class ConversationService(CommonService):
             res.extend(_temp)
             offset += limit
         return res
+
+    @classmethod
+    @DB.connection_context()
+    def append_message(cls, conversation_id: str, message: dict) -> tuple[bool, str]:
+        """
+        Atomically append a message to conversation.message array.
+        This implements the "Real-time Write" principle for message content.
+        
+        Args:
+            conversation_id: Conversation ID
+            message: Message object, e.g. {"role": "user", "content": "...", "id": "..."}
+        
+        Returns:
+            (success: bool, error_msg: str)
+        """
+        try:
+            e, conv = cls.get_by_id(conversation_id)
+            if not e:
+                return False, "Conversation not found"
+            
+            # Initialize message array if None
+            if conv.message is None:
+                conv.message = []
+            
+            # Append message (atomic operation via Peewee)
+            conv.message.append(message)
+            
+            # Update timestamp
+            conv.update_time = current_timestamp()
+            
+            # Save (Peewee handles JSON serialization)
+            conv.save()
+            
+            logging.info(f"[ConversationService] Appended message to {conversation_id}, total: {len(conv.message)}")
+            return True, ""
+            
+        except Exception as e:
+            logging.error(f"[ConversationService] append_message failed for {conversation_id}: {e}")
+            return False, str(e)
+
+    @classmethod
+    @DB.connection_context()
+    def get_messages(cls, conversation_id: str) -> tuple[bool, list]:
+        """
+        Get complete message list for a conversation (lazy loading).
+        This supports the "Lazy Load" principle - messages loaded on-demand.
+        
+        Args:
+            conversation_id: Conversation ID
+        
+        Returns:
+            (success: bool, messages: list)
+        """
+        try:
+            e, conv = cls.get_by_id(conversation_id)
+            if not e:
+                logging.warning(f"[ConversationService] Conversation {conversation_id} not found")
+                return False, []
+            
+            messages = conv.message or []
+            logging.info(f"[ConversationService] Loaded {len(messages)} messages from {conversation_id}")
+            return True, messages
+            
+        except Exception as e:
+            logging.error(f"[ConversationService] get_messages failed for {conversation_id}: {e}")
+            return False, []
+
+    @classmethod
+    @DB.connection_context()
+    def get_message_count(cls, conversation_id: str) -> int:
+        """
+        Get message count for display in session list (metadata).
+        
+        Args:
+            conversation_id: Conversation ID
+        
+        Returns:
+            Message count (0 if error/not found)
+        """
+        try:
+            if not conversation_id:
+                return 0
+            
+            e, conv = cls.get_by_id(conversation_id)
+            if e and conv.message:
+                return len(conv.message)
+        except Exception as e:
+            logging.error(f"[ConversationService] get_message_count failed: {e}")
+        
+        return 0
 
 def structure_answer(conv, ans, message_id, session_id):
     reference = ans["reference"]

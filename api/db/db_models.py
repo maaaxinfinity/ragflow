@@ -1093,4 +1093,66 @@ def migrate_db():
         migrate(migrator.add_column("canvas_template", "canvas_category", CharField(max_length=32, null=False, default="agent_canvas", help_text="agent_canvas|dataflow_canvas", index=True)))
     except Exception:
         pass
+    
+    # ✅ FreeChat Architecture Refactor Migration (2025-01-08)
+    # Purpose: Add conversation append support and optimize for lazy loading
+    try:
+        # Add message_count field for performance optimization (optional)
+        migrate(migrator.add_column("conversation", "message_count", IntegerField(default=0, help_text="Cached message count for performance")))
+    except Exception:
+        pass
+    
+    try:
+        # Create index for optimized user conversation queries
+        DB.execute_sql("CREATE INDEX IF NOT EXISTS idx_conversation_user_updated ON conversation(user_id, update_time DESC)")
+    except Exception:
+        pass
+    
+    try:
+        # Update help text for conversation.message (cannot alter comment via Peewee, need raw SQL)
+        if settings.DATABASE_TYPE.upper() == 'MYSQL':
+            DB.execute_sql("ALTER TABLE conversation MODIFY COLUMN message JSON COMMENT 'Message array - SINGLE SOURCE OF TRUTH for all conversation messages'")
+    except Exception:
+        pass
+    
+    try:
+        # Update help text for free_chat_user_settings.sessions
+        if settings.DATABASE_TYPE.upper() == 'MYSQL':
+            DB.execute_sql("ALTER TABLE free_chat_user_settings MODIFY COLUMN sessions JSON NOT NULL DEFAULT '[]' COMMENT 'Session metadata ONLY - {id, conversation_id, model_card_id, name, created_at, updated_at, params} - NO MESSAGES!'")
+    except Exception:
+        pass
+    
+    # ✅ Auto-clear Redis cache for FreeChat sessions (one-time cleanup after migration)
+    try:
+        from api.utils import get_uuid
+        from rag.utils import REDIS_CONN
+        
+        # Check if we need to clear cache (use a migration flag in Redis)
+        migration_flag_key = "freechat:migration:004:cache_cleared"
+        
+        if not REDIS_CONN.get(migration_flag_key):
+            # Clear all FreeChat session caches
+            pattern = "freechat:sessions:*"
+            cursor = 0
+            cleared_count = 0
+            
+            # Use SCAN to avoid blocking Redis
+            while True:
+                cursor, keys = REDIS_CONN.scan(cursor, match=pattern, count=100)
+                if keys:
+                    REDIS_CONN.delete(*keys)
+                    cleared_count += len(keys)
+                if cursor == 0:
+                    break
+            
+            # Set migration flag (expires in 30 days, after that it's safe to clear again)
+            REDIS_CONN.set(migration_flag_key, "1", ex=30 * 24 * 60 * 60)
+            
+            logging.info(f"[Migration 004] Auto-cleared {cleared_count} FreeChat Redis cache entries")
+        else:
+            logging.info("[Migration 004] Redis cache already cleared, skipping")
+    except Exception as e:
+        # Don't fail migration if Redis cleanup fails
+        logging.warning(f"[Migration 004] Redis cache cleanup failed (non-critical): {e}")
+    
     logging.disable(logging.NOTSET)

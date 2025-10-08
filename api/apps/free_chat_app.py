@@ -148,14 +148,52 @@ def get_user_settings(**kwargs):
         exists, setting = FreeChatUserSettingsService.get_by_user_id(user_id)
         if exists:
             result = setting.to_dict()
-            # Use cached sessions if available, otherwise use DB sessions
+            
+            # ✅ CRITICAL: Strip messages from sessions (Principle 1: Separation of Concerns)
+            # Sessions in settings should ONLY contain metadata, NOT full message arrays
+            sessions = result.get('sessions', [])
+            if sessions:
+                from api.db.services.conversation_service import ConversationService
+                
+                # Transform sessions: remove messages, add message_count
+                stripped_sessions = []
+                for session in sessions:
+                    conversation_id = session.get('conversation_id')
+                    
+                    # Create lightweight session metadata
+                    stripped_session = {
+                        'id': session.get('id'),
+                        'name': session.get('name'),
+                        'conversation_id': conversation_id,
+                        'model_card_id': session.get('model_card_id'),
+                        'created_at': session.get('created_at'),
+                        'updated_at': session.get('updated_at'),
+                        'params': session.get('params'),
+                        # ❌ Explicitly exclude 'messages' field
+                        # ✅ Add message_count for UI display
+                        'message_count': ConversationService.get_message_count(conversation_id) if conversation_id else 0
+                    }
+                    stripped_sessions.append(stripped_session)
+                
+                result['sessions'] = stripped_sessions
+                logging.info(f"[FreeChat] Stripped messages from {len(sessions)} sessions for user {user_id}")
+            
+            # Use cached sessions if available (Redis L1), otherwise use stripped sessions
             if cached_sessions is not None:
-                result['sessions'] = cached_sessions
-                logging.info(f"[FreeChat] Loaded sessions from Redis cache for user {user_id}")
+                # ✅ Verify cached data format (migration safety check)
+                # If cache contains old format (with 'messages' field), ignore and refresh
+                if any('messages' in session for session in cached_sessions):
+                    logging.warning(f"[FreeChat] Cached sessions contain old format for user {user_id}, refreshing cache")
+                    save_sessions_to_redis(user_id, result.get('sessions', []))
+                    # Use freshly stripped sessions from MySQL
+                else:
+                    result['sessions'] = cached_sessions
+                    logging.info(f"[FreeChat] Loaded sessions from Redis cache for user {user_id}")
             else:
-                # Cache miss, cache the DB sessions to Redis
+                # Cache miss, cache the stripped sessions to Redis
                 save_sessions_to_redis(user_id, result.get('sessions', []))
-                logging.info(f"[FreeChat] Loaded sessions from MySQL for user {user_id}")
+                logging.info(f"[FreeChat] Loaded sessions from MySQL and cached to Redis for user {user_id}")
+            
             return get_json_result(data=result)
         else:
             # Return default settings
@@ -204,12 +242,38 @@ def save_user_settings(**kwargs):
             )
 
         # Extract settings
+        sessions_raw = req.get("sessions", [])
+        
+        # ✅ CRITICAL: Strip messages from sessions before saving (Principle 2: Write Optimization)
+        # Frontend might accidentally include messages - we must strip them to enforce architecture
+        from api.db.services.conversation_service import ConversationService
+        
+        sessions_stripped = []
+        for session in sessions_raw:
+            # Only save metadata to free_chat_user_settings
+            stripped_session = {
+                'id': session.get('id'),
+                'name': session.get('name'),
+                'conversation_id': session.get('conversation_id'),
+                'model_card_id': session.get('model_card_id'),
+                'created_at': session.get('created_at'),
+                'updated_at': session.get('updated_at'),
+                'params': session.get('params')
+                # ❌ Explicitly exclude 'messages' field - will be saved to conversation table
+            }
+            
+            # If messages were included (legacy frontend), they are silently dropped
+            if 'messages' in session:
+                logging.warning(f"[FreeChat] Stripped 'messages' field from session {session.get('id')} during save")
+            
+            sessions_stripped.append(stripped_session)
+        
         data = {
             "dialog_id": req.get("dialog_id", ""),
             "model_params": req.get("model_params", {}),
             "kb_ids": req.get("kb_ids", []),
             "role_prompt": req.get("role_prompt", ""),
-            "sessions": req.get("sessions", [])
+            "sessions": sessions_stripped  # Use stripped sessions
         }
         logging.info(f"[FreeChat] Received save request for user {user_id}, sessions count: {len(data['sessions'])}")
         if data['sessions']:

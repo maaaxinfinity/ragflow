@@ -202,8 +202,10 @@ export const useFreeChatSettingsApi = (userId: string) => {
           saveToAPI();
         }, 0);
       } else {
-        // Debounce time: shorter for sessions (5s), longer for settings (30s)
-        const debounceTime = field === 'sessions' ? 5000 : 30000;
+        // ✅ NEW: Unified 30s debounce (Principle 3: Differentiated Write Strategy)
+        // Sessions now only contain metadata (no messages), so 30s is acceptable
+        // Messages are written in real-time via backend /completion endpoint
+        const debounceTime = 30000;  // 30 seconds for all fields
         console.log('[UpdateField] Scheduling auto-save in', debounceTime, 'ms');
 
         autoSaveTimerRef.current = setTimeout(() => {
