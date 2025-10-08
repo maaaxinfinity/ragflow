@@ -436,8 +436,10 @@ def completion(**kwargs):
     
     # BUG FIX: Check if msg is empty before accessing
     if not msg:
+        logging.error(f"[completion] Empty message array after filtering - original: {len(req['messages'])}, filtered: 0")
         return get_data_error_result(message="No valid messages to process. Messages must contain at least one user message.")
     
+    logging.info(f"[completion] Processing {len(msg)} messages (filtered from {len(req['messages'])})")
     message_id = msg[-1].get("id")
     chat_model_id = req.get("llm_id", "")
     req.pop("llm_id", None)

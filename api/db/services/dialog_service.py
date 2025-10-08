@@ -339,6 +339,11 @@ def meta_filter(metas: dict, filters: list[dict]):
 
 
 def chat(dialog, messages, stream=True, **kwargs):
+    # CRITICAL FIX: Check if messages is empty before accessing
+    # Prevents "IndexError: list index out of range" when messages array is empty
+    if not messages or len(messages) == 0:
+        raise ValueError("Messages array cannot be empty")
+    
     assert messages[-1]["role"] == "user", "The last content of this conversation is not from user."
     # BUG FIX: Add logging to debug kb_ids
     logging.info(f"[chat] Entering chat function - dialog.kb_ids: {dialog.kb_ids}, type: {type(dialog.kb_ids)}")
