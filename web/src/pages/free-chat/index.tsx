@@ -48,15 +48,12 @@ function FreeChatContent() {
     enabled: !!userId,
     queryFn: async () => {
       const url = `${api.user_info}?user_id=${userId}`;
-      console.log('[UserInfo] Fetching from:', url);
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${searchParams.get('auth')}` || '',
         },
       });
       const data = await response.json();
-      console.log('[UserInfo] Response:', data);
-      console.log('[UserInfo] Final userInfo:', data?.data);
       return data?.data ?? {};
     },
   });
@@ -92,18 +89,6 @@ function FreeChatContent() {
   // If user is found in tenantUsers, they are a NORMAL member -> show joined team (tenantInfo)
   // If user is NOT in tenantUsers, they are the OWNER -> show their own team (tenantInfo is already correct)
   const displayTenantInfo = tenantInfo;
-
-  // Debug: Log user info display conditions
-  console.log('[UserInfo] Display conditions:', {
-    userId,
-    hasCurrentUserInfo: !!currentUserInfo,
-    hasUserInfo: !!userInfo,
-    hasTenantInfo: !!tenantInfo,
-    tenantUsersCount: Array.isArray(tenantUsers) ? tenantUsers.length : 0,
-    currentUserInfo,
-    userInfo,
-    tenantInfo,
-  });
 
   // FIX: Removed handleSessionsChange callback
   // Sessions are now managed by TanStack Query (auto-synced with backend)

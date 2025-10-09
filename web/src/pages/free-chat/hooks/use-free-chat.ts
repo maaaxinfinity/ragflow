@@ -7,7 +7,7 @@ import {
 import { Message } from '@/interfaces/database/chat';
 import api from '@/utils/api';
 import { trim } from 'lodash';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { DynamicModelParams } from '../types';
 import { useKBContext } from '../contexts/kb-context';
@@ -76,15 +76,23 @@ export const useFreeChat = (
     removeAllMessages,
   } = useSelectDerivedMessages();
 
-  // BUG FIX #10: Only sync when currentSessionId changes, not when currentSession object changes
-  // This prevents overwriting derivedMessages when session is updated
+  // BUG FIX #10 & CRITICAL FIX: Sync session messages to derivedMessages when switching sessions
+  // Must listen to both currentSessionId AND currentSession.messages
+  // Use a stringified version of messages to avoid reference comparison issues
+  const currentSessionMessagesKey = useMemo(() => {
+    if (!currentSession?.messages) return 'empty';
+    // Create a stable key based on message IDs to detect actual changes
+    return currentSession.messages.map(m => m.id).join(',');
+  }, [currentSession?.messages]);
+
   useEffect(() => {
+    console.log('[MessageSync] Syncing messages for session:', currentSessionId);
     if (currentSession) {
       setDerivedMessages(currentSession.messages || []);
     } else {
       setDerivedMessages([]);
     }
-  }, [currentSessionId, setDerivedMessages]); // Remove currentSession from deps
+  }, [currentSessionId, currentSessionMessagesKey, setDerivedMessages]);
 
   // Stop output
   const stopOutputMessage = useCallback(() => {
