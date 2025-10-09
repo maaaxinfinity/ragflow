@@ -293,11 +293,22 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
   // Delete session mutation
   const deleteSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
+      console.log('[DeleteSession] Starting deletion for session:', sessionId);
+      
       // FIX: Check if session is draft (local only)
       const allSessions = queryClient.getQueryData(['freeChatSessions', userId, dialogId]) as IFreeChatSession[] || [];
       const session = allSessions.find(s => s.id === sessionId);
       
-      if (session?.state === 'draft') {
+      console.log('[DeleteSession] Session found in cache:', !!session);
+      console.log('[DeleteSession] Session state:', session?.state);
+      console.log('[DeleteSession] Session has conversation_id:', !!session?.conversation_id);
+      
+      if (!session) {
+        console.warn('[DeleteSession] Session not found in cache, assuming already deleted');
+        return sessionId;
+      }
+      
+      if (session.state === 'draft') {
         // Draft sessions are local only, no backend deletion needed
         console.log('[DeleteSession] Deleting draft (local only):', sessionId);
         return sessionId;  // Skip backend call
@@ -305,6 +316,13 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
 
       // Active sessions: delete from backend
       console.log('[DeleteSession] Deleting active session from backend:', sessionId);
+      
+      // Only delete from backend if it has a conversation_id
+      if (!session.conversation_id) {
+        console.log('[DeleteSession] No conversation_id, skipping backend deletion');
+        return sessionId;
+      }
+      
       const authToken = searchParams.get('auth');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -318,15 +336,17 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
         headers,
         credentials: 'include',
         body: JSON.stringify({
-          conversation_ids: [sessionId],
+          conversation_ids: [session.conversation_id],  // FIX: Use conversation_id, not sessionId
         }),
       });
 
       const result = await response.json();
       if (result.code !== 0) {
+        console.error('[DeleteSession] Backend deletion failed:', result.message);
         throw new Error(result.message || 'Failed to delete session');
       }
-
+      
+      console.log('[DeleteSession] Backend deletion successful');
       return sessionId;
     },
     onMutate: async (sessionId) => {

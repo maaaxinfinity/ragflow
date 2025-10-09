@@ -77,28 +77,29 @@ export const useFreeChat = (
   } = useSelectDerivedMessages();
 
   // BUG FIX #10 & CRITICAL FIX: Force refresh messages when switching sessions
-  // Use ref to track last synced session and force refresh on session change
-  const lastSyncedSessionIdRef = useRef<string>('');
-  
+  // Only depend on currentSessionId to avoid circular updates
   useEffect(() => {
-    // CRITICAL: Always refresh when currentSessionId changes
-    // This ensures messages are cleared/loaded when switching between sessions
-    const isSessionChange = lastSyncedSessionIdRef.current !== currentSessionId;
+    console.log('[MessageSync] Session ID changed to:', currentSessionId);
     
-    if (isSessionChange) {
-      console.log('[MessageSync] Session switched from', lastSyncedSessionIdRef.current, 'to', currentSessionId);
-      lastSyncedSessionIdRef.current = currentSessionId;
-      
-      if (currentSession) {
-        const newMessages = currentSession.messages || [];
-        console.log('[MessageSync] Loading messages:', newMessages.length, 'for session:', currentSession.name);
-        setDerivedMessages(newMessages);
-      } else {
-        console.log('[MessageSync] No current session, clearing messages');
-        setDerivedMessages([]);
-      }
+    if (!currentSessionId) {
+      console.log('[MessageSync] No session selected, clearing messages');
+      setDerivedMessages([]);
+      return;
     }
-  }, [currentSessionId, currentSession, setDerivedMessages]);
+    
+    // Find session from sessions array (not using currentSession to avoid circular dependency)
+    const session = sessions.find(s => s.id === currentSessionId);
+    
+    if (session) {
+      const newMessages = session.messages || [];
+      console.log('[MessageSync] Found session:', session.name, 'with', newMessages.length, 'messages');
+      console.log('[MessageSync] Setting derived messages...');
+      setDerivedMessages(newMessages);
+    } else {
+      console.warn('[MessageSync] Session not found in cache:', currentSessionId);
+      setDerivedMessages([]);
+    }
+  }, [currentSessionId, sessions, setDerivedMessages]);
 
   // Stop output
   const stopOutputMessage = useCallback(() => {

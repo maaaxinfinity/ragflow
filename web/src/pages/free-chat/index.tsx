@@ -296,47 +296,12 @@ function FreeChatContent() {
 
   const handleSessionDelete = useCallback(
     async (sessionId: string) => {
-      const session = sessions.find(s => s.id === sessionId);
-      if (!session) return;
-
-      // If session has conversation_id, delete from backend first
-      if (session.conversation_id) {
-        try {
-          // FIX: Add Authorization header with beta token from URL
-          const authToken = searchParams.get('auth');
-          const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-          };
-          if (authToken) {
-            headers['Authorization'] = `Bearer ${authToken}`;
-          }
-
-          const response = await fetch('/v1/conversation/rm', {
-            method: 'POST',
-            headers,
-            credentials: 'include',
-            body: JSON.stringify({
-              conversation_ids: [session.conversation_id],
-            }),
-          });
-
-          const result = await response.json();
-          if (result.code !== 0) {
-            console.error('[SessionDelete] Backend delete failed:', result.message);
-            alert(`删除失败: ${result.message}`);
-            return;
-          }
-        } catch (error) {
-          console.error('[SessionDelete] Failed to delete conversation from backend:', error);
-          alert('删除失败，请重试');
-          return;
-        }
-      }
-
-      // Delete from local state
+      console.log('[handleSessionDelete] Deleting session:', sessionId);
+      // FIX: Delegate all deletion logic to deleteSession mutation
+      // It will handle both draft (local) and active (backend) sessions
       deleteSession(sessionId);
     },
-    [sessions, deleteSession, searchParams],
+    [deleteSession],
   );
 
   const handleModelCardChange = useCallback(
