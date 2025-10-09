@@ -72,13 +72,10 @@ export function SidebarDualTabs({
   const { data: modelCards = [], isLoading } = useFetchModelCards();
 
   // Filter sessions by current model card
-  // FIX: Exclude draft sessions from the list (they are temporary)
+  // FIX: Show ALL sessions including drafts (draft will have special styling)
   const filteredSessions = useMemo(() => {
-    // First filter out draft sessions
-    const activeSessions = sessions.filter(s => s.state !== 'draft');
-    
-    if (!currentModelCardId) return activeSessions;
-    return activeSessions.filter(s => s.model_card_id === currentModelCardId);
+    if (!currentModelCardId) return sessions;
+    return sessions.filter(s => s.model_card_id === currentModelCardId);
   }, [sessions, currentModelCardId]);
 
   return (
@@ -235,6 +232,7 @@ export function SidebarDualTabs({
                 ) : (
                   filteredSessions.map((session) => {
                     const isActive = currentSessionId === session.id;
+                    const isDraft = session.state === 'draft';
                     const card = modelCards.find(c => c.id === session.model_card_id);
                     const isEditing = editingSessionId === session.id;
 
@@ -242,7 +240,9 @@ export function SidebarDualTabs({
                       <div
                         key={session.id}
                         className={`group relative p-3 rounded-lg transition-all duration-200 ${
-                          isActive
+                          isDraft
+                            ? 'bg-amber-50 border-2 border-dashed border-amber-300 hover:border-amber-400'
+                            : isActive
                             ? 'bg-primary/10 shadow-md border-2 border-primary/30'
                             : 'bg-card hover:bg-accent hover:shadow-sm border border-transparent'
                         } ${!isEditing && 'cursor-pointer'}`}
@@ -287,7 +287,12 @@ export function SidebarDualTabs({
                                 </Button>
                               </div>
                             ) : (
-                              <div className="font-medium text-sm truncate mb-1">
+                              <div className="font-medium text-sm truncate mb-1 flex items-center gap-2">
+                                {isDraft && (
+                                  <span className="text-amber-600 text-xs font-semibold bg-amber-100 px-1.5 py-0.5 rounded">
+                                    草稿
+                                  </span>
+                                )}
                                 {session.name}
                               </div>
                             )}
@@ -353,20 +358,8 @@ export function SidebarDualTabs({
             )}
           </div>
 
-          {/* Footer - User Info & New Chat */}
+          {/* Footer - User Info */}
           <div className="border-t space-y-3 p-3 bg-card/50 backdrop-blur-sm">
-            {/* New Chat Button */}
-            {activeTab === 'topics' && currentModelCardId && (
-              <Button
-                onClick={onNewSession}
-                className="w-full shadow-sm"
-                size="sm"
-              >
-                <MessageSquarePlus className="h-4 w-4 mr-2" />
-                新建对话
-              </Button>
-            )}
-
             {/* User Profile */}
             {userId && (currentUserInfo || userInfo) && (
               <div className="flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200">
