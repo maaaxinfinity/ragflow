@@ -7,7 +7,7 @@ import {
 import { Message } from '@/interfaces/database/chat';
 import api from '@/utils/api';
 import { trim } from 'lodash';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { DynamicModelParams } from '../types';
 import { useKBContext } from '../contexts/kb-context';
@@ -76,23 +76,29 @@ export const useFreeChat = (
     removeAllMessages,
   } = useSelectDerivedMessages();
 
-  // BUG FIX #10 & CRITICAL FIX: Sync session messages to derivedMessages when switching sessions
-  // Must listen to both currentSessionId AND currentSession.messages
-  // Use a stringified version of messages to avoid reference comparison issues
-  const currentSessionMessagesKey = useMemo(() => {
-    if (!currentSession?.messages) return 'empty';
-    // Create a stable key based on message IDs to detect actual changes
-    return currentSession.messages.map(m => m.id).join(',');
-  }, [currentSession?.messages]);
-
+  // BUG FIX #10 & CRITICAL FIX: Force refresh messages when switching sessions
+  // Use ref to track last synced session and force refresh on session change
+  const lastSyncedSessionIdRef = useRef<string>('');
+  
   useEffect(() => {
-    console.log('[MessageSync] Syncing messages for session:', currentSessionId);
-    if (currentSession) {
-      setDerivedMessages(currentSession.messages || []);
-    } else {
-      setDerivedMessages([]);
+    // CRITICAL: Always refresh when currentSessionId changes
+    // This ensures messages are cleared/loaded when switching between sessions
+    const isSessionChange = lastSyncedSessionIdRef.current !== currentSessionId;
+    
+    if (isSessionChange) {
+      console.log('[MessageSync] Session switched from', lastSyncedSessionIdRef.current, 'to', currentSessionId);
+      lastSyncedSessionIdRef.current = currentSessionId;
+      
+      if (currentSession) {
+        const newMessages = currentSession.messages || [];
+        console.log('[MessageSync] Loading messages:', newMessages.length, 'for session:', currentSession.name);
+        setDerivedMessages(newMessages);
+      } else {
+        console.log('[MessageSync] No current session, clearing messages');
+        setDerivedMessages([]);
+      }
     }
-  }, [currentSessionId, currentSessionMessagesKey, setDerivedMessages]);
+  }, [currentSessionId, currentSession, setDerivedMessages]);
 
   // Stop output
   const stopOutputMessage = useCallback(() => {
