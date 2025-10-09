@@ -173,31 +173,31 @@ export const useFreeChat = (
         if (convData.code === 0) {
           conversationId = convData.data.id;
           
-          // FIX: Atomic Draft → Active promotion
-          // Delete local Draft + Create Active with backend ID + Switch to Active
+          // FIX: Draft → Active promotion with messages preserved
           if (session) {
             const draftId = session.id;
             const draftModelCardId = session.model_card_id;
             const draftParams = session.params;
+            const currentMessages = [...derivedMessages];
             
-            // 1. Delete local Draft
+            // 1. Delete Draft
             deleteSession(draftId);
             
-            // 2. Create Active session with backend conversation_id as ID
-            // createSession will synchronously create and switch to the new session
+            // 2. Create Active with backend ID
             const newActiveSession = createSession(
               conversationName, 
               draftModelCardId, 
-              false,  // isDraft = false
-              conversationId  // Use backend ID - triggers sync creation
+              false,
+              conversationId
             );
             
-            // 3. Restore Draft params to new Active session
+            // 3. Restore params and messages
             if (draftParams && newActiveSession) {
               updateSession(conversationId, { params: draftParams });
             }
+            updateSession(conversationId, { messages: currentMessages });
             
-            console.log('[SendMessage] Draft atomically promoted:', draftId, '→', conversationId);
+            console.log('[SendMessage] Draft promoted:', draftId, '→', conversationId, 'messages:', currentMessages.length);
           }
         } else {
           logError(

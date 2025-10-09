@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { MessageSquarePlus, MessageSquare, ChevronLeft, ChevronRight, Sparkles, Pencil, Trash2, Check, X } from 'lucide-react';
+import { MessageSquarePlus, MessageSquare, ChevronLeft, ChevronRight, Sparkles, Pencil, Trash2, Check, X, MessageSquareDashed } from 'lucide-react';
 import { IFreeChatSession } from '../hooks/use-free-chat-session';
 import { useFetchModelCards } from '../hooks/use-fetch-model-cards';
 import { useTranslate } from '@/hooks/common-hooks';
@@ -71,11 +71,16 @@ export function SidebarDualTabs({
   // Fetch model cards
   const { data: modelCards = [], isLoading } = useFetchModelCards();
 
-  // Filter sessions by current model card
-  // FIX: Show ALL sessions including drafts (draft will have special styling)
-  const filteredSessions = useMemo(() => {
-    if (!currentModelCardId) return sessions;
-    return sessions.filter(s => s.model_card_id === currentModelCardId);
+  // Filter sessions by current model card and separate draft from active
+  const { draftSession, activeSessions } = useMemo(() => {
+    const filtered = currentModelCardId 
+      ? sessions.filter(s => s.model_card_id === currentModelCardId)
+      : sessions;
+    
+    const draft = filtered.find(s => s.state === 'draft');
+    const actives = filtered.filter(s => s.state !== 'draft');
+    
+    return { draftSession: draft, activeSessions: actives };
   }, [sessions, currentModelCardId]);
 
   return (
@@ -207,6 +212,37 @@ export function SidebarDualTabs({
             {/* Topics (Sessions) Tab */}
             {activeTab === 'topics' && (
               <div className="space-y-2">
+                {/* Draft Session */}
+                {draftSession && (
+                  <>
+                    <div className="mb-2">
+                      <div
+                        onClick={() => onSessionSelect(draftSession.id)}
+                        className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all border border-dashed ${
+                          currentSessionId === draftSession.id
+                            ? 'bg-primary/10 border-primary text-primary'
+                            : 'hover:bg-accent border-muted-foreground/30'
+                        }`}
+                      >
+                        <MessageSquareDashed className="h-4 w-4 flex-shrink-0 opacity-60" />
+                        <span className="flex-1 truncate text-sm font-medium opacity-80">
+                          {draftSession.name}
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          草稿
+                        </span>
+                      </div>
+                    </div>
+                    {activeSessions.length > 0 && (
+                      <div className="flex items-center gap-2 my-3 px-2">
+                        <div className="flex-1 h-px bg-border"></div>
+                        <span className="text-xs text-muted-foreground">历史对话</span>
+                        <div className="flex-1 h-px bg-border"></div>
+                      </div>
+                    )}
+                  </>
+                )}
+                
                 {!currentModelCardId ? (
                   <div className="p-8 text-center">
                     <MessageSquare className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
@@ -214,7 +250,7 @@ export function SidebarDualTabs({
                       请先选择一个助手
                     </p>
                   </div>
-                ) : filteredSessions.length === 0 ? (
+                ) : activeSessions.length === 0 && !draftSession ? (
                   <div className="p-8 text-center">
                     <MessageSquarePlus className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
                     <p className="text-sm text-muted-foreground">
@@ -230,9 +266,8 @@ export function SidebarDualTabs({
                     </Button>
                   </div>
                 ) : (
-                  filteredSessions.map((session) => {
+                  activeSessions.map((session) => {
                     const isActive = currentSessionId === session.id;
-                    const isDraft = session.state === 'draft';
                     const card = modelCards.find(c => c.id === session.model_card_id);
                     const isEditing = editingSessionId === session.id;
 
@@ -240,9 +275,7 @@ export function SidebarDualTabs({
                       <div
                         key={session.id}
                         className={`group relative p-3 rounded-lg transition-all duration-200 ${
-                          isDraft
-                            ? 'bg-amber-50 border-2 border-dashed border-amber-300 hover:border-amber-400'
-                            : isActive
+                          isActive
                             ? 'bg-primary/10 shadow-md border-2 border-primary/30'
                             : 'bg-card hover:bg-accent hover:shadow-sm border border-transparent'
                         } ${!isEditing && 'cursor-pointer'}`}
