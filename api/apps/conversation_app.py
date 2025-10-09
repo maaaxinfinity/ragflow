@@ -347,9 +347,15 @@ def list_conversation(**kwargs):
         )
 
         # Transform to frontend-compatible session format
+        # FIX: Filter out invalid conversations (must have model_card_id for FreeChat)
         sessions = []
         for conv in convs:
             conv_dict = conv.to_dict()
+            
+            # Skip conversations without model_card_id (old data or invalid)
+            if not conv_dict.get("model_card_id"):
+                logging.warning(f"[FreeChat] Skipping conversation {conv_dict['id']} without model_card_id")
+                continue
             
             # Handle timestamp conversion (conv.create_time might be int or datetime)
             try:

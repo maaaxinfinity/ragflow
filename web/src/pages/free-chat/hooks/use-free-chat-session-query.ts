@@ -330,9 +330,8 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
     // Delete all sessions one by one
     const allSessions = queryClient.getQueryData(['freeChatSessions', userId, dialogId]) as IFreeChatSession[] || [];
     for (const session of allSessions) {
-      if (session.conversation_id) {
-        deleteSessionMutation.mutate(session.conversation_id);
-      }
+      // Use session.id (which equals conversation_id in our data model)
+      deleteSessionMutation.mutate(session.id);
     }
     setCurrentSessionId('');
   }, [queryClient, userId, dialogId, deleteSessionMutation]);
