@@ -191,14 +191,34 @@ export const useFreeChat = (
 
         if (convData.code === 0) {
           conversationId = convData.data.id;
-          // FIX: Promote draft to active and update with conversation_id
+          
+          // FIX: Atomic Draft → Active promotion
+          // Delete local Draft + Create Active with backend ID + Switch to Active
           if (currentSession) {
-            updateSession(currentSession.id, { 
-              conversation_id: conversationId,
-              name: conversationName,  // Auto-rename based on first message
-              state: 'active'  // Promote draft to active
-            });
-            console.log('[SendMessage] Draft promoted to active:', currentSession.id, '→', conversationId);
+            const draftId = currentSession.id;
+            const draftModelCardId = currentSession.model_card_id;
+            const draftParams = currentSession.params;
+            
+            // 1. Delete local Draft
+            deleteSession(draftId);
+            
+            // 2. Create Active session with backend conversation_id as ID
+            createSession(
+              conversationName, 
+              draftModelCardId, 
+              false,  // isDraft = false
+              conversationId  // Use backend ID
+            );
+            
+            // 3. Restore Draft params to new Active session
+            if (draftParams) {
+              updateSession(conversationId, { params: draftParams });
+            }
+            
+            // 4. Switch to new Active session
+            switchSession(conversationId);
+            
+            console.log('[SendMessage] Draft atomically promoted:', draftId, '→', conversationId);
           }
         } else {
           logError(
@@ -251,13 +271,10 @@ export const useFreeChat = (
       if (res && (res?.response.status !== 200 || res?.data?.code !== 0)) {
         setValue(message.content);
         removeLatestMessage();
-      } else {
-        // Success: trigger session list refresh to sync latest updates
-        setTimeout(() => {
-          console.log('[SendMessage] Triggering session refresh after successful send');
-          refetchSessions();
-        }, 1000);
       }
+      // STEP 3 FIX: Removed refetchSessions call
+      // Messages are already persisted by completion API
+      // createSession mutation auto-updates cache
       // BUG FIX #1: Remove duplicate session update here
       // The session will be updated by the derivedMessages sync effect
     },
@@ -272,7 +289,9 @@ export const useFreeChat = (
       removeLatestMessage,
       updateConversation,
       updateSession,
-      refetchSessions,
+      deleteSession,
+      createSession,
+      switchSession,
       t,
     ],
   );

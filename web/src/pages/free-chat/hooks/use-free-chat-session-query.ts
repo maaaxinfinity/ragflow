@@ -92,25 +92,17 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
     // Perform refetch
     const result = await originalRefetch();
     
-    // If there were drafts, merge them back (but avoid duplicates)
+    // STEP 4 FIX: Simplified Draft merging logic
+    // If there were drafts, merge them back directly
+    // No deduplication needed: Draft→Active conversion atomically deletes Draft
     if (drafts.length > 0 && result.data) {
       console.log('[refetchSessions] Merging', drafts.length, 'draft(s) back into cache');
       
-      // Filter out any drafts that might have been promoted to active
-      // (their model_card_id would match an active session)
       const activeSessions = result.data as IFreeChatSession[];
-      const validDrafts = drafts.filter(draft => {
-        // Keep draft only if there's no active session with same model_card_id and similar timestamp
-        const hasDuplicate = activeSessions.some(active => 
-          active.model_card_id === draft.model_card_id &&
-          Math.abs(active.created_at - draft.created_at) < 5000  // Within 5 seconds
-        );
-        return !hasDuplicate;
-      });
       
       queryClient.setQueryData(
         ['freeChatSessions', userId, dialogId],
-        [...validDrafts, ...activeSessions]
+        [...drafts, ...activeSessions]
       );
     }
     
@@ -125,11 +117,13 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
     mutationFn: async ({ 
       name, 
       model_card_id, 
-      isDraft = false 
+      isDraft = false,
+      conversationId
     }: { 
       name?: string; 
       model_card_id?: number; 
       isDraft?: boolean;
+      conversationId?: string;
     }) => {
       if (!model_card_id) {
         throw new Error('model_card_id is required');
@@ -146,6 +140,9 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
         throw new Error('dialog_id is required for non-draft session');
       }
 
+      // Use provided conversationId or generate new one (for Draft promotion)
+      const finalConversationId = conversationId || uuid();
+
       const authToken = searchParams.get('auth');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -159,7 +156,7 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
         headers,
         credentials: 'include',
         body: JSON.stringify({
-          conversation_id: uuid(),
+          conversation_id: finalConversationId,
           dialog_id: dialogId,
           user_id: userId,
           name: name || '新对话',
@@ -176,6 +173,8 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
 
       return {
         ...result.data,
+        id: finalConversationId,
+        conversation_id: finalConversationId,
         state: 'active',
       } as IFreeChatSession;
     },
@@ -387,7 +386,12 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
 
   // Wrapper functions for easier usage
   const createSession = useCallback(
-    (name?: string, model_card_id?: number, isDraft = false): IFreeChatSession | undefined => {
+    (
+      name?: string, 
+      model_card_id?: number, 
+      isDraft = false,
+      conversationId?: string
+    ): IFreeChatSession | undefined => {
       if (!model_card_id) {
         console.error('[createSession] model_card_id is required');
         return undefined;
@@ -418,7 +422,12 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
       }
       
       // For active sessions: trigger backend creation
-      createSessionMutation.mutate({ name, model_card_id, isDraft: false });
+      createSessionMutation.mutate({ 
+        name, 
+        model_card_id, 
+        isDraft: false,
+        conversationId
+      });
       
       // Return undefined for active sessions (will be set by onSuccess)
       return undefined;
