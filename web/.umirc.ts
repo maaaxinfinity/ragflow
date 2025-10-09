@@ -37,18 +37,18 @@ export default defineConfig({
     { from: 'src/conf.json', to: 'dist/conf.json' },
     { from: 'node_modules/monaco-editor/min/vs/', to: 'dist/vs/' },
   ],
-  proxy: [
-    {
-      context: ['/api', '/v1'],
-      // Auto-detect backend port from docker/.env SVR_HTTP_PORT (default: 9380)
-      // If you changed SVR_HTTP_PORT in docker/.env, update this URL accordingly
-      target: process.env.BACKEND_URL || 'http://127.0.0.1:9380/',
-      changeOrigin: true,
-      ws: true,
-      logger: console,
-      // pathRewrite: { '^/v1': '/v1' },
-    },
-  ],
+  // 代理配置：本地开发时使用，生产环境通过外部 Nginx 直接访问 rag.limitee.cn
+  proxy: process.env.NODE_ENV === 'development' && !process.env.PRODUCTION_PROXY
+    ? [
+        {
+          context: ['/api', '/v1'],
+          target: process.env.BACKEND_URL || 'http://127.0.0.1:9380/',
+          changeOrigin: true,
+          ws: true,
+          logger: console,
+        },
+      ]
+    : undefined,
 
   chainWebpack(memo, args) {
     memo.module.rule('markdown').test(/\.md$/).type('asset/source');
