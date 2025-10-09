@@ -128,19 +128,26 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
       } as IFreeChatSession;
     },
     onSuccess: (newSession) => {
+      console.log('[CreateSession] Backend returned session:', newSession);
+      
       // Optimistic update - add new session to cache immediately
       queryClient.setQueryData(
         ['freeChatSessions', userId, dialogId],
-        (old: IFreeChatSession[] = []) => [newSession, ...old]
+        (old: IFreeChatSession[] = []) => {
+          console.log('[CreateSession] Updating cache, old sessions:', old.length);
+          return [newSession, ...old];
+        }
       );
       
       // Switch to new session
       setCurrentSessionId(newSession.id);
+      console.log('[CreateSession] Switched to session:', newSession.id);
       
-      // Background refresh to sync with server
-      setTimeout(() => refetchSessions(), 500);
-      
-      console.log('[CreateSession] Success:', newSession.id);
+      // Background refresh to sync with server (important!)
+      setTimeout(() => {
+        console.log('[CreateSession] Triggering background refresh');
+        refetchSessions();
+      }, 500);
     },
   });
 
@@ -278,8 +285,25 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
 
   // Wrapper functions for easier usage
   const createSession = useCallback(
-    (name?: string, model_card_id?: number, isDraft = false) => {
+    (name?: string, model_card_id?: number, isDraft = false): IFreeChatSession | undefined => {
+      // Trigger mutation
       createSessionMutation.mutate({ name, model_card_id, isDraft });
+      
+      // Return a temporary session object immediately for optimistic UI
+      // The real session will be updated via onSuccess callback
+      if (model_card_id) {
+        const tempSession: IFreeChatSession = {
+          id: uuid(),  // Temporary ID, will be replaced by backend ID
+          model_card_id,
+          name: name || (isDraft ? 'Draft - 请选择助手' : '新对话'),
+          messages: [],
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          state: isDraft ? 'draft' : 'active',
+        };
+        return tempSession;
+      }
+      return undefined;
     },
     [createSessionMutation]
   );

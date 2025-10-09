@@ -350,6 +350,26 @@ def list_conversation(**kwargs):
         sessions = []
         for conv in convs:
             conv_dict = conv.to_dict()
+            
+            # Handle timestamp conversion (conv.create_time might be int or datetime)
+            try:
+                if hasattr(conv.create_time, 'timestamp'):
+                    created_at = int(conv.create_time.timestamp() * 1000)
+                else:
+                    # Already a Unix timestamp (seconds)
+                    created_at = int(conv.create_time * 1000) if conv.create_time else 0
+            except (AttributeError, TypeError):
+                created_at = 0
+            
+            try:
+                if hasattr(conv.update_time, 'timestamp'):
+                    updated_at = int(conv.update_time.timestamp() * 1000)
+                else:
+                    # Already a Unix timestamp (seconds)
+                    updated_at = int(conv.update_time * 1000) if conv.update_time else 0
+            except (AttributeError, TypeError):
+                updated_at = 0
+            
             # Frontend session format
             session = {
                 "id": conv_dict["id"],
@@ -357,8 +377,8 @@ def list_conversation(**kwargs):
                 "model_card_id": conv_dict.get("model_card_id"),
                 "name": conv_dict["name"],
                 "messages": conv_dict.get("message", []),
-                "created_at": int(conv.create_time.timestamp() * 1000) if hasattr(conv, 'create_time') else 0,
-                "updated_at": int(conv.update_time.timestamp() * 1000) if hasattr(conv, 'update_time') else 0,
+                "created_at": created_at,
+                "updated_at": updated_at,
                 "params": {},  # Model params stored per session
             }
             sessions.append(session)

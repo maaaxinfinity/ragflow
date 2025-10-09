@@ -52,7 +52,7 @@ export const useFreeChat = (
     switchSession,
     deleteSession,
     clearAllSessions,
-    refetchSessions,
+    refetchSessions,  // Used for manual refresh after operations
   } = useFreeChatSessionQuery({
     userId,
     dialogId,
@@ -169,9 +169,12 @@ export const useFreeChat = (
 
         if (convData.code === 0) {
           conversationId = convData.data.id;
-          // Update session with conversation_id
+          // Update session with conversation_id and auto-renamed name
           if (currentSession) {
-            updateSession(currentSession.id, { conversation_id: conversationId });
+            updateSession(currentSession.id, { 
+              conversation_id: conversationId,
+              name: conversationName  // Auto-rename based on first message
+            });
           }
         } else {
           logError(
@@ -224,6 +227,12 @@ export const useFreeChat = (
       if (res && (res?.response.status !== 200 || res?.data?.code !== 0)) {
         setValue(message.content);
         removeLatestMessage();
+      } else {
+        // Success: trigger session list refresh to sync latest updates
+        setTimeout(() => {
+          console.log('[SendMessage] Triggering session refresh after successful send');
+          refetchSessions();
+        }, 1000);
       }
       // BUG FIX #1: Remove duplicate session update here
       // The session will be updated by the derivedMessages sync effect
@@ -239,6 +248,7 @@ export const useFreeChat = (
       removeLatestMessage,
       updateConversation,
       updateSession,
+      refetchSessions,
       t,
     ],
   );
@@ -363,6 +373,7 @@ export const useFreeChat = (
     switchSession,
     deleteSession,
     clearAllSessions,
+    refetchSessions,  // Manual refresh sessions from backend
 
     // Dialog ID
     dialogId,
