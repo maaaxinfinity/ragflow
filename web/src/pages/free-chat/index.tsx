@@ -105,21 +105,9 @@ function FreeChatContent() {
     tenantInfo,
   });
 
-  // Handle sessions change with debounce (5 seconds)
-  // Sessions are saved silently without triggering "unsaved changes" indicator
-  const handleSessionsChange = useCallback(
-    (sessions: any[]) => {
-      console.log('[SessionsChange] Called with', sessions.length, 'sessions');
-      console.log('[SessionsChange] userId:', userId, 'settings:', !!settings);
-      if (userId && settings) {
-        console.log('[SessionsChange] Calling updateField (silent mode)');
-        updateField('sessions', sessions, { silent: true });
-      } else {
-        console.warn('[SessionsChange] Skipped - missing userId or settings');
-      }
-    },
-    [userId, settings, updateField],
-  );
+  // FIX: Removed handleSessionsChange callback
+  // Sessions are now managed by TanStack Query (auto-synced with backend)
+  // No need to manually save to FreeChatUserSettings.sessions
 
   const {
     handlePressEnter,
@@ -143,7 +131,7 @@ function FreeChatContent() {
     updateSession,
     dialogId,
     setDialogId,
-  } = useFreeChat(controller.current, userId, settings, handleSessionsChange);
+  } = useFreeChat(controller.current, userId, settings);
 
   // Find current dialog by dialogId
   const currentDialog = useMemo(() => {
@@ -494,7 +482,7 @@ function FreeChatContent() {
           onSend={handlePressEnter}
           onNewTopic={handleNewSession}
           onClearMessages={removeAllMessages}
-          disabled={!dialogId || !currentSession?.model_card_id}
+          disabled={!currentSession?.model_card_id}
           sendLoading={sendLoading}
         />
       </div>

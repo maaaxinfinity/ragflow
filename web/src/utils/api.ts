@@ -91,6 +91,7 @@ export default {
   getConversation: `${api_host}/conversation/get`,
   getConversationSSE: `${api_host}/conversation/getsse`,
   listConversation: `${api_host}/conversation/list`,
+  conversation_list: `${api_host}/conversation/list`,  // Alias for easier access
   removeConversation: `${api_host}/conversation/rm`,
   completeConversation: `${api_host}/conversation/completion`,
   deleteMessage: `${api_host}/conversation/delete_msg`,

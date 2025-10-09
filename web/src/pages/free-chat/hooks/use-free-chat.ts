@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { DynamicModelParams } from '../types';
 import { useKBContext } from '../contexts/kb-context';
-import { useFreeChatSession } from './use-free-chat-session';
+import { useFreeChatSessionQuery } from './use-free-chat-session-query';
 import { useUpdateConversation } from '@/hooks/use-chat-request';
 import { logError, logInfo } from '../utils/error-handler';
 import { useTranslate } from '@/hooks/common-hooks';
@@ -19,14 +19,12 @@ import { useTranslate } from '@/hooks/common-hooks';
 interface UseFreeChatProps {
   userId: string;
   settings: any; // FreeChatSettings from API
-  onSessionsChange?: (sessions: any[]) => void;
 }
 
 export const useFreeChat = (
   controller: AbortController,
   userId?: string,
   settings?: UseFreeChatProps['settings'],
-  onSessionsChange?: (sessions: any[]) => void,
 ) => {
   const { t } = useTranslate('chat');
 
@@ -34,6 +32,17 @@ export const useFreeChat = (
   const { handleInputChange, value, setValue } = useHandleMessageInputChange();
   const { updateConversation } = useUpdateConversation();
 
+  // Initialize dialogId from settings
+  const [dialogId, setDialogId] = useState<string>(settings?.dialog_id || '');
+
+  // Sync dialogId from settings
+  useEffect(() => {
+    if (settings?.dialog_id) {
+      setDialogId(settings.dialog_id);
+    }
+  }, [settings?.dialog_id]);
+
+  // Use TanStack Query for session management (replaces localStorage)
   const {
     currentSession,
     currentSessionId,
@@ -43,19 +52,12 @@ export const useFreeChat = (
     switchSession,
     deleteSession,
     clearAllSessions,
-  } = useFreeChatSession({
-    initialSessions: settings?.sessions,
-    onSessionsChange,
+    refetchSessions,
+  } = useFreeChatSessionQuery({
+    userId,
+    dialogId,
+    enabled: !!userId && !!dialogId,
   });
-
-  const [dialogId, setDialogId] = useState<string>(settings?.dialog_id || '');
-
-  // Sync dialogId from settings
-  useEffect(() => {
-    if (settings?.dialog_id) {
-      setDialogId(settings.dialog_id);
-    }
-  }, [settings?.dialog_id]);
 
   // SSE sending logic
   const { send, answer, done } = useSendMessageWithSse(

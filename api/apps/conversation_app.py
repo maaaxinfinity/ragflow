@@ -321,21 +321,50 @@ def rm(**kwargs):
 @api_key_or_login_required
 def list_conversation(**kwargs):
     dialog_id = request.args["dialog_id"]
+    # Optional user_id parameter for FreeChat beta mode
+    user_id = request.args.get("user_id")
 
     # Get tenant_id based on authentication method
     auth_method = kwargs.get("auth_method")
     if auth_method == "api_key":
         tenant_id = kwargs.get("tenant_id")
+        # If user_id provided, use it; otherwise use tenant_id
+        if user_id:
+            tenant_id = user_id
     else:
         tenant_id = current_user.id
 
     try:
         if not DialogService.query(tenant_id=tenant_id, id=dialog_id):
             return get_json_result(data=False, message="Only owner of dialog authorized for this operation.", code=settings.RetCode.OPERATING_ERROR)
-        convs = ConversationService.query(dialog_id=dialog_id, order_by=ConversationService.model.create_time, reverse=True)
+        
+        # Query conversations ordered by update_time (most recent first)
+        convs = ConversationService.query(
+            dialog_id=dialog_id, 
+            user_id=tenant_id,
+            order_by=ConversationService.model.update_time, 
+            reverse=True
+        )
 
-        convs = [d.to_dict() for d in convs]
-        return get_json_result(data=convs)
+        # Transform to frontend-compatible session format
+        sessions = []
+        for conv in convs:
+            conv_dict = conv.to_dict()
+            # Frontend session format
+            session = {
+                "id": conv_dict["id"],
+                "conversation_id": conv_dict["id"],
+                "model_card_id": conv_dict.get("model_card_id"),
+                "name": conv_dict["name"],
+                "messages": conv_dict.get("message", []),
+                "created_at": int(conv.create_time.timestamp() * 1000) if hasattr(conv, 'create_time') else 0,
+                "updated_at": int(conv.update_time.timestamp() * 1000) if hasattr(conv, 'update_time') else 0,
+                "params": {},  # Model params stored per session
+            }
+            sessions.append(session)
+        
+        logging.info(f"[FreeChat] Loaded {len(sessions)} sessions for dialog {dialog_id}")
+        return get_json_result(data=sessions)
     except Exception as e:
         return server_error_response(e)
 
@@ -517,8 +546,17 @@ def completion(**kwargs):
                 for ans in chat(dia, msg, True, **req):
                     ans = structure_answer(conv, ans, message_id, conv.id)
                     yield "data:" + json.dumps({"code": 0, "message": "", "data": ans}, ensure_ascii=False) + "\n\n"
+                
+                # FIX: Always persist conversation messages and metadata
+                # This ensures messages are saved to Conversation.message field
                 if not is_embedded:
-                    ConversationService.update_by_id(conv.id, conv.to_dict())
+                    update_data = {
+                        "message": conv.message,
+                        "reference": conv.reference,
+                        "model_card_id": conv.model_card_id,
+                    }
+                    ConversationService.update_by_id(conv.id, update_data)
+                    logging.info(f"[FreeChat] Persisted {len(conv.message)} messages to conversation {conv.id}")
             except Exception as e:
                 logging.exception(e)
                 yield "data:" + json.dumps({"code": 500, "message": str(e), "data": {"answer": "**ERROR**: " + str(e), "reference": []}}, ensure_ascii=False) + "\n\n"
@@ -537,7 +575,14 @@ def completion(**kwargs):
             for ans in chat(dia, msg, **req):
                 answer = structure_answer(conv, ans, message_id, conv.id)
                 if not is_embedded:
-                    ConversationService.update_by_id(conv.id, conv.to_dict())
+                    # FIX: Explicitly persist messages and metadata
+                    update_data = {
+                        "message": conv.message,
+                        "reference": conv.reference,
+                        "model_card_id": conv.model_card_id,
+                    }
+                    ConversationService.update_by_id(conv.id, update_data)
+                    logging.info(f"[FreeChat] Persisted {len(conv.message)} messages to conversation {conv.id} (non-stream)")
                 break
             return get_json_result(data=answer)
     except Exception as e:
