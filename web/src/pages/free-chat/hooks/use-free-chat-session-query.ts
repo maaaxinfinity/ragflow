@@ -37,7 +37,7 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
   const { 
     data: sessions = [], 
     isLoading, 
-    refetch: refetchSessions 
+    refetch: originalRefetch 
   } = useQuery({
     queryKey: ['freeChatSessions', userId, dialogId],
     enabled: enabled && !!userId && !!dialogId,
@@ -62,7 +62,13 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
       console.log('[useFreeChatSessionQuery] Loaded sessions:', result.data?.length || 0);
       
       if (result.code === 0) {
-        return result.data || [];
+        // FIX: Ensure all sessions from backend have state='active'
+        // Backend doesn't return state field, so we set it explicitly
+        const sessions = (result.data || []).map((session: IFreeChatSession) => ({
+          ...session,
+          state: session.state || 'active',  // Default to active for backend sessions
+        }));
+        return sessions;
       }
       throw new Error(result.message || 'Failed to load sessions');
     },
@@ -74,6 +80,42 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
     refetchInterval: false,       // FIX: Explicitly disable polling
     retry: 1,                     // Only retry once on error
   });
+
+  // Custom refetch that preserves draft sessions
+  const refetchSessions = useCallback(async () => {
+    console.log('[refetchSessions] Starting refetch, preserving drafts...');
+    
+    // Get current cache before refetch
+    const currentCache = queryClient.getQueryData(['freeChatSessions', userId, dialogId]) as IFreeChatSession[] || [];
+    const drafts = currentCache.filter(s => s.state === 'draft');
+    
+    // Perform refetch
+    const result = await originalRefetch();
+    
+    // If there were drafts, merge them back (but avoid duplicates)
+    if (drafts.length > 0 && result.data) {
+      console.log('[refetchSessions] Merging', drafts.length, 'draft(s) back into cache');
+      
+      // Filter out any drafts that might have been promoted to active
+      // (their model_card_id would match an active session)
+      const activeSessions = result.data as IFreeChatSession[];
+      const validDrafts = drafts.filter(draft => {
+        // Keep draft only if there's no active session with same model_card_id and similar timestamp
+        const hasDuplicate = activeSessions.some(active => 
+          active.model_card_id === draft.model_card_id &&
+          Math.abs(active.created_at - draft.created_at) < 5000  // Within 5 seconds
+        );
+        return !hasDuplicate;
+      });
+      
+      queryClient.setQueryData(
+        ['freeChatSessions', userId, dialogId],
+        [...validDrafts, ...activeSessions]
+      );
+    }
+    
+    return result;
+  }, [originalRefetch, queryClient, userId, dialogId]);
 
   // Get current session
   const currentSession = sessions.find((s: IFreeChatSession) => s.id === currentSessionId);

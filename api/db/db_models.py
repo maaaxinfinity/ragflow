@@ -809,6 +809,7 @@ class Conversation(DataBaseModel):
     reference = JSONField(null=True, default=[])
     user_id = CharField(max_length=255, null=True, help_text="user_id", index=True)
     model_card_id = IntegerField(null=True, index=True, help_text="current model card ID for this conversation")
+    message_count = IntegerField(null=False, default=0, help_text="number of messages in the conversation")
 
     class Meta:
         db_table = "conversation"

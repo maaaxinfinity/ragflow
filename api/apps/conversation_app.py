@@ -202,14 +202,16 @@ def set_conversation(**kwargs):
         # Extract model_card_id from request (optional for backward compatibility)
         model_card_id = req.get("model_card_id")
 
+        initial_messages = [{"role": "assistant", "content": dia.prompt_config["prologue"]}]
         conv = {
             "id": conv_id,
             "dialog_id": req["dialog_id"],
             "name": name,
-            "message": [{"role": "assistant", "content": dia.prompt_config["prologue"]}],
+            "message": initial_messages,
             "user_id": user_id,
             "reference": [],
             "model_card_id": model_card_id,  # Add model_card_id
+            "message_count": len(initial_messages),  # FIX: Track message count
         }
         ConversationService.save(**conv)
         return get_json_result(data=conv)
@@ -580,6 +582,7 @@ def completion(**kwargs):
                         "message": conv.message,
                         "reference": conv.reference,
                         "model_card_id": conv.model_card_id,
+                        "message_count": len(conv.message),  # FIX: Update message count
                     }
                     ConversationService.update_by_id(conv.id, update_data)
                     logging.info(f"[FreeChat] Persisted {len(conv.message)} messages to conversation {conv.id}")
@@ -606,6 +609,7 @@ def completion(**kwargs):
                         "message": conv.message,
                         "reference": conv.reference,
                         "model_card_id": conv.model_card_id,
+                        "message_count": len(conv.message),  # FIX: Update message count
                     }
                     ConversationService.update_by_id(conv.id, update_data)
                     logging.info(f"[FreeChat] Persisted {len(conv.message)} messages to conversation {conv.id} (non-stream)")
@@ -682,6 +686,8 @@ def delete_msg(**kwargs):
         ref_index = max(0, i // 2 - 1)
         if ref_index < len(conv["reference"]):
             conv["reference"].pop(ref_index)
+        # FIX: Update message count after deletion
+        conv["message_count"] = len(conv["message"])
         break
 
     ConversationService.update_by_id(conv["id"], conv)
