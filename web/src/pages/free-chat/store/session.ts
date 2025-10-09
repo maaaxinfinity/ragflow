@@ -1,0 +1,260 @@
+/**
+ * FreeChat Session Store (Zustand)
+ * 
+ * Migrated from Lobe Chat's state management pattern
+ * Solves the state synchronization issues in the original useFreeChatSession hook
+ * 
+ * Features:
+ * - Centralized session state management
+ * - Redux DevTools support for debugging
+ * - Persistence support (localStorage backup)
+ * - Type-safe operations
+ */
+
+import { create } from 'zustand';
+import { devtools, persist } from 'zustand/middleware';
+import { v4 as uuid } from 'uuid';
+import type { Message } from '@/interfaces/database/chat';
+
+export interface IFreeChatSession {
+  id: string;
+  conversation_id?: string;
+  model_card_id?: number;
+  name: string;
+  messages: Message[];
+  created_at: number;
+  updated_at: number;
+  params?: {
+    temperature?: number;
+    top_p?: number;
+    role_prompt?: string;
+    [key: string]: any;
+  };
+}
+
+interface SessionState {
+  // State
+  sessions: IFreeChatSession[];
+  currentSessionId: string;
+  isLoading: boolean;
+  
+  // Computed
+  currentSession: IFreeChatSession | undefined;
+}
+
+interface SessionActions {
+  // Basic CRUD
+  setSessions: (sessions: IFreeChatSession[]) => void;
+  setCurrentSessionId: (id: string) => void;
+  createSession: (name?: string, model_card_id?: number) => IFreeChatSession;
+  updateSession: (id: string, updates: Partial<IFreeChatSession>) => void;
+  deleteSession: (id: string) => void;
+  switchSession: (id: string) => void;
+  clearAllSessions: () => void;
+  
+  // Advanced operations
+  duplicateSession: (id: string, newName?: string) => IFreeChatSession | null;
+  updateSessionMessages: (id: string, messages: Message[]) => void;
+  updateSessionParams: (id: string, params: Partial<IFreeChatSession['params']>) => void;
+  
+  // Utility
+  getSessionById: (id: string) => IFreeChatSession | undefined;
+  setLoading: (isLoading: boolean) => void;
+}
+
+type SessionStore = SessionState & SessionActions;
+
+export const useSessionStore = create<SessionStore>()(
+  persist(
+    devtools(
+      (set, get) => ({
+        // Initial State
+        sessions: [],
+        currentSessionId: '',
+        isLoading: false,
+        
+        // Computed
+        get currentSession() {
+          const { sessions, currentSessionId } = get();
+          return sessions.find((s) => s.id === currentSessionId);
+        },
+      
+      // Actions
+      setSessions: (sessions) => {
+        set({ sessions }, false, 'setSessions');
+      },
+      
+      setCurrentSessionId: (id) => {
+        set({ currentSessionId: id }, false, 'setCurrentSessionId');
+      },
+      
+      createSession: (name, model_card_id) => {
+        const newSession: IFreeChatSession = {
+          id: uuid(),
+          name: name || '新对话',
+          model_card_id,
+          messages: [],
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          params: {},
+        };
+        
+        set(
+          (state) => ({
+            sessions: [newSession, ...state.sessions],
+            currentSessionId: newSession.id,
+          }),
+          false,
+          'createSession',
+        );
+        
+        return newSession;
+      },
+      
+      updateSession: (id, updates) => {
+        set(
+          (state) => ({
+            sessions: state.sessions.map((s) =>
+              s.id === id
+                ? { ...s, ...updates, updated_at: Date.now() }
+                : s
+            ),
+          }),
+          false,
+          'updateSession',
+        );
+      },
+      
+      deleteSession: (id) => {
+        set(
+          (state) => {
+            const newSessions = state.sessions.filter((s) => s.id !== id);
+            const newCurrentId =
+              state.currentSessionId === id && newSessions.length > 0
+                ? newSessions[0].id
+                : state.currentSessionId === id
+                ? ''
+                : state.currentSessionId;
+            
+            return {
+              sessions: newSessions,
+              currentSessionId: newCurrentId,
+            };
+          },
+          false,
+          'deleteSession',
+        );
+      },
+      
+      switchSession: (id) => {
+        const session = get().sessions.find((s) => s.id === id);
+        if (session) {
+          set({ currentSessionId: id }, false, 'switchSession');
+        }
+      },
+      
+      clearAllSessions: () => {
+        set(
+          {
+            sessions: [],
+            currentSessionId: '',
+          },
+          false,
+          'clearAllSessions',
+        );
+      },
+      
+      duplicateSession: (id, newName) => {
+        const originalSession = get().sessions.find((s) => s.id === id);
+        if (!originalSession) return null;
+        
+        const duplicatedSession: IFreeChatSession = {
+          ...originalSession,
+          id: uuid(),
+          name: newName || `${originalSession.name} (副本)`,
+          conversation_id: undefined, // Reset conversation_id
+          messages: [], // Start with empty messages
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        };
+        
+        set(
+          (state) => ({
+            sessions: [duplicatedSession, ...state.sessions],
+            currentSessionId: duplicatedSession.id,
+          }),
+          false,
+          'duplicateSession',
+        );
+        
+        return duplicatedSession;
+      },
+      
+      updateSessionMessages: (id, messages) => {
+        set(
+          (state) => ({
+            sessions: state.sessions.map((s) =>
+              s.id === id
+                ? { ...s, messages, updated_at: Date.now() }
+                : s
+            ),
+          }),
+          false,
+          'updateSessionMessages',
+        );
+      },
+      
+      updateSessionParams: (id, params) => {
+        set(
+          (state) => ({
+            sessions: state.sessions.map((s) =>
+              s.id === id
+                ? {
+                    ...s,
+                    params: { ...s.params, ...params },
+                    updated_at: Date.now(),
+                  }
+                : s
+            ),
+          }),
+          false,
+          'updateSessionParams',
+        );
+      },
+      
+      getSessionById: (id) => {
+        return get().sessions.find((s) => s.id === id);
+      },
+      
+      setLoading: (isLoading) => {
+        set({ isLoading }, false, 'setLoading');
+      },
+    }),
+    {
+      name: 'FreeChat_Session',
+      enabled: process.env.NODE_ENV === 'development',
+    },
+  ),
+  {
+    name: 'freechat-session-storage',
+    // Only persist sessions and currentSessionId
+    partialize: (state) => ({
+      sessions: state.sessions,
+      currentSessionId: state.currentSessionId,
+    }),
+    // Skip persistence in test environment
+    skipHydration: process.env.NODE_ENV === 'test',
+  },
+),
+);
+
+// Selectors (following Lobe Chat pattern)
+export const sessionSelectors = {
+  currentSession: (state: SessionStore) => state.currentSession,
+  currentSessionId: (state: SessionStore) => state.currentSessionId,
+  sessions: (state: SessionStore) => state.sessions,
+  isLoading: (state: SessionStore) => state.isLoading,
+  getSessionById: (id: string) => (state: SessionStore) => state.getSessionById(id),
+  sessionCount: (state: SessionStore) => state.sessions.length,
+  hasSession: (state: SessionStore) => state.sessions.length > 0,
+};

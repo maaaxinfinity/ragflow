@@ -240,8 +240,22 @@ function FreeChatContent() {
   const handleNewSession = useCallback(() => {
     // FIX: Always pass current model_card_id when creating new session
     // This ensures the new session is associated with the current assistant
-    createSession(undefined, currentSession?.model_card_id);
-  }, [createSession, currentSession?.model_card_id]);
+    let modelCardId = currentSession?.model_card_id;
+    
+    // Fallback: If no current session or no model_card_id, use first available model card
+    if (!modelCardId && modelCards.length > 0) {
+      console.warn('[NewSession] No model_card_id in current session, using first available model card:', modelCards[0].name);
+      modelCardId = modelCards[0].id;
+    }
+    
+    if (!modelCardId) {
+      console.error('[NewSession] Cannot create session: no model cards available');
+      message.warning('请先配置至少一个助手');
+      return;
+    }
+    
+    createSession(undefined, modelCardId);
+  }, [createSession, currentSession?.model_card_id, modelCards]);
 
   const handleSessionRename = useCallback(
     async (sessionId: string, newName: string) => {

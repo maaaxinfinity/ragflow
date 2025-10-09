@@ -1,160 +1,71 @@
-import { useCallback, useEffect, useState } from 'react';
-import { v4 as uuid } from 'uuid';
-import { Message } from '@/interfaces/database/chat';
+/**
+ * useFreeChatSession Hook
+ * 
+ * Refactored to use Zustand store for state management
+ * This hook now acts as a wrapper around the sessionStore
+ * Maintains backward compatibility with existing components
+ */
 
-export interface IFreeChatSession {
-  id: string;
-  conversation_id?: string; // RAGFlow conversation ID
-  model_card_id?: number; // Model card ID from law-workspace
-  name: string;
-  messages: Message[];
-  created_at: number;
-  updated_at: number;
-  params?: {
-    temperature?: number;
-    top_p?: number;
-    role_prompt?: string;
-  }; // User-customized parameters for this conversation (overrides model card defaults)
-}
+import { useCallback, useEffect } from 'react';
+import { Message } from '@/interfaces/database/chat';
+import { useSessionStore, IFreeChatSession } from '../store/session';
 
 interface UseFreeChatSessionProps {
   initialSessions?: IFreeChatSession[];
   onSessionsChange?: (sessions: IFreeChatSession[]) => void;
 }
 
+export type { IFreeChatSession };
+
 export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   const { initialSessions, onSessionsChange } = props || {};
-  const [sessions, setSessions] = useState<IFreeChatSession[]>(
-    initialSessions || [],
-  );
-  const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  
+  // Get state and actions from Zustand store
+  const sessions = useSessionStore((state) => state.sessions);
+  const currentSessionId = useSessionStore((state) => state.currentSessionId);
+  const currentSession = useSessionStore((state) => state.currentSession);
+  
+  const setSessions = useSessionStore((state) => state.setSessions);
+  const setCurrentSessionId = useSessionStore((state) => state.setCurrentSessionId);
+  const createSession = useSessionStore((state) => state.createSession);
+  const updateSession = useSessionStore((state) => state.updateSession);
+  const deleteSession = useSessionStore((state) => state.deleteSession);
+  const switchSession = useSessionStore((state) => state.switchSession);
+  const clearAllSessions = useSessionStore((state) => state.clearAllSessions);
 
-  // Sync with external sessions changes
-  // Only sync when sessions count changes (add/delete) to avoid overwriting local renames
-  const [lastSyncedCount, setLastSyncedCount] = useState(0);
+  // Initialize from props on mount
   useEffect(() => {
-    if (initialSessions) {
-      const newCount = initialSessions.length;
-      const currentCount = sessions.length;
-
-      // Only sync if:
-      // 1. First load (lastSyncedCount === 0)
-      // 2. Sessions count changed (add/delete operations)
-      if (lastSyncedCount === 0 || newCount !== currentCount) {
-        console.log('[useFreeChatSession] Syncing with initialSessions:', {
-          reason: lastSyncedCount === 0 ? 'first_load' : 'count_changed',
-          oldCount: currentCount,
-          newCount,
-        });
-        setSessions(initialSessions);
-        setLastSyncedCount(newCount);
-
-        // Auto-select first session if none selected
-        if (!currentSessionId && initialSessions.length > 0) {
-          setCurrentSessionId(initialSessions[0].id);
-        }
-      } else {
-        console.log('[useFreeChatSession] Skipping sync to preserve local changes');
+    if (initialSessions && initialSessions.length > 0) {
+      console.log('[useFreeChatSession] Initializing sessions from props:', initialSessions.length);
+      setSessions(initialSessions);
+      
+      // Auto-select first session if none selected
+      if (!currentSessionId && initialSessions[0]) {
+        setCurrentSessionId(initialSessions[0].id);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSessions]);
+  }, []); // Only run on mount
 
-  // Save sessions callback
-  const saveSessions = useCallback(
-    (newSessions: IFreeChatSession[]) => {
-      onSessionsChange?.(newSessions);
-    },
-    [onSessionsChange],
-  );
-
-  // Get current session
-  const currentSession = sessions.find(s => s.id === currentSessionId);
-
-  // BUG FIX #3: Use functional setState to avoid closure issues
-  // Create new session
-  const createSession = useCallback((name?: string, model_card_id?: number) => {
-    let newSession: IFreeChatSession;
-
-    setSessions(prevSessions => {
-      newSession = {
-        id: uuid(),
-        name: name || '新对话',
-        model_card_id,
-        messages: [],
-        created_at: Date.now(),
-        updated_at: Date.now(),
-      };
-      const updatedSessions = [newSession, ...prevSessions];
-      saveSessions(updatedSessions);
-      return updatedSessions;
-    });
-
-    setCurrentSessionId(newSession!.id);
-    return newSession!;
-  }, [saveSessions]);
-
-  // Update session
-  const updateSession = useCallback((sessionId: string, updates: Partial<IFreeChatSession>) => {
-    setSessions(prevSessions => {
-      const updatedSessions = prevSessions.map(s =>
-        s.id === sessionId
-          ? { ...s, ...updates, updated_at: Date.now() }
-          : s
-      );
-      saveSessions(updatedSessions);
-      return updatedSessions;
-    });
-  }, [saveSessions]);
-
-  // Delete session
-  const deleteSession = useCallback((sessionId: string) => {
-    let shouldUpdateCurrentId = false;
-    let newCurrentId = '';
-
-    setSessions(prevSessions => {
-      const updatedSessions = prevSessions.filter(s => s.id !== sessionId);
-      saveSessions(updatedSessions);
-
-      // Check if we need to update current session ID
-      if (sessionId === currentSessionId) {
-        shouldUpdateCurrentId = true;
-        if (updatedSessions.length > 0) {
-          newCurrentId = updatedSessions[0].id;
-        }
-      }
-
-      return updatedSessions;
-    });
-
-    // Update current session ID if needed
-    if (shouldUpdateCurrentId) {
-      setCurrentSessionId(newCurrentId);
+  // Trigger callback when sessions change
+  useEffect(() => {
+    if (sessions.length > 0 && onSessionsChange) {
+      console.log('[useFreeChatSession] Sessions changed, calling onSessionsChange');
+      onSessionsChange(sessions);
     }
-  }, [currentSessionId, saveSessions]);
+  }, [sessions, onSessionsChange]);
 
-  // BUG FIX #11: Switch session without closure dependency
-  const switchSession = useCallback((sessionId: string) => {
-    setSessions(prevSessions => {
-      if (prevSessions.find(s => s.id === sessionId)) {
-        setCurrentSessionId(sessionId);
-      }
-      return prevSessions; // No change to sessions
-    });
-  }, []);
-
-  // Clear all sessions
-  const clearAllSessions = useCallback(() => {
-    setSessions([]);
-    saveSessions([]);
-    setCurrentSessionId('');
-  }, [saveSessions]);
+  // Wrap createSession to maintain backward compatibility
+  const wrappedCreateSession = useCallback((name?: string, model_card_id?: number) => {
+    console.log('[useFreeChatSession] Creating new session:', { name, model_card_id });
+    return createSession(name, model_card_id);
+  }, [createSession]);
 
   return {
     sessions,
     currentSession,
     currentSessionId,
-    createSession,
+    createSession: wrappedCreateSession,
     updateSession,
     deleteSession,
     switchSession,
