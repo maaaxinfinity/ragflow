@@ -84,7 +84,10 @@ CORS(app,
          "https://rag.limitee.cn",  # API 域名
          "http://localhost:8000",  # 本地开发
          "http://localhost:8001",
-         "*"  # 允许所有来源（开发模式）
+         "http://localhost:9989",
+         "http://127.0.0.1:8000",
+         "http://127.0.0.1:8001",
+         "http://127.0.0.1:9989",
      ],
      allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
      expose_headers=["Authorization"],
