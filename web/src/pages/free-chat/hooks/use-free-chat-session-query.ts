@@ -193,29 +193,31 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
     onSuccess: (newSession) => {
       console.log('[CreateSession] Session created:', newSession);
       
-      // Optimistic update - add new session to cache immediately
+      // FIX: Draft sessions are already added to cache in createSession wrapper
+      // Only process active sessions here to avoid duplication
+      if (newSession.state === 'draft') {
+        console.log('[CreateSession] Draft already in cache, skipping onSuccess processing');
+        return;
+      }
+      
+      // For active sessions: add to cache and switch
       queryClient.setQueryData(
         ['freeChatSessions', userId, dialogId],
         (old: IFreeChatSession[] = []) => {
-          console.log('[CreateSession] Updating cache, old sessions:', old.length);
+          console.log('[CreateSession] Adding active session to cache, old sessions:', old.length);
           return [newSession, ...old];
         }
       );
       
-      // Switch to new session
+      // Switch to new active session
       setCurrentSessionId(newSession.id);
-      console.log('[CreateSession] Switched to session:', newSession.id);
+      console.log('[CreateSession] Switched to active session:', newSession.id);
       
-      // FIX: Only refresh from backend for active sessions (not drafts)
-      // Draft sessions are local-only and will be lost if we refetch
-      if (newSession.state !== 'draft') {
-        setTimeout(() => {
-          console.log('[CreateSession] Triggering background refresh for active session');
-          refetchSessions();
-        }, 500);
-      } else {
-        console.log('[CreateSession] Skipping refetch for draft session (local-only)');
-      }
+      // Background refresh for active sessions
+      setTimeout(() => {
+        console.log('[CreateSession] Triggering background refresh for active session');
+        refetchSessions();
+      }, 500);
     },
   });
 
@@ -384,26 +386,39 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
   // Wrapper functions for easier usage
   const createSession = useCallback(
     (name?: string, model_card_id?: number, isDraft = false): IFreeChatSession | undefined => {
-      // Trigger mutation
+      if (!model_card_id) {
+        console.error('[createSession] model_card_id is required');
+        return undefined;
+      }
+      
+      // Create temporary session object for immediate UI update
+      const tempSession: IFreeChatSession = {
+        id: uuid(),  // Temporary ID, will be replaced by backend ID for active sessions
+        model_card_id,
+        name: name || (isDraft ? '新对话' : '新对话'),
+        messages: [],
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        state: isDraft ? 'draft' : 'active',
+      };
+      
+      // FIX: For draft sessions, immediately add to cache and switch to it
+      // This prevents async timing issues where currentSession becomes undefined
+      if (isDraft) {
+        console.log('[createSession] Immediately adding draft to cache:', tempSession.id);
+        queryClient.setQueryData(
+          ['freeChatSessions', userId, dialogId],
+          (old: IFreeChatSession[] = []) => [tempSession, ...old]
+        );
+        setCurrentSessionId(tempSession.id);
+      }
+      
+      // Trigger mutation (for active sessions, or for draft metadata)
       createSessionMutation.mutate({ name, model_card_id, isDraft });
       
-      // Return a temporary session object immediately for optimistic UI
-      // The real session will be updated via onSuccess callback
-      if (model_card_id) {
-        const tempSession: IFreeChatSession = {
-          id: uuid(),  // Temporary ID, will be replaced by backend ID
-          model_card_id,
-          name: name || (isDraft ? 'Draft - 请选择助手' : '新对话'),
-          messages: [],
-          created_at: Date.now(),
-          updated_at: Date.now(),
-          state: isDraft ? 'draft' : 'active',
-        };
-        return tempSession;
-      }
-      return undefined;
+      return tempSession;
     },
-    [createSessionMutation]
+    [createSessionMutation, queryClient, userId, dialogId]
   );
 
   const updateSession = useCallback(
