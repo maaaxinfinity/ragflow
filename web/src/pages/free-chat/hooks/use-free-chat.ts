@@ -114,33 +114,11 @@ export const useFreeChat = (
     controller.abort();
   }, [controller]);
 
-  // FIX: Add validation to handlePressEnter before sending
-  // Press Enter to send
-  const handlePressEnter = useCallback(() => {
-    if (trim(value) === '') return;
-    if (!done) return;  // FIX: Use 'done' instead of 'sendLoading' to avoid reference error
-
-    // Validate model_card_id before sending
-    if (!currentSession?.model_card_id) {
-      logError(
-        'Please select an assistant first',
-        'useFreeChat.handlePressEnter',
-        true,
-        t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
-      );
-      return;
-    }
-
-    const message: Message = {
-      id: uuid(),  // FIX: Use uuid() directly instead of buildMessageUuid() without args
-      role: MessageType.User,
-      content: value,
-    };
-
-    addNewestQuestion(message);
-    setValue('');
-    sendMessage(message);
-  }, [value, done, currentSession, addNewestQuestion, setValue, sendMessage, t]);
+  // FIX: Use ref to avoid stale closure in callbacks
+  const currentSessionRef = useRef(currentSession);
+  useEffect(() => {
+    currentSessionRef.current = currentSession;
+  }, [currentSession]);
 
   // Send message (core logic)
   const sendMessage = useCallback(
@@ -155,13 +133,15 @@ export const useFreeChat = (
         return;
       }
 
-      let conversationId = currentSession?.conversation_id;
+      // Use ref to get latest currentSession
+      const session = currentSessionRef.current;
+      let conversationId = session?.conversation_id;
 
       // Create conversation if not exists
       if (!conversationId) {
         // FIX: Ensure model_card_id exists before creating conversation
         // Without model_card_id, backend cannot apply model card parameters
-        if (!currentSession?.model_card_id) {
+        if (!session?.model_card_id) {
           logError(
             'Please select an assistant first',
             'useFreeChat.sendMessage',
@@ -173,15 +153,15 @@ export const useFreeChat = (
         }
 
         // Use session name if user renamed it (not the default "新对话"), otherwise use message content
-        const conversationName = currentSession.name && currentSession.name !== '新对话'
-          ? currentSession.name
+        const conversationName = session.name && session.name !== '新对话'
+          ? session.name
           : message.content.slice(0, 50);
 
         const convData = await updateConversation({
           dialog_id: dialogId,
           name: conversationName,
           is_new: true,
-          model_card_id: currentSession.model_card_id,  // Add model_card_id
+          model_card_id: session.model_card_id,  // Add model_card_id
           message: [
             {
               role: MessageType.Assistant,
@@ -195,10 +175,10 @@ export const useFreeChat = (
           
           // FIX: Atomic Draft → Active promotion
           // Delete local Draft + Create Active with backend ID + Switch to Active
-          if (currentSession) {
-            const draftId = currentSession.id;
-            const draftModelCardId = currentSession.model_card_id;
-            const draftParams = currentSession.params;
+          if (session) {
+            const draftId = session.id;
+            const draftModelCardId = session.model_card_id;
+            const draftParams = session.params;
             
             // 1. Delete local Draft
             deleteSession(draftId);
@@ -233,7 +213,7 @@ export const useFreeChat = (
 
       // FIX: Ensure model_card_id exists before sending message
       // This check prevents sending messages without an associated assistant
-      if (!currentSession?.model_card_id) {
+      if (!session?.model_card_id) {
         logError(
           'Please select an assistant first',
           'useFreeChat.sendMessage',
@@ -247,7 +227,7 @@ export const useFreeChat = (
       // BUG FIX #7 & #12: Ensure kb_ids from enabledKBs has priority over params
       // Use session.params for conversation-level parameter overrides
       // Backend will merge: conversation params > model card params > bot defaults
-      const baseParams = customParams || currentSession.params || {};
+      const baseParams = customParams || session.params || {};
       const kbIdsArray = Array.from(enabledKBs);
 
       const requestBody = {
@@ -258,7 +238,7 @@ export const useFreeChat = (
         ...(baseParams.top_p !== undefined && { top_p: baseParams.top_p }),
         // Model card ID (REQUIRED - for parameter merging on backend)
         // Type assertion: we've already validated model_card_id exists above
-        model_card_id: currentSession.model_card_id!,
+        model_card_id: session.model_card_id!,
         // Dynamic knowledge base (always include, overrides any kb_ids in params)
         kb_ids: kbIdsArray,
         // Dynamic role prompt from session (system prompt override)
@@ -279,7 +259,6 @@ export const useFreeChat = (
     },
     [
       dialogId,
-      currentSession,
       derivedMessages,
       enabledKBs,
       send,
@@ -294,16 +273,49 @@ export const useFreeChat = (
     ],
   );
 
-  // REMOVED: handleSendMessage and pendingMessage mechanism
-  // Replaced with direct validation in handlePressEnter
-  // This simplifies the code and prevents message loss issues
+  // FIX: Add validation to handlePressEnter before sending
+  // Press Enter to send
+  const handlePressEnter = useCallback(() => {
+    if (trim(value) === '') return;
+    if (!done) return;
+
+    // Validate model_card_id before sending - use ref to get latest value
+    const session = currentSessionRef.current;
+    console.log('[handlePressEnter] Validation check:', {
+      hasSession: !!session,
+      sessionId: session?.id,
+      model_card_id: session?.model_card_id,
+      state: session?.state
+    });
+    
+    if (!session?.model_card_id) {
+      logError(
+        'Please select an assistant first',
+        'useFreeChat.handlePressEnter',
+        true,
+        t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
+      );
+      return;
+    }
+
+    const message: Message = {
+      id: uuid(),
+      role: MessageType.User,
+      content: value,
+    };
+
+    addNewestQuestion(message);
+    setValue('');
+    sendMessage(message);
+  }, [value, done, addNewestQuestion, setValue, sendMessage, t]);
 
   // FIX: Regenerate answer with proper error handling
   // Prevents message loss when regeneration fails
   const regenerateMessage = useCallback(
     async (message: Message) => {
-      // Validate model_card_id before attempting regeneration
-      if (!currentSession?.model_card_id) {
+      // Validate model_card_id before attempting regeneration - use ref
+      const session = currentSessionRef.current;
+      if (!session?.model_card_id) {
         logError(
           'Cannot regenerate: no assistant selected',
           'useFreeChat.regenerateMessage',
@@ -336,7 +348,7 @@ export const useFreeChat = (
         }
       }
     },
-    [currentSession, derivedMessages, setDerivedMessages, sendMessage, t],
+    [derivedMessages, setDerivedMessages, sendMessage, t],
   );
 
   // Listen to answer updates

@@ -6,7 +6,7 @@
  * Maintains backward compatibility with existing components
  */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Message } from '@/interfaces/database/chat';
 import { useSessionStore, IFreeChatSession } from '../store/session';
 
@@ -23,7 +23,19 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   // Get state and actions from Zustand store
   const sessions = useSessionStore((state) => state.sessions);
   const currentSessionId = useSessionStore((state) => state.currentSessionId);
-  const currentSession = useSessionStore((state) => state.currentSession);
+  
+  // FIX: Compute currentSession locally instead of using getter
+  const currentSession = useMemo(() => {
+    const found = sessions.find((s) => s.id === currentSessionId);
+    console.log('[useFreeChatSession] currentSession computed:', {
+      currentSessionId,
+      found: !!found,
+      model_card_id: found?.model_card_id,
+      state: found?.state,
+      totalSessions: sessions.length
+    });
+    return found;
+  }, [sessions, currentSessionId]);
   
   const setSessions = useSessionStore((state) => state.setSessions);
   const setCurrentSessionId = useSessionStore((state) => state.setCurrentSessionId);
