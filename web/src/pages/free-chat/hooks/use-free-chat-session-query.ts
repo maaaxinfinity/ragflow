@@ -135,21 +135,10 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
         throw new Error('model_card_id is required');
       }
 
-      // FIX: Draft sessions are NOT created on backend immediately
-      // They are only local until user sends first message
+      // FIX: Draft sessions should never reach here (handled in wrapper)
+      // This is a safety check in case isDraft=true slips through
       if (isDraft) {
-        const draftSession: IFreeChatSession = {
-          id: uuid(),  // Local ID only
-          model_card_id,
-          name: name || '新对话',
-          messages: [],
-          created_at: Date.now(),
-          updated_at: Date.now(),
-          state: 'draft',
-          // No conversation_id - will be created when user sends first message
-        };
-        console.log('[CreateSession] Created draft (local only):', draftSession.id);
-        return draftSession;
+        throw new Error('[CreateSession] Draft sessions should be created in wrapper, not mutation');
       }
 
       // Non-draft: create on backend immediately
@@ -191,31 +180,24 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
       } as IFreeChatSession;
     },
     onSuccess: (newSession) => {
-      console.log('[CreateSession] Session created:', newSession);
+      console.log('[CreateSession] Active session created:', newSession);
       
-      // FIX: Draft sessions are already added to cache in createSession wrapper
-      // Only process active sessions here to avoid duplication
-      if (newSession.state === 'draft') {
-        console.log('[CreateSession] Draft already in cache, skipping onSuccess processing');
-        return;
-      }
-      
-      // For active sessions: add to cache and switch
+      // Add to cache
       queryClient.setQueryData(
         ['freeChatSessions', userId, dialogId],
         (old: IFreeChatSession[] = []) => {
-          console.log('[CreateSession] Adding active session to cache, old sessions:', old.length);
+          console.log('[CreateSession] Adding session to cache, old sessions:', old.length);
           return [newSession, ...old];
         }
       );
       
-      // Switch to new active session
+      // Switch to new session
       setCurrentSessionId(newSession.id);
-      console.log('[CreateSession] Switched to active session:', newSession.id);
+      console.log('[CreateSession] Switched to session:', newSession.id);
       
-      // Background refresh for active sessions
+      // Background refresh
       setTimeout(() => {
-        console.log('[CreateSession] Triggering background refresh for active session');
+        console.log('[CreateSession] Triggering background refresh');
         refetchSessions();
       }, 500);
     },
@@ -391,32 +373,35 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
         return undefined;
       }
       
-      // Create temporary session object for immediate UI update
-      const tempSession: IFreeChatSession = {
-        id: uuid(),  // Temporary ID, will be replaced by backend ID for active sessions
-        model_card_id,
-        name: name || (isDraft ? '新对话' : '新对话'),
-        messages: [],
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        state: isDraft ? 'draft' : 'active',
-      };
-      
-      // FIX: For draft sessions, immediately add to cache and switch to it
-      // This prevents async timing issues where currentSession becomes undefined
+      // FIX: For draft sessions, handle entirely in wrapper (no mutation needed)
       if (isDraft) {
-        console.log('[createSession] Immediately adding draft to cache:', tempSession.id);
+        const draftSession: IFreeChatSession = {
+          id: uuid(),  // Local-only ID
+          model_card_id,
+          name: name || '新对话',
+          messages: [],
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          state: 'draft',
+        };
+        
+        console.log('[createSession] Creating draft (local only):', draftSession.id);
+        
+        // Immediately add to cache and switch to it
         queryClient.setQueryData(
           ['freeChatSessions', userId, dialogId],
-          (old: IFreeChatSession[] = []) => [tempSession, ...old]
+          (old: IFreeChatSession[] = []) => [draftSession, ...old]
         );
-        setCurrentSessionId(tempSession.id);
+        setCurrentSessionId(draftSession.id);
+        
+        return draftSession;
       }
       
-      // Trigger mutation (for active sessions, or for draft metadata)
-      createSessionMutation.mutate({ name, model_card_id, isDraft });
+      // For active sessions: trigger backend creation
+      createSessionMutation.mutate({ name, model_card_id, isDraft: false });
       
-      return tempSession;
+      // Return undefined for active sessions (will be set by onSuccess)
+      return undefined;
     },
     [createSessionMutation, queryClient, userId, dialogId]
   );
