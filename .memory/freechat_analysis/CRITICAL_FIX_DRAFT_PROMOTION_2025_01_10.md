@@ -416,3 +416,195 @@ derivedMessages同步到uuid_2会话 ✅
 ---
 
 **修复完成**: 所有Draft提升问题已系统性解决，会话ID统一，消息同步正常，用户体验流畅。
+
+---
+
+## 补充修复：Draft提升后跳转到错误Card问题
+
+**发现时间**: 2025-01-10（初次修复后）  
+**问题症状**: 在"合同专家"card的Draft中输入消息，提升为Active后界面跳转到"诉讼专家"，用户需要手动切回才能看到刚创建的对话。
+
+### 根本原因
+
+**异步时序问题**：
+
+```typescript
+// 原有错误逻辑
+createSession(conversationName, draftModelCardId, false, conversationId);  // 异步mutation
+switchSession(conversationId);  // 立即执行
+
+// 问题：
+// 1. createSession触发异步mutation，不会立即返回
+// 2. switchSession立即执行，但此时新会话可能还未添加到cache
+// 3. currentSessionId被设置为conversationId，但sessions数组中找不到
+// 4. UI显示错误或跳转到其他card
+```
+
+### 修复方案
+
+**同步化Draft提升**：当`conversationId`参数存在时，`createSession`不触发异步mutation，而是**同步**创建会话并立即切换。
+
+#### 修复点1: createSession wrapper支持同步创建
+
+**文件**: `web/src/pages/free-chat/hooks/use-free-chat-session-query.ts`  
+**位置**: Line 424-464
+
+```typescript
+const createSession = useCallback(
+  (name?, model_card_id?, isDraft = false, conversationId?) => {
+    // ...
+    
+    // CRITICAL FIX: For Draft promotion (conversationId provided), create synchronously
+    if (conversationId) {
+      const activeSession: IFreeChatSession = {
+        id: conversationId,
+        conversation_id: conversationId,
+        model_card_id,
+        name: name || '新对话',
+        messages: [],
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        state: 'active',
+      };
+      
+      // Immediately add to cache and switch to it (SYNC!)
+      queryClient.setQueryData(
+        ['freeChatSessions', userId, dialogId],
+        (old: IFreeChatSession[] = []) => [activeSession, ...old]
+      );
+      setCurrentSessionId(conversationId);  // ✅ 同步切换
+      
+      return activeSession;  // ✅ 立即返回
+    }
+    
+    // Normal creation: async mutation
+    createSessionMutation.mutate({ 
+      name, model_card_id, isDraft: false, conversationId: undefined 
+    });
+    return undefined;
+  },
+  [createSessionMutation, queryClient, userId, dialogId, setCurrentSessionId]
+);
+```
+
+**关键点**：
+- ✅ 直接操作`queryClient.setQueryData`，同步添加会话到cache
+- ✅ 直接调用`setCurrentSessionId`，同步切换到新会话
+- ✅ 立即`return activeSession`，不等待异步mutation
+- ✅ 不调用`createSessionMutation.mutate`，避免重复创建
+
+#### 修复点2: Mutation提前return避免重复创建
+
+**文件**: `web/src/pages/free-chat/hooks/use-free-chat-session-query.ts`  
+**位置**: Line 143-158
+
+```typescript
+mutationFn: async ({ name, model_card_id, isDraft, conversationId }) => {
+  // ...
+  
+  // CRITICAL: If conversationId provided, backend conversation already exists
+  // (created in sendMessage via updateConversation API)
+  if (conversationId) {
+    console.log('[CreateSession] Conversation already exists on backend:', conversationId);
+    return {
+      id: conversationId,
+      conversation_id: conversationId,
+      model_card_id,
+      name: name || '新对话',
+      messages: [],
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      state: 'active',
+    } as IFreeChatSession;
+  }
+  
+  // Normal creation: call backend
+  const response = await fetch('/v1/conversation/set', {
+    // ...
+  });
+}
+```
+
+**说明**：虽然wrapper已经阻止了Draft提升时调用mutation，但这里加上防御性检查，避免意外情况下重复创建。
+
+#### 修复点3: sendMessage移除手动switchSession
+
+**文件**: `web/src/pages/free-chat/hooks/use-free-chat.ts`  
+**位置**: Line 203-219
+
+```typescript
+// Before:
+createSession(conversationName, draftModelCardId, false, conversationId);
+switchSession(conversationId);  // ❌ 手动切换（异步问题）
+
+// After:
+const newActiveSession = createSession(
+  conversationName, 
+  draftModelCardId, 
+  false, 
+  conversationId  // ✅ 触发同步创建
+);
+// ✅ 不需要手动switchSession，createSession内部已同步切换
+```
+
+### 修复前后对比
+
+#### 修复前（异步混乱）
+
+```
+Draft (id = uuid_1, card = "合同专家")
+    ↓ 用户发送消息
+Backend创建conversation (id = uuid_2)
+    ↓
+deleteSession(uuid_1)  // Draft删除
+    ↓
+createSession(..., uuid_2)  // ❌ 触发异步mutation
+    ↓ (mutation未完成)
+switchSession(uuid_2)  // ❌ 立即切换，但cache中还没uuid_2
+    ↓
+currentSessionId = uuid_2，但sessions数组找不到
+    ↓
+UI fallback到第一个会话（可能是"诉讼专家"）
+    ↓
+❌ 用户看到错误的card，需要手动切回
+```
+
+#### 修复后（同步切换）
+
+```
+Draft (id = uuid_1, card = "合同专家")
+    ↓ 用户发送消息
+Backend创建conversation (id = uuid_2)
+    ↓
+deleteSession(uuid_1)  // Draft删除
+    ↓
+createSession(..., uuid_2)  // ✅ 同步创建Active
+  → queryClient.setQueryData([activeSession, ...])  // ✅ 立即添加到cache
+  → setCurrentSessionId(uuid_2)  // ✅ 立即切换
+  → return activeSession  // ✅ 立即返回
+    ↓
+currentSessionId = uuid_2，sessions数组中有uuid_2 ✅
+    ↓
+UI显示正确的card（"合同专家"）✅
+    ↓
+✅ 用户继续在同一card对话，体验流畅
+```
+
+### 测试验证
+
+**Test Case: 多Card切换场景**
+1. ✅ 点击"合同专家"card → 创建Draft
+2. ✅ 输入消息"请分析这份合同" → 回车
+3. ✅ Draft提升为Active，界面**保持在"合同专家"**
+4. ✅ 左侧对话列表显示"请分析这份合同"
+5. ✅ 切换到"诉讼专家"card → 创建新Draft
+6. ✅ 返回"合同专家" → 看到之前的对话仍在
+
+**关键验证点**：
+- ✅ Draft提升后不会跳转到其他card
+- ✅ currentSessionId和实际显示的card一致
+- ✅ 会话列表正确显示当前card的对话
+
+---
+
+**最终修复完成**: Draft提升逻辑完全同步化，消除异步时序问题，用户体验完全流畅。

@@ -140,8 +140,25 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
         throw new Error('dialog_id is required for non-draft session');
       }
 
-      // Use provided conversationId or generate new one (for Draft promotion)
-      const finalConversationId = conversationId || uuid();
+      // CRITICAL: If conversationId provided, it means backend conversation already exists
+      // (created in sendMessage via updateConversation API)
+      // Just return a session object without calling backend again
+      if (conversationId) {
+        console.log('[CreateSession] Conversation already exists on backend:', conversationId);
+        return {
+          id: conversationId,
+          conversation_id: conversationId,
+          model_card_id,
+          name: name || '新对话',
+          messages: [],
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          state: 'active',
+        } as IFreeChatSession;
+      }
+
+      // Generate new ID for normal active session creation
+      const finalConversationId = uuid();
 
       const authToken = searchParams.get('auth');
       const headers: HeadersInit = {
@@ -421,18 +438,44 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
         return draftSession;
       }
       
-      // For active sessions: trigger backend creation
+      // CRITICAL FIX: For Draft promotion (conversationId provided), create synchronously
+      // This ensures immediate cache update and correct session switching
+      if (conversationId) {
+        const activeSession: IFreeChatSession = {
+          id: conversationId,
+          conversation_id: conversationId,
+          model_card_id,
+          name: name || '新对话',
+          messages: [],
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          state: 'active',
+        };
+        
+        console.log('[createSession] Creating active (sync for promotion):', conversationId);
+        
+        // Immediately add to cache and switch to it
+        queryClient.setQueryData(
+          ['freeChatSessions', userId, dialogId],
+          (old: IFreeChatSession[] = []) => [activeSession, ...old]
+        );
+        setCurrentSessionId(conversationId);
+        
+        return activeSession;
+      }
+      
+      // For normal active session creation: trigger backend mutation
       createSessionMutation.mutate({ 
         name, 
         model_card_id, 
         isDraft: false,
-        conversationId
+        conversationId: undefined
       });
       
-      // Return undefined for active sessions (will be set by onSuccess)
+      // Return undefined for async mutation (will be set by onSuccess)
       return undefined;
     },
-    [createSessionMutation, queryClient, userId, dialogId]
+    [createSessionMutation, queryClient, userId, dialogId, setCurrentSessionId]
   );
 
   const updateSession = useCallback(

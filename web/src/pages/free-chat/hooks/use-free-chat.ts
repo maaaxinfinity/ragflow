@@ -203,20 +203,18 @@ export const useFreeChat = (
             deleteSession(draftId);
             
             // 2. Create Active session with backend conversation_id as ID
-            createSession(
+            // createSession will synchronously create and switch to the new session
+            const newActiveSession = createSession(
               conversationName, 
               draftModelCardId, 
               false,  // isDraft = false
-              conversationId  // Use backend ID
+              conversationId  // Use backend ID - triggers sync creation
             );
             
             // 3. Restore Draft params to new Active session
-            if (draftParams) {
+            if (draftParams && newActiveSession) {
               updateSession(conversationId, { params: draftParams });
             }
-            
-            // 4. Switch to new Active session
-            switchSession(conversationId);
             
             console.log('[SendMessage] Draft atomically promoted:', draftId, '→', conversationId);
           }
@@ -291,7 +289,6 @@ export const useFreeChat = (
       updateSession,
       deleteSession,
       createSession,
-      switchSession,
       t,
     ],
   );
