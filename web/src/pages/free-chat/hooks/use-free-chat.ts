@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { DynamicModelParams } from '../types';
 import { useKBContext } from '../contexts/kb-context';
-import { useFreeChatSessionQuery } from './use-free-chat-session-query';
+import { useFreeChatSession } from './use-free-chat-session';
 import { useUpdateConversation } from '@/hooks/use-chat-request';
 import { logError, logInfo } from '../utils/error-handler';
 import { useTranslate } from '@/hooks/common-hooks';
@@ -42,7 +42,7 @@ export const useFreeChat = (
     }
   }, [settings?.dialog_id]);
 
-  // Use TanStack Query for session management (replaces localStorage)
+  // Use Zustand Store for session management
   const {
     currentSession,
     currentSessionId,
@@ -52,11 +52,12 @@ export const useFreeChat = (
     switchSession,
     deleteSession,
     clearAllSessions,
-    refetchSessions,  // Used for manual refresh after operations
-  } = useFreeChatSessionQuery({
-    userId,
-    dialogId,
-    enabled: !!userId && !!dialogId,
+  } = useFreeChatSession({
+    initialSessions: settings?.sessions,
+    onSessionsChange: (sessions) => {
+      // 会话变化时的回调，可以在这里保存到后端
+      // 这个回调会传递到index.tsx中的updateField
+    },
   });
 
   // SSE sending logic
@@ -436,7 +437,6 @@ export const useFreeChat = (
     switchSession,
     deleteSession,
     clearAllSessions,
-    refetchSessions,  // Manual refresh sessions from backend
 
     // Dialog ID
     dialogId,
