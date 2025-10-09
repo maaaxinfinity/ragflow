@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { v4 as uuid } from 'uuid';
 import { Message } from '@/interfaces/database/chat';
@@ -7,13 +7,13 @@ import { useSearchParams } from 'umi';
 
 export interface IFreeChatSession {
   id: string;
-  conversation_id?: string;
+  conversation_id?: string;  // Only exists after first message sent
   model_card_id?: number;
   name: string;
   messages: Message[];
   created_at: number;
   updated_at: number;
-  state?: 'draft' | 'active' | 'archived';
+  state?: 'draft' | 'active' | 'archived';  // draft = temporary, not persisted to backend
   params?: {
     temperature?: number;
     top_p?: number;
@@ -69,10 +69,10 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
     // Smart caching and refresh strategy
     staleTime: 5 * 60 * 1000,  // 5 minutes - data considered fresh
     gcTime: 10 * 60 * 1000,    // 10 minutes - cache retention (renamed from cacheTime in v5)
-    refetchOnWindowFocus: true, // Auto-refresh on window focus
-    refetchOnReconnect: true,   // Auto-refresh on network reconnect
-    // Optional: background polling (disabled by default to save resources)
-    // refetchInterval: 30000,  // Poll every 30 seconds
+    refetchOnWindowFocus: false,  // FIX: Disable auto-refresh on focus (causing infinite fetch)
+    refetchOnReconnect: false,    // FIX: Disable auto-refresh on reconnect
+    refetchInterval: false,       // FIX: Explicitly disable polling
+    retry: 1,                     // Only retry once on error
   });
 
   // Get current session
@@ -89,8 +89,30 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
       model_card_id?: number; 
       isDraft?: boolean;
     }) => {
-      if (!dialogId || !model_card_id) {
-        throw new Error('dialog_id and model_card_id are required');
+      if (!model_card_id) {
+        throw new Error('model_card_id is required');
+      }
+
+      // FIX: Draft sessions are NOT created on backend immediately
+      // They are only local until user sends first message
+      if (isDraft) {
+        const draftSession: IFreeChatSession = {
+          id: uuid(),  // Local ID only
+          model_card_id,
+          name: name || '新对话',
+          messages: [],
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          state: 'draft',
+          // No conversation_id - will be created when user sends first message
+        };
+        console.log('[CreateSession] Created draft (local only):', draftSession.id);
+        return draftSession;
+      }
+
+      // Non-draft: create on backend immediately
+      if (!dialogId) {
+        throw new Error('dialog_id is required for non-draft session');
       }
 
       const authToken = searchParams.get('auth');
@@ -101,16 +123,15 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
         headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      // Create conversation on backend immediately
       const response = await fetch('/v1/conversation/set', {
         method: 'POST',
         headers,
         credentials: 'include',
         body: JSON.stringify({
-          conversation_id: uuid(),  // Generate ID on frontend
+          conversation_id: uuid(),
           dialog_id: dialogId,
           user_id: userId,
-          name: name || (isDraft ? 'Draft - 请选择助手' : '新对话'),
+          name: name || '新对话',
           is_new: true,
           model_card_id,
           message: [{ role: 'assistant', content: '' }],
@@ -124,7 +145,7 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
 
       return {
         ...result.data,
-        state: isDraft ? 'draft' : 'active',
+        state: 'active',
       } as IFreeChatSession;
     },
     onSuccess: (newSession) => {
@@ -223,6 +244,18 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
   // Delete session mutation
   const deleteSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
+      // FIX: Check if session is draft (local only)
+      const allSessions = queryClient.getQueryData(['freeChatSessions', userId, dialogId]) as IFreeChatSession[] || [];
+      const session = allSessions.find(s => s.id === sessionId);
+      
+      if (session?.state === 'draft') {
+        // Draft sessions are local only, no backend deletion needed
+        console.log('[DeleteSession] Deleting draft (local only):', sessionId);
+        return sessionId;  // Skip backend call
+      }
+
+      // Active sessions: delete from backend
+      console.log('[DeleteSession] Deleting active session from backend:', sessionId);
       const authToken = searchParams.get('auth');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -335,6 +368,26 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
     }
     setCurrentSessionId('');
   }, [queryClient, userId, dialogId, deleteSessionMutation]);
+
+  // Cleanup: Delete draft sessions when component unmounts or user leaves
+  useEffect(() => {
+    return () => {
+      // On unmount, delete any draft sessions (cleanup)
+      const allSessions = queryClient.getQueryData(['freeChatSessions', userId, dialogId]) as IFreeChatSession[] || [];
+      const draftSessions = allSessions.filter(s => s.state === 'draft');
+      
+      if (draftSessions.length > 0) {
+        console.log('[Cleanup] Deleting draft sessions:', draftSessions.map(s => s.id));
+        draftSessions.forEach(draft => {
+          // Remove from cache only (no backend call needed)
+          queryClient.setQueryData(
+            ['freeChatSessions', userId, dialogId],
+            (old: IFreeChatSession[] = []) => old.filter(s => s.id !== draft.id)
+          );
+        });
+      }
+    };
+  }, [queryClient, userId, dialogId]);
 
   return {
     sessions,

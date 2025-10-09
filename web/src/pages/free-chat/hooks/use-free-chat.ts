@@ -169,12 +169,14 @@ export const useFreeChat = (
 
         if (convData.code === 0) {
           conversationId = convData.data.id;
-          // Update session with conversation_id and auto-renamed name
+          // FIX: Promote draft to active and update with conversation_id
           if (currentSession) {
             updateSession(currentSession.id, { 
               conversation_id: conversationId,
-              name: conversationName  // Auto-rename based on first message
+              name: conversationName,  // Auto-rename based on first message
+              state: 'active'  // Promote draft to active
             });
+            console.log('[SendMessage] Draft promoted to active:', currentSession.id, '→', conversationId);
           }
         } else {
           logError(

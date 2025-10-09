@@ -356,11 +356,19 @@ function FreeChatContent() {
 
   const handleModelCardChange = useCallback(
     (newModelCardId: number) => {
-      // Create temporary session with "新对话" as placeholder name
-      // This session will be renamed when user sends first message
-      createSession('新对话', newModelCardId);
+      // FIX: Delete any existing draft sessions before creating new one
+      const draftSession = sessions.find(s => s.state === 'draft');
+      if (draftSession) {
+        console.log('[ModelCardChange] Deleting existing draft:', draftSession.id);
+        deleteSession(draftSession.id);
+      }
+      
+      // Create draft session (local only, not persisted to backend)
+      // Draft will be promoted to active when user sends first message
+      console.log('[ModelCardChange] Creating new draft for model card:', newModelCardId);
+      createSession('新对话', newModelCardId, true);  // isDraft=true
     },
-    [createSession],
+    [createSession, deleteSession, sessions],
   );
 
   const handleRolePromptChange = useCallback(

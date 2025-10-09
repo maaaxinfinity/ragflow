@@ -72,9 +72,13 @@ export function SidebarDualTabs({
   const { data: modelCards = [], isLoading } = useFetchModelCards();
 
   // Filter sessions by current model card
+  // FIX: Exclude draft sessions from the list (they are temporary)
   const filteredSessions = useMemo(() => {
-    if (!currentModelCardId) return sessions;
-    return sessions.filter(s => s.model_card_id === currentModelCardId);
+    // First filter out draft sessions
+    const activeSessions = sessions.filter(s => s.state !== 'draft');
+    
+    if (!currentModelCardId) return activeSessions;
+    return activeSessions.filter(s => s.model_card_id === currentModelCardId);
   }, [sessions, currentModelCardId]);
 
   return (
