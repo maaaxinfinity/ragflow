@@ -149,7 +149,7 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
       } as IFreeChatSession;
     },
     onSuccess: (newSession) => {
-      console.log('[CreateSession] Backend returned session:', newSession);
+      console.log('[CreateSession] Session created:', newSession);
       
       // Optimistic update - add new session to cache immediately
       queryClient.setQueryData(
@@ -164,11 +164,16 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
       setCurrentSessionId(newSession.id);
       console.log('[CreateSession] Switched to session:', newSession.id);
       
-      // Background refresh to sync with server (important!)
-      setTimeout(() => {
-        console.log('[CreateSession] Triggering background refresh');
-        refetchSessions();
-      }, 500);
+      // FIX: Only refresh from backend for active sessions (not drafts)
+      // Draft sessions are local-only and will be lost if we refetch
+      if (newSession.state !== 'draft') {
+        setTimeout(() => {
+          console.log('[CreateSession] Triggering background refresh for active session');
+          refetchSessions();
+        }, 500);
+      } else {
+        console.log('[CreateSession] Skipping refetch for draft session (local-only)');
+      }
     },
   });
 
@@ -209,9 +214,11 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
       // Cancel ongoing queries
       await queryClient.cancelQueries({ queryKey: ['freeChatSessions', userId, dialogId] });
 
-      // Optimistic update
-      const previous = queryClient.getQueryData(['freeChatSessions', userId, dialogId]);
+      // Get previous state to detect draft -> active transition
+      const previous = queryClient.getQueryData(['freeChatSessions', userId, dialogId]) as IFreeChatSession[] || [];
+      const previousSession = previous.find(s => s.id === sessionId);
       
+      // Optimistic update
       queryClient.setQueryData(
         ['freeChatSessions', userId, dialogId],
         (old: IFreeChatSession[] = []) => {
@@ -223,7 +230,7 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
         }
       );
 
-      return { previous };
+      return { previous, wasDraft: previousSession?.state === 'draft' };
     },
     onError: (err, variables, context) => {
       // Rollback on error
@@ -235,8 +242,24 @@ export const useFreeChatSessionQuery = (props: UseFreeChatSessionQueryProps) => 
       }
       console.error('[UpdateSession] Error:', err);
     },
-    onSettled: () => {
-      // Background refresh
+    onSettled: (data, error, variables, context) => {
+      // FIX: Don't refetch if updating a draft session (local-only)
+      // EXCEPTION: If promoting draft to active, DO refetch to sync with backend
+      
+      // If promoting draft to active (detected by context.wasDraft and updates.state)
+      if (context?.wasDraft && variables.updates.state === 'active') {
+        console.log('[UpdateSession] Draft promoted to active, triggering refetch');
+        setTimeout(() => refetchSessions(), 1000);
+        return;
+      }
+      
+      // If still draft (updates don't include state change), skip refetch
+      if (context?.wasDraft && !variables.updates.state) {
+        console.log('[UpdateSession] Skipping refetch for draft session (local-only)');
+        return;
+      }
+      
+      // Background refresh for active sessions
       setTimeout(() => refetchSessions(), 1000);
     },
   });
