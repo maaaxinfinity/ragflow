@@ -24,6 +24,7 @@ export interface IFreeChatSession {
   messages: Message[];
   created_at: number;
   updated_at: number;
+  state?: 'draft' | 'active';  // draft = temporary local only, active = persisted to backend
   params?: {
     temperature?: number;
     top_p?: number;
@@ -46,7 +47,7 @@ interface SessionActions {
   // Basic CRUD
   setSessions: (sessions: IFreeChatSession[]) => void;
   setCurrentSessionId: (id: string) => void;
-  createSession: (name?: string, model_card_id?: number) => IFreeChatSession;
+  createSession: (name?: string, model_card_id?: number, isDraft?: boolean, conversationId?: string) => IFreeChatSession;
   updateSession: (id: string, updates: Partial<IFreeChatSession>) => void;
   deleteSession: (id: string) => void;
   switchSession: (id: string) => void;
@@ -81,23 +82,42 @@ export const useSessionStore = create<SessionStore>()(
       
       // Actions
       setSessions: (sessions) => {
-        set({ sessions }, false, 'setSessions');
+        // Ensure all sessions have proper state field (backward compatibility)
+        const normalizedSessions = sessions.map(s => ({
+          ...s,
+          // If no state, infer from conversation_id
+          state: s.state || (s.conversation_id ? 'active' : 'draft')
+        }));
+        set({ sessions: normalizedSessions }, false, 'setSessions');
       },
       
       setCurrentSessionId: (id) => {
         set({ currentSessionId: id }, false, 'setCurrentSessionId');
       },
       
-      createSession: (name, model_card_id) => {
+      createSession: (name, model_card_id, isDraft = false, conversationId) => {
+        // If conversationId provided, use it as id (for Draft→Active promotion)
+        // Otherwise generate new UUID
+        const sessionId = conversationId || uuid();
+        
         const newSession: IFreeChatSession = {
-          id: uuid(),
+          id: sessionId,
+          conversation_id: isDraft ? undefined : conversationId,  // Draft has no conversation_id
           name: name || '新对话',
           model_card_id,
           messages: [],
           created_at: Date.now(),
           updated_at: Date.now(),
+          state: isDraft ? 'draft' : 'active',
           params: {},
         };
+        
+        console.log('[Zustand] createSession:', {
+          id: sessionId,
+          isDraft,
+          conversationId,
+          state: newSession.state
+        });
         
         set(
           (state) => ({

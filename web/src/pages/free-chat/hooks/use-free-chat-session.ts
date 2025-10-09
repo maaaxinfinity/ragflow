@@ -55,10 +55,20 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     }
   }, [sessions, onSessionsChange]);
 
-  // Wrap createSession to maintain backward compatibility
-  const wrappedCreateSession = useCallback((name?: string, model_card_id?: number) => {
-    console.log('[useFreeChatSession] Creating new session:', { name, model_card_id });
-    return createSession(name, model_card_id);
+  // Wrap createSession to maintain backward compatibility and forward all parameters
+  const wrappedCreateSession = useCallback((
+    name?: string, 
+    model_card_id?: number,
+    isDraft?: boolean,
+    conversationId?: string
+  ) => {
+    console.log('[useFreeChatSession] Creating new session:', { 
+      name, 
+      model_card_id,
+      isDraft,
+      conversationId
+    });
+    return createSession(name, model_card_id, isDraft, conversationId);
   }, [createSession]);
 
   return {
