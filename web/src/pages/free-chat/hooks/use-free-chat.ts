@@ -77,9 +77,17 @@ export const useFreeChat = (
   } = useSelectDerivedMessages();
 
   // BUG FIX #10 & CRITICAL FIX: Force refresh messages when switching sessions
-  // Only depend on currentSessionId to avoid circular updates
+  // Use ref to track last loaded session to prevent unnecessary reloads
+  const lastLoadedSessionIdRef = useRef<string>('');
+  
   useEffect(() => {
-    console.log('[MessageSync] Session ID changed to:', currentSessionId);
+    // Only reload if session ID actually changed
+    if (lastLoadedSessionIdRef.current === currentSessionId) {
+      return;
+    }
+    
+    console.log('[MessageSync] Session ID changed from', lastLoadedSessionIdRef.current, 'to', currentSessionId);
+    lastLoadedSessionIdRef.current = currentSessionId;
     
     if (!currentSessionId) {
       console.log('[MessageSync] No session selected, clearing messages');
@@ -87,13 +95,12 @@ export const useFreeChat = (
       return;
     }
     
-    // Find session from sessions array (not using currentSession to avoid circular dependency)
+    // Find session from sessions array
     const session = sessions.find(s => s.id === currentSessionId);
     
     if (session) {
       const newMessages = session.messages || [];
-      console.log('[MessageSync] Found session:', session.name, 'with', newMessages.length, 'messages');
-      console.log('[MessageSync] Setting derived messages...');
+      console.log('[MessageSync] Loading session:', session.name, 'state:', session.state, 'messages:', newMessages.length);
       setDerivedMessages(newMessages);
     } else {
       console.warn('[MessageSync] Session not found in cache:', currentSessionId);
@@ -338,29 +345,52 @@ export const useFreeChat = (
 
   useEffect(() => {
     const sessionId = currentSessionIdRef.current;
-    if (sessionId && derivedMessages.length > 0 && !isSyncingRef.current) {
-      // Find the current session from the ref to avoid circular dependency
-      const session = sessionsRef.current.find(s => s.id === sessionId);
-      if (!session) return;
+    
+    // CRITICAL: Don't sync if no session or syncing is in progress
+    if (!sessionId || isSyncingRef.current) {
+      return;
+    }
+    
+    // Don't sync empty messages (this happens during initialization or when clearing)
+    if (derivedMessages.length === 0) {
+      return;
+    }
+    
+    // Find the current session from the ref to avoid circular dependency
+    const session = sessionsRef.current.find(s => s.id === sessionId);
+    if (!session) {
+      console.warn('[MessageSync→Session] Session not found, skipping sync');
+      return;
+    }
+    
+    // CRITICAL FIX: NEVER sync messages back to draft sessions
+    // Draft should remain empty until promoted to active
+    // Draft messages are only created during conversation, not loaded from anywhere
+    if (session.state === 'draft') {
+      console.log('[MessageSync→Session] Draft session, no sync needed');
+      return;
+    }
 
-      const currentMessages = session.messages || [];
-      const messagesChanged =
-        derivedMessages.length !== currentMessages.length ||
-        derivedMessages.some((msg, idx) => {
-          const current = currentMessages[idx];
-          return !current || msg.id !== current.id || msg.content !== current.content;
-        });
+    const currentMessages = session.messages || [];
+    
+    // Check if messages actually changed
+    const messagesChanged =
+      derivedMessages.length !== currentMessages.length ||
+      derivedMessages.some((msg, idx) => {
+        const current = currentMessages[idx];
+        return !current || msg.id !== current.id || msg.content !== current.content;
+      });
 
-      if (messagesChanged) {
-        isSyncingRef.current = true;
-        updateSession(sessionId, {
-          messages: derivedMessages,
-        });
-        // Use Promise.resolve() instead of setTimeout for more reliable microtask scheduling
-        Promise.resolve().then(() => {
-          isSyncingRef.current = false;
-        });
-      }
+    if (messagesChanged) {
+      isSyncingRef.current = true;
+      console.log('[MessageSync→Session] Syncing', derivedMessages.length, 'messages to active session:', session.name);
+      updateSession(sessionId, {
+        messages: derivedMessages,
+      });
+      // Use Promise.resolve() for microtask scheduling
+      Promise.resolve().then(() => {
+        isSyncingRef.current = false;
+      });
     }
   }, [derivedMessages, updateSession]); // BUG FIX: Remove sessions dependency to avoid circular updates
 
