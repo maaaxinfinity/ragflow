@@ -102,20 +102,24 @@ export function useSessionMachine(props: UseSessionMachineProps) {
     }
   }, []);
 
-  // ✅ BEST PRACTICE: Use useMachine with injected services
-  // Note: useMachine (not useActor) is correct for creating new actor instances
-  const [state, send] = useMachine(sessionMachine, {
-    input: {
-      sessionId,
+  // ✅ BEST PRACTICE: Use useMachine with .provide() to inject services
+  // XState v5 setup() pattern requires using .provide() instead of actors option
+  const [state, send] = useMachine(
+    sessionMachine.provide({
+      actors: {
+        // ✅ FIX: Override the placeholder implementation
+        promoteDraftToActive: fromPromise<
+          { conversationId: string },
+          { message: any; dialogId: string; modelCardId: number }
+        >(promoteDraftService),
+      },
+    }),
+    {
+      input: {
+        sessionId,
+      },
     },
-    actors: {
-      // ✅ FIX: Proper fromPromise wrapping with explicit typing
-      promoteDraftToActive: fromPromise<
-        { conversationId: string },
-        { message: any; dialogId: string; modelCardId: number }
-      >(promoteDraftService),
-    },
-  });
+  );
 
   // Debug: confirm machine is initialized
   console.log('[useSessionMachine] Machine created with actors:', {
