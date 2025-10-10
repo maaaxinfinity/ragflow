@@ -70,12 +70,16 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   }, []); // Only run on mount
 
   // Trigger callback when sessions change
+  // CRITICAL: Only sync active sessions back to settings (drafts are frontend-only)
   useEffect(() => {
     if (sessions.length > 0 && onSessionsChange) {
+      // Filter out draft sessions before syncing to settings
+      const activeSessions = sessions.filter((s) => s.state === 'active');
       console.log(
-        '[useFreeChatSession] Sessions changed, calling onSessionsChange',
+        '[useFreeChatSession] Sessions changed, syncing active sessions to settings:',
+        { total: sessions.length, active: activeSessions.length },
       );
-      onSessionsChange(sessions);
+      onSessionsChange(activeSessions);
     }
   }, [sessions, onSessionsChange]);
 
