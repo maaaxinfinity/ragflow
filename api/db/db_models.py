@@ -830,7 +830,7 @@ class FreeChatSession(DataBaseModel):
     FreeChat 会话表 - SQL 作为唯一可信数据源
     每个会话代表一个独立的对话上下文
     """
-    id = CharField(max_length=32, primary_key=True, help_text="session UUID")
+    id = CharField(max_length=64, primary_key=True, help_text="session UUID (支持带横杠或不带横杠)")
     user_id = CharField(max_length=255, null=False, index=True, help_text="external user ID")
     name = CharField(max_length=255, null=False, default="New Chat", help_text="session name")
     conversation_id = CharField(max_length=32, null=True, index=True, help_text="linked Conversation ID")
@@ -849,8 +849,8 @@ class FreeChatMessage(DataBaseModel):
     FreeChat 消息表 - SQL 作为唯一可信数据源
     存储会话中的每条消息
     """
-    id = CharField(max_length=32, primary_key=True, help_text="message UUID")
-    session_id = CharField(max_length=32, null=False, index=True, help_text="session ID")
+    id = CharField(max_length=64, primary_key=True, help_text="message UUID (支持带横杠或不带横杠)")
+    session_id = CharField(max_length=64, null=False, index=True, help_text="session ID")
     role = CharField(max_length=16, null=False, help_text="user or assistant")
     content = LongTextField(null=False, help_text="message content")
     reference = JSONField(null=True, default=[], help_text="AI response references")
