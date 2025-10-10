@@ -48,9 +48,11 @@ const storage = {
 
 export const getAuthorization = () => {
   const auth = getSearchValue('auth');
-  const authorization = auth
-    ? 'Bearer ' + auth
-    : storage.getAuthorization() || '';
+  // Only use auth param if it's a valid non-null value
+  const authorization =
+    auth && auth !== 'null'
+      ? 'Bearer ' + auth
+      : storage.getAuthorization() || '';
 
   return authorization;
 };

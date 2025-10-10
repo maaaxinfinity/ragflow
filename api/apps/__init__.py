@@ -157,8 +157,28 @@ client_urls_prefix = [
 ]
 
 
+@login_manager.user_loader
+def load_user_from_session(user_id):
+    """
+    Load user by user_id from Flask session cookie.
+    This is called by Flask-Login for session-based authentication.
+    """
+    try:
+        user = UserService.query(id=user_id, status=StatusEnum.VALID.value)
+        if user:
+            return user[0]
+        return None
+    except Exception as e:
+        logging.warning(f"load_user_from_session got exception {e}")
+        return None
+
+
 @login_manager.request_loader
-def load_user(web_request):
+def load_user_from_request(web_request):
+    """
+    Load user from Authorization header (for API token authentication).
+    This is called by Flask-Login when session auth fails.
+    """
     jwt = Serializer(secret_key=settings.SECRET_KEY)
     authorization = web_request.headers.get("Authorization")
     if authorization:
@@ -185,7 +205,7 @@ def load_user(web_request):
             else:
                 return None
         except Exception as e:
-            logging.warning(f"load_user got exception {e}")
+            logging.warning(f"load_user_from_request got exception {e}")
             return None
     else:
         return None

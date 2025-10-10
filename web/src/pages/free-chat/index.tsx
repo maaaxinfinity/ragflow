@@ -57,10 +57,17 @@ function FreeChatContent() {
     queryFn: async () => {
       const url = `${api.user_info}?user_id=${userId}`;
       console.log('[UserInfo] Fetching from:', url);
+      const authToken = searchParams.get('auth');
+      const headers: Record<string, string> = {};
+
+      // Only add Authorization header if auth token exists and is not null/empty
+      if (authToken && authToken !== 'null') {
+        headers.Authorization = `Bearer ${authToken}`;
+      }
+
       const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${searchParams.get('auth')}` || '',
-        },
+        headers,
+        credentials: 'include', // Include cookies for session-based auth
       });
       const data = await response.json();
       console.log('[UserInfo] Response:', data);

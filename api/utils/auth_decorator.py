@@ -20,12 +20,14 @@ def api_key_or_login_required(func):
             parts = authorization_str.split()
             if len(parts) == 2 and parts[0] == 'Bearer':
                 beta_token = parts[1]
-                tokens = APIToken.query(beta=beta_token)
-                if tokens:
-                    # 认证成功，注入 tenant_id
-                    kwargs["tenant_id"] = tokens[0].tenant_id
-                    kwargs["auth_method"] = "api_key"
-                    return func(*args, **kwargs)
+                # 过滤无效 token (null, undefined, 空字符串等)
+                if beta_token and beta_token not in ('null', 'undefined', ''):
+                    tokens = APIToken.query(beta=beta_token)
+                    if tokens:
+                        # 认证成功，注入 tenant_id
+                        kwargs["tenant_id"] = tokens[0].tenant_id
+                        kwargs["auth_method"] = "api_key"
+                        return func(*args, **kwargs)
 
         # 方式 2: 检查登录状态
         if current_user and current_user.is_authenticated:
