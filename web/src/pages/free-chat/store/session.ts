@@ -14,7 +14,9 @@
  * - Type-safe operations
  */
 
+import { Authorization } from '@/constants/authorization';
 import type { Message } from '@/interfaces/database/chat';
+import { getAuthorization } from '@/utils/authorization-util';
 import { v4 as uuid } from 'uuid';
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
@@ -300,10 +302,13 @@ export const useSessionStore = create<SessionStore>()(
           );
 
           try {
-            // Call backend API
+            // Call backend API with authentication
             const response = await fetch('/v1/conversation/set', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                [Authorization]: getAuthorization(),
+                'Content-Type': 'application/json',
+              },
               credentials: 'include',
               body: JSON.stringify({
                 dialog_id: dialogId,
