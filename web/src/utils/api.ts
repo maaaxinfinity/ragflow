@@ -103,8 +103,23 @@ export default {
   // free chat
   getFreeChatSettings: `${api_host}/free_chat/settings`,
   saveFreeChatSettings: `${api_host}/free_chat/settings`,
-  deleteFreeChatSettings: (userId: string) => `${api_host}/free_chat/settings/${userId}`,
+  deleteFreeChatSettings: (userId: string) =>
+    `${api_host}/free_chat/settings/${userId}`,
   getAdminToken: `${api_host}/free_chat/admin_token`,
+  listFreeChatSessions: `${api_host}/free_chat_session/sessions`,
+  createFreeChatSession: `${api_host}/free_chat_session/sessions`,
+  updateFreeChatSession: (sessionId: string) =>
+    `${api_host}/free_chat_session/sessions/${sessionId}`,
+  deleteFreeChatSession: (sessionId: string) =>
+    `${api_host}/free_chat_session/sessions/${sessionId}`,
+  listFreeChatMessages: (sessionId: string) =>
+    `${api_host}/free_chat_session/sessions/${sessionId}/messages`,
+  createFreeChatMessage: (sessionId: string) =>
+    `${api_host}/free_chat_session/sessions/${sessionId}/messages`,
+  updateFreeChatMessage: (messageId: string) =>
+    `${api_host}/free_chat_session/messages/${messageId}`,
+  deleteFreeChatMessage: (messageId: string) =>
+    `${api_host}/free_chat_session/messages/${messageId}`,
 
   // chat for external
   createToken: `${api_host}/api/new_token`,

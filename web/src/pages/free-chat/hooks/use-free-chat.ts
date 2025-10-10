@@ -1,21 +1,20 @@
 import { MessageType } from '@/constants/chat';
+import { useTranslate } from '@/hooks/common-hooks';
 import {
   useHandleMessageInputChange,
-  useSendMessageWithSse,
   useSelectDerivedMessages,
+  useSendMessageWithSse,
 } from '@/hooks/logic-hooks';
+import { useUpdateConversation } from '@/hooks/use-chat-request';
 import { Message } from '@/interfaces/database/chat';
 import api from '@/utils/api';
-import { buildMessageUuid } from '@/utils/chat';
 import { trim } from 'lodash';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import { DynamicModelParams } from '../types';
 import { useKBContext } from '../contexts/kb-context';
+import { DynamicModelParams } from '../types';
+import { logError } from '../utils/error-handler';
 import { useFreeChatSession } from './use-free-chat-session';
-import { useUpdateConversation } from '@/hooks/use-chat-request';
-import { logError, logInfo } from '../utils/error-handler';
-import { useTranslate } from '@/hooks/common-hooks';
 
 interface UseFreeChatProps {
   userId: string;
@@ -44,9 +43,9 @@ export const useFreeChat = (
     switchSession,
     deleteSession,
     clearAllSessions,
+    refreshSessions,
   } = useFreeChatSession({
-    initialSessions: settings?.sessions,
-    onSessionsChange,
+    userId,
   });
 
   const [dialogId, setDialogId] = useState<string>(settings?.dialog_id || '');
@@ -61,6 +60,11 @@ export const useFreeChat = (
   // SSE sending logic
   const { send, answer, done } = useSendMessageWithSse(
     api.completeConversation,
+  );
+
+  // Manage AbortController internally to avoid stale references after abort
+  const controllerRef = useRef<AbortController>(
+    controller || new AbortController(),
   );
 
   const {
@@ -87,8 +91,9 @@ export const useFreeChat = (
 
   // Stop output
   const stopOutputMessage = useCallback(() => {
-    controller.abort();
-  }, [controller]);
+    controllerRef.current.abort();
+    controllerRef.current = new AbortController();
+  }, []);
 
   // Send message (core logic)
   const sendMessage = useCallback(
@@ -98,7 +103,7 @@ export const useFreeChat = (
           t('noDialogIdError'),
           'useFreeChat.sendMessage',
           true,
-          t('noDialogIdError')
+          t('noDialogIdError'),
         );
         return;
       }
@@ -123,14 +128,16 @@ export const useFreeChat = (
           conversationId = convData.data.id;
           // Update session with conversation_id
           if (currentSession) {
-            updateSession(currentSession.id, { conversation_id: conversationId });
+            updateSession(currentSession.id, {
+              conversation_id: conversationId,
+            });
           }
         } else {
           logError(
             t('failedToCreateConversation'),
             'useFreeChat.sendMessage',
             true,
-            t('failedToCreateConversation')
+            t('failedToCreateConversation'),
           );
           removeLatestMessage();
           return;
@@ -152,7 +159,7 @@ export const useFreeChat = (
         role_prompt: settings?.role_prompt || '',
       };
 
-      const res = await send(requestBody, controller);
+      const res = await send(requestBody, controllerRef.current);
 
       if (res && (res?.response.status !== 200 || res?.data?.code !== 0)) {
         setValue(message.content);
@@ -168,7 +175,6 @@ export const useFreeChat = (
       settings?.model_params,
       enabledKBs,
       send,
-      controller,
       setValue,
       removeLatestMessage,
       updateConversation,
@@ -210,7 +216,14 @@ export const useFreeChat = (
         await sendMessage(message);
       }
     },
-    [currentSession, createSession, addNewestQuestion, done, setValue, sendMessage],
+    [
+      currentSession,
+      createSession,
+      addNewestQuestion,
+      done,
+      setValue,
+      sendMessage,
+    ],
   );
 
   // Send pending message when session becomes available
@@ -280,7 +293,7 @@ export const useFreeChat = (
     const sessionId = currentSessionIdRef.current;
     if (sessionId && derivedMessages.length > 0 && !isSyncingRef.current) {
       // Find the current session from the ref to avoid circular dependency
-      const session = sessionsRef.current.find(s => s.id === sessionId);
+      const session = sessionsRef.current.find((s) => s.id === sessionId);
       if (!session) return;
 
       const currentMessages = session.messages || [];
@@ -288,7 +301,9 @@ export const useFreeChat = (
         derivedMessages.length !== currentMessages.length ||
         derivedMessages.some((msg, idx) => {
           const current = currentMessages[idx];
-          return !current || msg.id !== current.id || msg.content !== current.content;
+          return (
+            !current || msg.id !== current.id || msg.content !== current.content
+          );
         });
 
       if (messagesChanged) {

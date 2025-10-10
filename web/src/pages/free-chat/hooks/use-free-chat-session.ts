@@ -1,149 +1,363 @@
-import { useCallback, useEffect, useState } from 'react';
-import { v4 as uuid } from 'uuid';
+import { MessageType } from '@/constants/chat';
 import { Message } from '@/interfaces/database/chat';
+import api from '@/utils/api';
+import request from '@/utils/request';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { v4 as uuid } from 'uuid';
+import { logError } from '../utils/error-handler';
+
+export type SessionMessage = Message & {
+  seq?: number;
+  created_at?: number;
+  reference?: any;
+};
 
 export interface IFreeChatSession {
   id: string;
-  conversation_id?: string; // RAGFlow conversation ID
+  conversation_id?: string;
   name: string;
-  messages: Message[];
+  messages: SessionMessage[];
   created_at: number;
   updated_at: number;
+  message_count?: number;
 }
 
 interface UseFreeChatSessionProps {
-  initialSessions?: IFreeChatSession[];
-  onSessionsChange?: (sessions: IFreeChatSession[]) => void;
+  userId?: string;
 }
 
+const toMessageType = (role?: string): MessageType => {
+  return role === MessageType.Assistant
+    ? MessageType.Assistant
+    : MessageType.User;
+};
+
+const normalizeMessages = (items: any[] = []): SessionMessage[] =>
+  items.map((item) => ({
+    id: item.id,
+    role: toMessageType(item.role),
+    content: item.content ?? '',
+    reference: item.reference ?? undefined,
+    created_at: item.created_at,
+    seq: item.seq,
+  }));
+
+const normalizeSession = (session: any): IFreeChatSession => ({
+  id: session.id,
+  conversation_id: session.conversation_id,
+  name: session.name,
+  created_at: session.created_at,
+  updated_at: session.updated_at,
+  message_count: session.message_count,
+  messages: Array.isArray(session.messages)
+    ? normalizeMessages(session.messages)
+    : [],
+});
+
 export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
-  const { initialSessions, onSessionsChange } = props || {};
-  const [sessions, setSessions] = useState<IFreeChatSession[]>(
-    initialSessions || [],
-  );
+  const { userId } = props || {};
+  const [sessions, setSessions] = useState<IFreeChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const isUnmountedRef = useRef(false);
 
-  // Sync with external sessions changes
-  // Only sync when sessions count changes (add/delete) to avoid overwriting local renames
-  const [lastSyncedCount, setLastSyncedCount] = useState(0);
-  useEffect(() => {
-    if (initialSessions) {
-      const newCount = initialSessions.length;
-      const currentCount = sessions.length;
-
-      // Only sync if:
-      // 1. First load (lastSyncedCount === 0)
-      // 2. Sessions count changed (add/delete operations)
-      if (lastSyncedCount === 0 || newCount !== currentCount) {
-        console.log('[useFreeChatSession] Syncing with initialSessions:', {
-          reason: lastSyncedCount === 0 ? 'first_load' : 'count_changed',
-          oldCount: currentCount,
-          newCount,
-        });
-        setSessions(initialSessions);
-        setLastSyncedCount(newCount);
-
-        // Auto-select first session if none selected
-        if (!currentSessionId && initialSessions.length > 0) {
-          setCurrentSessionId(initialSessions[0].id);
-        }
-      } else {
-        console.log('[useFreeChatSession] Skipping sync to preserve local changes');
+  const ensureCurrentSession = useCallback(
+    (sessionList: IFreeChatSession[]) => {
+      if (sessionList.length === 0) {
+        setCurrentSessionId('');
+        return;
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSessions]);
 
-  // Save sessions callback
-  const saveSessions = useCallback(
-    (newSessions: IFreeChatSession[]) => {
-      onSessionsChange?.(newSessions);
+      if (
+        !currentSessionId ||
+        !sessionList.find((s) => s.id === currentSessionId)
+      ) {
+        setCurrentSessionId(sessionList[0].id);
+      }
     },
-    [onSessionsChange],
+    [currentSessionId],
   );
 
-  // Get current session
-  const currentSession = sessions.find(s => s.id === currentSessionId);
+  const fetchSessions = useCallback(async () => {
+    if (!userId) {
+      setSessions([]);
+      setCurrentSessionId('');
+      return [] as IFreeChatSession[];
+    }
 
-  // BUG FIX #3: Use functional setState to avoid closure issues
-  // Create new session
-  const createSession = useCallback((name?: string) => {
-    let newSession: IFreeChatSession;
+    try {
+      setLoading(true);
+      const { data: response } = await request(api.listFreeChatSessions, {
+        method: 'GET',
+        params: { user_id: userId },
+      });
 
-    setSessions(prevSessions => {
-      newSession = {
-        id: uuid(),
-        name: name || `Chat ${prevSessions.length + 1}`,
-        messages: [],
-        created_at: Date.now(),
-        updated_at: Date.now(),
-      };
-      const updatedSessions = [newSession, ...prevSessions];
-      saveSessions(updatedSessions);
-      return updatedSessions;
-    });
-
-    setCurrentSessionId(newSession!.id);
-    return newSession!;
-  }, [saveSessions]);
-
-  // Update session
-  const updateSession = useCallback((sessionId: string, updates: Partial<IFreeChatSession>) => {
-    setSessions(prevSessions => {
-      const updatedSessions = prevSessions.map(s =>
-        s.id === sessionId
-          ? { ...s, ...updates, updated_at: Date.now() }
-          : s
-      );
-      saveSessions(updatedSessions);
-      return updatedSessions;
-    });
-  }, [saveSessions]);
-
-  // Delete session
-  const deleteSession = useCallback((sessionId: string) => {
-    let shouldUpdateCurrentId = false;
-    let newCurrentId = '';
-
-    setSessions(prevSessions => {
-      const updatedSessions = prevSessions.filter(s => s.id !== sessionId);
-      saveSessions(updatedSessions);
-
-      // Check if we need to update current session ID
-      if (sessionId === currentSessionId) {
-        shouldUpdateCurrentId = true;
-        if (updatedSessions.length > 0) {
-          newCurrentId = updatedSessions[0].id;
+      if (response.code === 0) {
+        const normalized = (response.data ?? []).map(normalizeSession);
+        if (!isUnmountedRef.current) {
+          setSessions(normalized);
+          ensureCurrentSession(normalized);
         }
+        return normalized;
       }
 
-      return updatedSessions;
-    });
-
-    // Update current session ID if needed
-    if (shouldUpdateCurrentId) {
-      setCurrentSessionId(newCurrentId);
+      logError(
+        `Failed to fetch sessions (code ${response.code}): ${response.message || 'Unknown error'}`,
+        'useFreeChatSession.fetchSessions',
+      );
+    } catch (error) {
+      logError(
+        error instanceof Error ? error.message : 'Failed to fetch sessions',
+        'useFreeChatSession.fetchSessions',
+      );
+    } finally {
+      if (!isUnmountedRef.current) {
+        setLoading(false);
+      }
     }
-  }, [currentSessionId, saveSessions]);
 
-  // BUG FIX #11: Switch session without closure dependency
-  const switchSession = useCallback((sessionId: string) => {
-    setSessions(prevSessions => {
-      if (prevSessions.find(s => s.id === sessionId)) {
+    return [] as IFreeChatSession[];
+  }, [userId, ensureCurrentSession]);
+
+  useEffect(() => {
+    isUnmountedRef.current = false;
+    fetchSessions();
+    return () => {
+      isUnmountedRef.current = true;
+    };
+  }, [fetchSessions]);
+
+  const refreshSessions = useCallback(() => fetchSessions(), [fetchSessions]);
+
+  const currentSession = sessions.find(
+    (session) => session.id === currentSessionId,
+  );
+
+  const createLocalSession = useCallback(
+    (name?: string): IFreeChatSession => ({
+      id: uuid(),
+      name: name || `Chat ${sessions.length + 1}`,
+      messages: [],
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }),
+    [sessions.length],
+  );
+
+  const createSession = useCallback(
+    async (name?: string) => {
+      const fallback = createLocalSession(name);
+
+      if (!userId) {
+        setSessions((prev) => [fallback, ...prev]);
+        setCurrentSessionId(fallback.id);
+        return fallback;
+      }
+
+      try {
+        const { data: response } = await request(api.createFreeChatSession, {
+          method: 'POST',
+          data: {
+            user_id: userId,
+            name: fallback.name,
+            conversation_id: fallback.conversation_id,
+          },
+        });
+
+        if (response.code === 0 && response.data) {
+          const normalized = normalizeSession(response.data);
+          setSessions((prev) => [normalized, ...prev]);
+          setCurrentSessionId(normalized.id);
+          return normalized;
+        }
+
+        logError(
+          `Failed to create session (code ${response.code}): ${response.message || 'Unknown error'}`,
+          'useFreeChatSession.createSession',
+        );
+      } catch (error) {
+        logError(
+          error instanceof Error ? error.message : 'Failed to create session',
+          'useFreeChatSession.createSession',
+        );
+      }
+
+      setSessions((prev) => [fallback, ...prev]);
+      setCurrentSessionId(fallback.id);
+      return fallback;
+    },
+    [createLocalSession, userId],
+  );
+
+  const updateSession = useCallback(
+    (sessionId: string, updates: Partial<IFreeChatSession>) => {
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === sessionId
+            ? { ...session, ...updates, updated_at: Date.now() }
+            : session,
+        ),
+      );
+
+      if (!userId) {
+        return;
+      }
+
+      const payload: Record<string, unknown> = {};
+      if (updates.name !== undefined) {
+        payload.name = updates.name;
+      }
+      if (updates.conversation_id !== undefined) {
+        payload.conversation_id = updates.conversation_id;
+      }
+
+      if (Object.keys(payload).length === 0) {
+        return;
+      }
+
+      request(api.updateFreeChatSession(sessionId), {
+        method: 'PUT',
+        data: payload,
+      })
+        .then(({ data: response }) => {
+          if (response.code !== 0) {
+            logError(
+              `Failed to update session (code ${response.code}): ${response.message || 'Unknown error'}`,
+              'useFreeChatSession.updateSession',
+            );
+            refreshSessions();
+          }
+        })
+        .catch((error) => {
+          logError(
+            error instanceof Error ? error.message : 'Failed to update session',
+            'useFreeChatSession.updateSession',
+          );
+          refreshSessions();
+        });
+    },
+    [refreshSessions, userId],
+  );
+
+  const deleteSession = useCallback(
+    async (sessionId: string) => {
+      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId('');
+      }
+
+      if (!userId) {
+        return;
+      }
+
+      try {
+        const { data: response } = await request(
+          api.deleteFreeChatSession(sessionId),
+          {
+            method: 'DELETE',
+          },
+        );
+
+        if (response.code !== 0) {
+          logError(
+            `Failed to delete session (code ${response.code}): ${response.message || 'Unknown error'}`,
+            'useFreeChatSession.deleteSession',
+          );
+          refreshSessions();
+        } else {
+          refreshSessions();
+        }
+      } catch (error) {
+        logError(
+          error instanceof Error ? error.message : 'Failed to delete session',
+          'useFreeChatSession.deleteSession',
+        );
+        refreshSessions();
+      }
+    },
+    [currentSessionId, refreshSessions, userId],
+  );
+
+  const switchSession = useCallback(
+    (sessionId: string) => {
+      if (sessions.find((session) => session.id === sessionId)) {
         setCurrentSessionId(sessionId);
       }
-      return prevSessions; // No change to sessions
-    });
+    },
+    [sessions],
+  );
+
+  const clearAllSessions = useCallback(async () => {
+    const ids = sessions.map((session) => session.id);
+    setSessions([]);
+    setCurrentSessionId('');
+
+    if (!userId || ids.length === 0) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        ids.map((sessionId) =>
+          request(api.deleteFreeChatSession(sessionId), {
+            method: 'DELETE',
+          }).then(({ data: response }) => {
+            if (response.code !== 0) {
+              throw new Error(response.message || 'Failed to delete session');
+            }
+          }),
+        ),
+      );
+    } catch (error) {
+      logError(
+        error instanceof Error ? error.message : 'Failed to clear sessions',
+        'useFreeChatSession.clearAllSessions',
+      );
+    } finally {
+      refreshSessions();
+    }
+  }, [refreshSessions, sessions, userId]);
+
+  const loadMessages = useCallback(async (sessionId: string) => {
+    if (!sessionId) {
+      return [] as SessionMessage[];
+    }
+
+    try {
+      const { data: response } = await request(
+        api.listFreeChatMessages(sessionId),
+        {
+          method: 'GET',
+        },
+      );
+
+      if (response.code === 0) {
+        const messages = normalizeMessages(response.data ?? []);
+        setSessions((prev) =>
+          prev.map((session) =>
+            session.id === sessionId ? { ...session, messages } : session,
+          ),
+        );
+        return messages;
+      }
+
+      logError(
+        `Failed to load messages (code ${response.code}): ${response.message || 'Unknown error'}`,
+        'useFreeChatSession.loadMessages',
+      );
+    } catch (error) {
+      logError(
+        error instanceof Error ? error.message : 'Failed to load messages',
+        'useFreeChatSession.loadMessages',
+      );
+    }
+
+    return [] as SessionMessage[];
   }, []);
 
-  // Clear all sessions
-  const clearAllSessions = useCallback(() => {
-    setSessions([]);
-    saveSessions([]);
-    setCurrentSessionId('');
-  }, [saveSessions]);
-
   return {
+    loading,
     sessions,
     currentSession,
     currentSessionId,
@@ -152,5 +366,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     deleteSession,
     switchSession,
     clearAllSessions,
+    refreshSessions,
+    loadMessages,
   };
 };

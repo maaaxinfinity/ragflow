@@ -11,6 +11,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useFetchDialogList } from '@/hooks/use-chat-request';
 import {
   useFetchTenantInfo,
+  useFetchUserInfo,
   useListTenantUser,
 } from '@/hooks/user-setting-hooks';
 import i18n from '@/locales/config';
@@ -104,11 +105,6 @@ function FreeChatContent() {
     ? tenantUsers.find((user) => user.user_id === userId)
     : undefined;
 
-  // Find current dialog by dialogId
-  const currentDialog = useMemo(() => {
-    return dialogData?.dialogs?.find((d) => d.id === dialogId);
-  }, [dialogData, dialogId]);
-
   // Calculate user avatar and nickname
   // Priority: userInfo (from /user/info?user_id=xxx) > currentUserInfo (from tenant users list)
   const userAvatar = userInfo?.avatar || currentUserInfo?.avatar;
@@ -164,6 +160,11 @@ function FreeChatContent() {
     dialogId,
     setDialogId,
   } = useFreeChat(controller.current, userId, settings, handleSessionsChange);
+
+  // Find current dialog by dialogId (after dialogId is available)
+  const currentDialog = useMemo(() => {
+    return dialogData?.dialogs?.find((d) => d.id === dialogId);
+  }, [dialogData, dialogId]);
 
   const [loadedConversationId, setLoadedConversationId] = useState<string>('');
   const [hasSetInitialDialogId, setHasSetInitialDialogId] = useState(false);
