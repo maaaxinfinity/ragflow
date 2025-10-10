@@ -575,8 +575,10 @@ onSessionSelect(sessionId) {
 | `api/apps/free_chat_app.py` | 新增过滤函数 + 修改GET/POST接口 | +40 / -5 |
 | `web/src/pages/free-chat/hooks/use-free-chat-settings-api.ts` | 保存前过滤sessions | +20 / -5 |
 | `web/src/pages/free-chat/hooks/use-free-chat-session.ts` | **修复数据流循环污染** | +5 / -3 |
+| `web/src/pages/free-chat/hooks/use-free-chat-with-machine.ts` | **连接onSessionsChange→updateField** | +8 / -1 |
+| `web/src/pages/free-chat/index.tsx` | **传递updateField参数** | +1 / -1 |
 
-**总计:** +65 / -13 = **净增加52行**
+**总计:** +74 / -15 = **净增加59行**
 
 ---
 

@@ -126,7 +126,7 @@ function FreeChatContent() {
     isDraft,
     isPromoting,
     isActive,
-  } = useFreeChatWithMachine(controller.current, userId, settings);
+  } = useFreeChatWithMachine(controller.current, userId, settings, updateField);
 
   // Find current dialog by dialogId
   const currentDialog = useMemo(() => {

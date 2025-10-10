@@ -38,6 +38,11 @@ export const useFreeChatWithMachine = (
   controller: AbortController,
   userId?: string,
   settings?: any,
+  updateField?: (
+    field: string,
+    value: any,
+    options?: { silent?: boolean; immediate?: boolean },
+  ) => void,
 ) => {
   const { t } = useTranslate('chat');
   const { enabledKBs } = useKBContext();
@@ -66,6 +71,20 @@ export const useFreeChatWithMachine = (
     ...sessionActions
   } = useFreeChatSession({
     initialSessions: settings?.sessions,
+    onSessionsChange: useCallback(
+      (activeSessions) => {
+        // ✅ Sync active sessions to settings (triggers auto-save)
+        if (updateField && activeSessions.length > 0) {
+          console.log(
+            '[useFreeChatWithMachine] Syncing',
+            activeSessions.length,
+            'active sessions to settings',
+          );
+          updateField('sessions', activeSessions, { silent: true });
+        }
+      },
+      [updateField],
+    ),
   });
 
   // ✅ XState: State machine for current session (manages transitions only)
