@@ -51,20 +51,12 @@ function FreeChatContent() {
   const { data: tenantInfo, loading: tenantInfoLoading } = useFetchTenantInfo();
 
   // Fetch current logged-in user info (for right-bottom user card display)
+  // NOTE: Don't send Authorization header - let it use session cookie to get current user
   const { data: currentLoginUser } = useQuery({
     queryKey: ['currentLoginUser'],
     queryFn: async () => {
-      const authToken = searchParams.get('auth');
-      const headers: Record<string, string> = {};
-
-      // Add Authorization header if auth token exists
-      if (authToken && authToken !== 'null') {
-        headers.Authorization = `Bearer ${authToken}`;
-      }
-
       const response = await fetch(`${api.user_info}`, {
-        headers,
-        credentials: 'include',
+        credentials: 'include', // Use session cookie only
       });
 
       if (!response.ok) {
@@ -73,6 +65,8 @@ function FreeChatContent() {
       }
 
       const data = await response.json();
+      console.log('[currentLoginUser] Response:', data);
+      console.log('[currentLoginUser] Parsed data:', data?.data);
       return data?.data ?? {};
     },
   });
