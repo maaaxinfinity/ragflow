@@ -88,16 +88,36 @@ export const useFreeChatWithMachine = (
     ),
   });
 
+  // ✅ Store pending message during promotion
+  const pendingMessageRef = useRef<Message | null>(null);
+
   // ✅ Simplified: Session state hook (no XState, pure Zustand)
   const { isDraft, isPromoting, isActive, promoteToActive, promotionError } =
     useSessionMachine({
       sessionId: currentSessionId,
       onPromotionSuccess: (conversationId) => {
         console.log('[useSessionMachine] Promotion succeeded:', conversationId);
-        // Zustand store already updated by promoteToActive action
+
+        // ✅ FIX: Send the pending message after promotion succeeds
+        if (pendingMessageRef.current) {
+          console.log(
+            '[useSessionMachine] Sending pending message after promotion',
+          );
+          const pendingMessage = pendingMessageRef.current;
+          pendingMessageRef.current = null; // Clear pending message
+
+          // Re-trigger sendMessage with the pending message
+          setTimeout(() => {
+            sendMessage(pendingMessage);
+          }, 100); // Small delay to ensure state is updated
+        }
       },
       onPromotionFailure: (error) => {
         console.error('[useSessionMachine] Promotion failed:', error);
+
+        // ✅ Clear pending message on failure
+        pendingMessageRef.current = null;
+
         logError(
           'Failed to create conversation',
           'useFreeChatWithMachine.onPromotionFailure',
@@ -210,9 +230,11 @@ export const useFreeChatWithMachine = (
           '[sendMessage] Draft detected, triggering promotion (not waiting)',
         );
 
-        // ✅ Just trigger promotion and return
-        // Machine will handle the rest asynchronously
-        // UI will show "promoting" state
+        // ✅ Store message for later sending after promotion
+        pendingMessageRef.current = message;
+
+        // ✅ Trigger promotion
+        // onPromotionSuccess will re-send the message after conversation is created
         promoteToActive(message, dialogId, session.model_card_id);
 
         // DON'T send message yet - wait for promotion to complete
