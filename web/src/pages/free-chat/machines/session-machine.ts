@@ -11,7 +11,7 @@
  */
 
 import type { Message } from '@/interfaces/database/chat';
-import { assign, createMachine } from 'xstate';
+import { assign, fromPromise, setup } from 'xstate';
 
 // ==================== Context (Simplified - Best Practice) ====================
 
@@ -166,176 +166,177 @@ export type PromoteDraftServiceOutput = {
  * This machine ONLY manages state transitions.
  * Business data lives in Zustand store.
  */
-export const sessionMachine = createMachine(
-  {
-    id: 'freeChatSession',
-    types: {} as {
-      context: SessionContext;
-      events: SessionEvent;
-    },
-    initial: 'idle',
-    context: {
-      sessionId: '',
-      pendingConversationId: undefined,
-      pendingMessage: undefined,
-      pendingDialogId: undefined,
-      pendingModelCardId: undefined, // ✅ Added
-      promotionError: undefined,
-    },
-    states: {
-      // ========== IDLE STATE ==========
-      idle: {
-        on: {
-          INIT_DRAFT: {
-            target: 'draft',
-            actions: 'initializeDraft',
-          },
-          INIT_ACTIVE: {
-            target: 'active',
-            actions: 'initializeActive',
-          },
+export const sessionMachine = setup({
+  types: {
+    context: {} as SessionContext,
+    events: {} as SessionEvent,
+  },
+  actors: {
+    // ✅ FIX: Declare actor type so invoke can reference it by string name
+    promoteDraftToActive: fromPromise<
+      PromoteDraftServiceOutput,
+      PromoteDraftServiceInput
+    >(async () => {
+      // Placeholder - will be overridden at runtime
+      throw new Error('promoteDraftToActive not implemented');
+    }),
+  },
+  guards,
+  actions,
+}).createMachine({
+  id: 'freeChatSession',
+  initial: 'idle',
+  context: {
+    sessionId: '',
+    pendingConversationId: undefined,
+    pendingMessage: undefined,
+    pendingDialogId: undefined,
+    pendingModelCardId: undefined,
+    promotionError: undefined,
+  },
+  states: {
+    // ========== IDLE STATE ==========
+    idle: {
+      on: {
+        INIT_DRAFT: {
+          target: 'draft',
+          actions: 'initializeDraft',
+        },
+        INIT_ACTIVE: {
+          target: 'active',
+          actions: 'initializeActive',
         },
       },
+    },
 
-      // ========== DRAFT STATE ==========
-      draft: {
-        entry: () => {
-          console.log('[StateMachine] Entered DRAFT state');
-        },
-        on: {
-          // Promote to active when user sends first message
-          PROMOTE_TO_ACTIVE: {
-            target: 'promoting',
-            actions: 'startPromotion',
-          },
+    // ========== DRAFT STATE ==========
+    draft: {
+      entry: () => {
+        console.log('[StateMachine] Entered DRAFT state');
+      },
+      on: {
+        // Promote to active when user sends first message
+        PROMOTE_TO_ACTIVE: {
+          target: 'promoting',
+          actions: 'startPromotion',
         },
       },
+    },
 
-      // ========== PROMOTING STATE ==========
-      promoting: {
-        entry: (ctx) => {
-          console.log('[StateMachine] Entered PROMOTING state');
-          console.log('[StateMachine] PROMOTING context:', {
-            pendingMessage: ctx.context.pendingMessage?.content?.slice(0, 30),
-            pendingDialogId: ctx.context.pendingDialogId,
-            pendingModelCardId: ctx.context.pendingModelCardId,
-          });
-        },
-        initial: 'creatingConversation',
-        states: {
-          creatingConversation: {
-            entry: () => {
+    // ========== PROMOTING STATE ==========
+    promoting: {
+      entry: (ctx) => {
+        console.log('[StateMachine] Entered PROMOTING state');
+        console.log('[StateMachine] PROMOTING context:', {
+          pendingMessage: ctx.context.pendingMessage?.content?.slice(0, 30),
+          pendingDialogId: ctx.context.pendingDialogId,
+          pendingModelCardId: ctx.context.pendingModelCardId,
+        });
+      },
+      initial: 'creatingConversation',
+      states: {
+        creatingConversation: {
+          entry: () => {
+            console.log(
+              '[StateMachine] Entered creatingConversation sub-state',
+            );
+          },
+          invoke: {
+            id: 'createConversation',
+            // ✅ Service name reference (injected at runtime)
+            src: 'promoteDraftToActive',
+            // ✅ CRITICAL FIX: Ensure input returns valid object even if context is undefined
+            input: ({ context }: any) => {
+              const inputData = {
+                message: context.pendingMessage,
+                dialogId: context.pendingDialogId,
+                modelCardId: context.pendingModelCardId,
+              };
+
               console.log(
-                '[StateMachine] Entered creatingConversation sub-state',
+                '[StateMachine] Creating invoke input from context:',
+                {
+                  pendingMessage: context.pendingMessage?.content?.slice(0, 30),
+                  pendingDialogId: context.pendingDialogId,
+                  pendingModelCardId: context.pendingModelCardId,
+                  inputData,
+                },
               );
+
+              // ✅ Validate that all required fields exist
+              if (
+                !inputData.message ||
+                !inputData.dialogId ||
+                !inputData.modelCardId
+              ) {
+                console.error('[StateMachine] Invalid input data:', inputData);
+              }
+
+              return inputData;
             },
-            invoke: {
-              id: 'createConversation',
-              // ✅ Service name reference (injected at runtime)
-              src: 'promoteDraftToActive',
-              // ✅ CRITICAL FIX: Ensure input returns valid object even if context is undefined
-              input: ({ context }: any) => {
-                const inputData = {
-                  message: context.pendingMessage,
-                  dialogId: context.pendingDialogId,
-                  modelCardId: context.pendingModelCardId,
-                };
-
-                console.log(
-                  '[StateMachine] Creating invoke input from context:',
-                  {
-                    pendingMessage: context.pendingMessage?.content?.slice(
-                      0,
-                      30,
-                    ),
-                    pendingDialogId: context.pendingDialogId,
-                    pendingModelCardId: context.pendingModelCardId,
-                    inputData,
-                  },
-                );
-
-                // ✅ Validate that all required fields exist
-                if (
-                  !inputData.message ||
-                  !inputData.dialogId ||
-                  !inputData.modelCardId
-                ) {
-                  console.error(
-                    '[StateMachine] Invalid input data:',
-                    inputData,
-                  );
-                }
-
-                return inputData;
-              },
-              onDone: {
-                target: 'success',
-                actions: ['storeConversationId'],
-              },
-              onError: {
-                target: 'failure',
-                actions: ['storePromotionError'],
-              },
+            onDone: {
+              target: 'success',
+              actions: ['storeConversationId'],
+            },
+            onError: {
+              target: 'failure',
+              actions: ['storePromotionError'],
             },
           },
-          success: {
-            // ✅ Transition to active immediately
-            // Zustand store update happens via injected action
-            always: {
-              target: '#freeChatSession.active',
+        },
+        success: {
+          // ✅ Transition to active immediately
+          // Zustand store update happens via injected action
+          always: {
+            target: '#freeChatSession.active',
+            actions: ['clearPromotionData'],
+          },
+        },
+        failure: {
+          entry: ({ context }) => {
+            console.error(
+              '[StateMachine] Promotion failed:',
+              context.promotionError,
+            );
+          },
+          on: {
+            RETRY_PROMOTION: {
+              target: 'creatingConversation',
+              guard: 'canRetryPromotion',
+            },
+          },
+          after: {
+            // Auto-rollback to draft after 100ms
+            100: {
+              target: '#freeChatSession.draft',
               actions: ['clearPromotionData'],
             },
           },
-          failure: {
-            entry: ({ context }) => {
-              console.error(
-                '[StateMachine] Promotion failed:',
-                context.promotionError,
-              );
-            },
-            on: {
-              RETRY_PROMOTION: {
-                target: 'creatingConversation',
-                guard: 'canRetryPromotion',
-              },
-            },
-            after: {
-              // Auto-rollback to draft after 100ms
-              100: {
-                target: '#freeChatSession.draft',
-                actions: ['clearPromotionData'],
-              },
-            },
-          },
-        },
-      },
-
-      // ========== ACTIVE STATE ==========
-      active: {
-        entry: () => {
-          console.log('[StateMachine] Entered ACTIVE state');
-        },
-        on: {
-          DELETE: {
-            target: 'deleted',
-          },
-        },
-      },
-
-      // ========== DELETED STATE ==========
-      deleted: {
-        type: 'final',
-        entry: () => {
-          console.log('[StateMachine] Session deleted');
         },
       },
     },
+
+    // ========== ACTIVE STATE ==========
+    active: {
+      entry: () => {
+        console.log('[StateMachine] Entered ACTIVE state');
+      },
+      on: {
+        DELETE: {
+          target: 'deleted',
+        },
+      },
+    },
+
+    // ========== DELETED STATE ==========
+    deleted: {
+      type: 'final',
+      entry: () => {
+        console.log('[StateMachine] Session deleted');
+      },
+    },
   },
-  {
-    guards,
-    actions,
-  },
-);
+});
 
 // ==================== Helpers ====================
 
