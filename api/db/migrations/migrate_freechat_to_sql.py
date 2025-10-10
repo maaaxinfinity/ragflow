@@ -133,14 +133,26 @@ def migrate_one_user(user_id: str, sessions_json: list) -> tuple[int, int]:
                         old_id = msg.get('id', 'none')
                         logger.warning(f"[{user_id}] Invalid message ID '{old_id}' (len={len(old_id) if old_id else 0}), generated new: {msg_id}")
                     
+                    # 处理 reference 字段
+                    reference = msg.get('reference', [])
+                    if isinstance(reference, dict):
+                        reference = [reference]  # dict -> list
+                    elif not isinstance(reference, list):
+                        reference = []
+                    
+                    # 处理 created_at 时间戳
+                    created_at = msg.get('created_at', 0)
+                    if isinstance(created_at, float):
+                        created_at = int(created_at)
+                    
                     message_obj = {
                         'id': msg_id,
                         'session_id': session_id,
                         'role': msg.get('role', 'user'),
                         'content': msg.get('content', ''),
                         'seq': seq,
-                        'created_at': msg.get('created_at', 0),
-                        'reference': msg.get('reference', [])
+                        'created_at': created_at,
+                        'reference': reference
                     }
                     message_objs.append(message_obj)
 
@@ -158,14 +170,32 @@ def migrate_one_user(user_id: str, sessions_json: list) -> tuple[int, int]:
                             for msg_obj in message_objs:
                                 try:
                                     # 检查是否已存在
-                                    exists, _ = FreeChatMessageService.get_by_id(msg_obj['id'])
+                                    msg_id = msg_obj['id']
+                                    exists, _ = FreeChatMessageService.get_by_id(msg_id)
                                     if exists:
                                         # ID已存在，生成新ID
-                                        old_id = msg_obj['id']
-                                        msg_obj['id'] = str(uuid.uuid4()).replace('-', '')
-                                        logger.warning(f"[{user_id}] Message ID conflict: {old_id} -> {msg_obj['id']}")
+                                        old_id = msg_id
+                                        msg_id = str(uuid.uuid4()).replace('-', '')
+                                        msg_obj['id'] = msg_id
+                                        logger.warning(f"[{user_id}] Message ID conflict: {old_id} -> {msg_id}")
                                     
-                                    success, err = FreeChatMessageService.create_message(**msg_obj)
+                                    # 准备参数（转换类型）
+                                    reference = msg_obj.get('reference', [])
+                                    if isinstance(reference, dict):
+                                        # 如果是 dict，转为 list（保留原始数据）
+                                        reference = [reference]
+                                    elif not isinstance(reference, list):
+                                        reference = []
+                                    
+                                    success, err = FreeChatMessageService.create_message(
+                                        message_id=msg_obj['id'],
+                                        session_id=msg_obj['session_id'],
+                                        role=msg_obj['role'],
+                                        content=msg_obj['content'],
+                                        seq=msg_obj['seq'],
+                                        created_at=int(msg_obj['created_at']),  # 转为 int
+                                        reference=reference
+                                    )
                                     if success:
                                         success_count += 1
                                     else:
