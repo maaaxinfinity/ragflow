@@ -109,6 +109,7 @@ const actions = {
     promotionError: () => undefined,
     pendingMessage: ({ event }: any) => event.message,
     pendingDialogId: ({ event }: any) => event.dialogId,
+    pendingModelCardId: ({ event }: any) => event.modelCardId, // ✅ Added
   }),
 
   // Store conversation ID from backend response
@@ -120,6 +121,7 @@ const actions = {
   clearPromotionData: assign({
     pendingMessage: () => undefined,
     pendingDialogId: () => undefined,
+    pendingModelCardId: () => undefined, // ✅ Added
     pendingConversationId: () => undefined,
     promotionError: () => undefined,
   }),
@@ -177,6 +179,7 @@ export const sessionMachine = createMachine(
       pendingConversationId: undefined,
       pendingMessage: undefined,
       pendingDialogId: undefined,
+      pendingModelCardId: undefined, // ✅ Added
       promotionError: undefined,
     },
     states: {
@@ -220,12 +223,25 @@ export const sessionMachine = createMachine(
               id: 'createConversation',
               // ✅ Service name reference (injected at runtime)
               src: 'promoteDraftToActive',
-              // ✅ Pass event data as input
-              input: ({ context, event }: any) => ({
-                message: event.message,
-                dialogId: event.dialogId,
-                modelCardId: event.modelCardId,
-              }),
+              // ✅ CRITICAL FIX: Read from context (stored by startPromotion action)
+              input: ({ context }: any) => {
+                console.log(
+                  '[StateMachine] Creating invoke input from context:',
+                  {
+                    pendingMessage: context.pendingMessage?.content?.slice(
+                      0,
+                      30,
+                    ),
+                    pendingDialogId: context.pendingDialogId,
+                    pendingModelCardId: context.pendingModelCardId,
+                  },
+                );
+                return {
+                  message: context.pendingMessage,
+                  dialogId: context.pendingDialogId,
+                  modelCardId: context.pendingModelCardId, // ✅ Fixed: read from context
+                };
+              },
               onDone: {
                 target: 'success',
                 actions: ['storeConversationId'],
