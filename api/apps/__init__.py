@@ -76,7 +76,22 @@ swagger = Swagger(
     },
 )
 
-CORS(app, supports_credentials=True, max_age=2592000)
+CORS(app, 
+     supports_credentials=True, 
+     max_age=2592000,
+     origins=[
+         "https://law.workspace.limitee.cn",  # 前端域名
+         "https://rag.limitee.cn",  # API 域名
+         "http://localhost:8000",  # 本地开发
+         "http://localhost:8001",
+         "http://localhost:9989",
+         "http://127.0.0.1:8000",
+         "http://127.0.0.1:8001",
+         "http://127.0.0.1:9989",
+     ],
+     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+     expose_headers=["Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
 app.url_map.strict_slashes = False
 app.json_encoder = CustomJSONEncoder
 app.errorhandler(Exception)(server_error_response)

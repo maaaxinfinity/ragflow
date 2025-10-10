@@ -1,9 +1,17 @@
 import { Button } from '@/components/ui/button';
-import { MessageSquarePlus, MessageSquare, Trash2, Eraser, Edit3, ChevronLeft, ChevronRight } from 'lucide-react';
-import { IFreeChatSession } from '../hooks/use-free-chat-session';
-import { useTranslate } from '@/hooks/common-hooks';
-import { useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
+import { useTranslate } from '@/hooks/common-hooks';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Edit3,
+  Eraser,
+  MessageSquare,
+  MessageSquarePlus,
+  Trash2,
+} from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { IFreeChatSession } from '../hooks/use-free-chat-session';
 
 const formatTimeAgo = (timestamp: number, t: any) => {
   const now = Date.now();
@@ -42,19 +50,25 @@ export function SessionList({
   const [editingName, setEditingName] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const handleStartEdit = useCallback((session: IFreeChatSession, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingSessionId(session.id);
-    setEditingName(session.name);
-  }, []);
+  const handleStartEdit = useCallback(
+    (session: IFreeChatSession, e: React.MouseEvent) => {
+      e.stopPropagation();
+      setEditingSessionId(session.id);
+      setEditingName(session.name);
+    },
+    [],
+  );
 
-  const handleSaveEdit = useCallback((sessionId: string) => {
-    if (editingName.trim() && onSessionRename) {
-      onSessionRename(sessionId, editingName.trim());
-    }
-    setEditingSessionId(null);
-    setEditingName('');
-  }, [editingName, onSessionRename]);
+  const handleSaveEdit = useCallback(
+    (sessionId: string) => {
+      if (editingName.trim() && onSessionRename) {
+        onSessionRename(sessionId, editingName.trim());
+      }
+      setEditingSessionId(null);
+      setEditingName('');
+    },
+    [editingName, onSessionRename],
+  );
 
   const handleCancelEdit = useCallback(() => {
     setEditingSessionId(null);
@@ -62,9 +76,11 @@ export function SessionList({
   }, []);
 
   return (
-    <div className={`border-r flex flex-col h-full bg-gradient-to-b from-background to-muted/20 transition-all duration-300 relative ${
-      isCollapsed ? 'w-14' : 'w-72'
-    }`}>
+    <div
+      className={`border-r flex flex-col h-full bg-gradient-to-b from-background to-muted/20 transition-all duration-300 relative ${
+        isCollapsed ? 'w-14' : 'w-72'
+      }`}
+    >
       {/* Toggle Button */}
       <Button
         variant="ghost"
@@ -169,7 +185,7 @@ export function SessionList({
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <MessageSquare className="h-3 w-3" />
-                              {session.messages.length}
+                              {session.messages?.length ?? 0}
                             </span>
                             <span>•</span>
                             <span>{formatTimeAgo(session.updated_at, t)}</span>

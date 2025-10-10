@@ -1,0 +1,67 @@
+include:
+  - ./docker-compose-base.yml
+
+# Development mode with hot-reload and volume mounts
+# This configuration allows you to develop without rebuilding the Docker image
+services:
+  ragflow:
+    depends_on:
+      mysql:
+        condition: service_healthy
+    image: ${RAGFLOW_IMAGE}
+    command:
+      - --workers=10
+    container_name: ragflow-server-dev
+    ports:
+      - ${SVR_HTTP_PORT}:9380
+      - 9989:80
+      - 10443:443
+      - 5678:5678
+      - 5679:5679
+      - 9382:9382
+    volumes:
+      # Log files
+      - ./ragflow-logs:/ragflow/logs
+      
+      # Nginx configuration
+      - ./nginx/ragflow.conf:/etc/nginx/conf.d/ragflow.conf
+      - ./nginx/proxy.conf:/etc/nginx/proxy.conf
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      
+      # Service configuration
+      - ./service_conf.yaml.template:/ragflow/conf/service_conf.yaml.template
+      - ./entrypoint.sh:/ragflow/entrypoint.sh
+      
+      # History data
+      - ../history_data_agent:/ragflow/history_data_agent
+      
+      # ===== Development Mode Mounts =====
+      # Mount frontend build output (build on host, not in container)
+      - ../web/dist:/ragflow/web/dist
+      
+      # Mount backend source code for hot-reload
+      - ../api:/ragflow/api
+      - ../rag:/ragflow/rag
+      - ../agent:/ragflow/agent
+      - ../deepdoc:/ragflow/deepdoc
+      - ../graphrag:/ragflow/graphrag
+      - ../agentic_reasoning:/ragflow/agentic_reasoning
+      - ../mcp:/ragflow/mcp
+      - ../plugin:/ragflow/plugin
+      - ../conf:/ragflow/conf
+      
+    env_file: .env
+    environment:
+      - TZ=${TIMEZONE}
+      - HF_ENDPOINT=${HF_ENDPOINT-}
+      - MACOS=${MACOS-}
+      - MODEL_CARDS_API_URL=${MODEL_CARDS_API_URL}
+      # Enable Python auto-reload (Flask debug mode)
+      - FLASK_DEBUG=1
+      # Enable debugpy for remote debugging
+      - RAGFLOW_DEBUGPY_LISTEN=5678
+    networks:
+      - ragflow
+    restart: on-failure
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
