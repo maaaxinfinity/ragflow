@@ -1,25 +1,17 @@
 /**
- * useSessionMachine Hook (Refactored - Best Practices)
+ * useSessionMachine Hook (Simplified - No XState)
  *
  * ✅ Refactored (2025-01-11):
- * - Uses useActor instead of useMachine + manual subscription
- * - Injects services at runtime (testable)
- * - Injects actions to update Zustand store (single source of truth)
- * - No business data in machine context
+ * - Removed XState dependency - now uses pure Zustand
+ * - Simple state management with computed properties
+ * - Direct access to promoteToActive action from store
  *
- * React hook wrapper for the session state machine.
- * XState manages state transitions, Zustand stores data.
+ * This hook provides session state information and promotion actions
+ * without the complexity of a state machine library.
  */
 
 import type { Message } from '@/interfaces/database/chat';
-import { useMachine } from '@xstate/react';
-import { useCallback, useEffect, useMemo } from 'react';
-import { fromPromise } from 'xstate';
-import {
-  canAcceptMessages,
-  getStateName,
-  sessionMachine,
-} from '../machines/session-machine';
+import { useMemo } from 'react';
 import { useSessionStore } from '../store/session';
 
 interface UseSessionMachineProps {
@@ -34,276 +26,108 @@ interface UseSessionMachineProps {
 }
 
 /**
- * ✅ BEST PRACTICE: Hook that connects XState machine to Zustand store
+ * ✅ SIMPLIFIED: Hook that provides session state and promotion actions
  */
 export function useSessionMachine(props: UseSessionMachineProps) {
   const { sessionId, onPromotionSuccess, onPromotionFailure } = props;
 
-  // Get Zustand store actions
-  const updateSession = useSessionStore((state) => state.updateSession);
-  const getSessionById = useSessionStore((state) => state.getSessionById);
-
-  // Get session data from Zustand (single source of truth)
-  const session = useMemo(
-    () => getSessionById(sessionId),
-    [getSessionById, sessionId],
+  // Get session from Zustand store
+  const session = useSessionStore((state) =>
+    state.sessions.find((s) => s.id === sessionId),
   );
 
-  // ✅ BEST PRACTICE: Inject service implementation
-  const promoteDraftService = useCallback(async ({ input }: { input: any }) => {
-    console.log('[promoteDraftService] INVOKED! Raw input:', input);
+  // Get store actions
+  const promoteToActiveStore = useSessionStore(
+    (state) => state.promoteToActive,
+  );
+  const retryPromotionStore = useSessionStore((state) => state.retryPromotion);
 
-    const { message, dialogId, modelCardId } = input;
+  // Computed state properties
+  const isDraft = session?.state === 'draft';
+  const isPromoting = session?.state === 'promoting';
+  const isActive = session?.state === 'active';
+  const isError = session?.state === 'error';
+  const canSendMessage = isDraft || isActive;
 
-    console.log('[promoteDraftService] START - Creating conversation:', {
-      dialogId,
-      modelCardId,
-      messageSample: message?.content?.slice(0, 30),
-    });
+  // Current state name (for debugging/display)
+  const currentState = session?.state?.toUpperCase() || 'UNKNOWN';
 
-    try {
-      const response = await fetch('/v1/conversation/set', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          dialog_id: dialogId,
-          name: message.content.slice(0, 50),
-          is_new: true,
-          model_card_id: modelCardId,
-          message: [{ role: 'assistant', content: '' }],
-        }),
-      });
-
-      console.log('[promoteDraftService] Response status:', response.status);
-
-      const result = await response.json();
-
-      console.log('[promoteDraftService] Response data:', result);
-
-      if (result.code !== 0) {
-        console.error('[promoteDraftService] FAILED:', result.message);
-        throw new Error(result.message || '创建对话失败');
+  // Promotion action wrapper
+  const promoteToActive = useMemo(
+    () => async (message: Message, dialogId: string) => {
+      if (!session) {
+        console.error('[useSessionMachine] No session found');
+        return;
       }
 
-      console.log(
-        '[promoteDraftService] SUCCESS - conversation_id:',
-        result.data.id,
-      );
+      try {
+        console.log('[useSessionMachine] Promoting draft to active:', {
+          sessionId,
+          dialogId,
+        });
 
-      return {
-        conversationId: result.data.id,
-      };
-    } catch (error) {
-      console.error('[promoteDraftService] ERROR:', error);
-      throw error;
-    }
-  }, []);
+        const conversationId = await promoteToActiveStore(
+          sessionId,
+          message,
+          dialogId,
+        );
 
-  // ✅ BEST PRACTICE: Memoize the provided machine to prevent infinite re-creation
-  // XState v5 setup() pattern requires using .provide() instead of actors option
-  const providedMachine = useMemo(
-    () =>
-      sessionMachine.provide({
-        actors: {
-          // ✅ FIX: Override the placeholder implementation
-          promoteDraftToActive: fromPromise<
-            { conversationId: string },
-            { message: any; dialogId: string; modelCardId: number }
-          >(promoteDraftService),
-        },
-      }),
-    [promoteDraftService],
-  );
-
-  const [state, send] = useMachine(providedMachine, {
-    input: {
-      sessionId,
+        console.log('[useSessionMachine] Promotion success:', conversationId);
+        onPromotionSuccess?.(conversationId);
+      } catch (error) {
+        console.error('[useSessionMachine] Promotion failed:', error);
+        onPromotionFailure?.(error as Error);
+      }
     },
-  });
-
-  // Debug: confirm machine is initialized
-  console.log('[useSessionMachine] Machine created with actors:', {
-    hasPromoteDraftService: !!promoteDraftService,
-  });
-
-  // ✅ Initialize machine based on session state
-  useEffect(() => {
-    if (!session) return;
-
-    // Only initialize if in idle state
-    if (!state.matches('idle')) return;
-
-    console.log(
-      '[useSessionMachine] Initializing machine for session:',
+    [
       sessionId,
-    );
-
-    if (session.conversation_id) {
-      // Active session
-      console.log('[useSessionMachine] → INIT_ACTIVE');
-      send({ type: 'INIT_ACTIVE', sessionId: session.id });
-    } else {
-      // Draft session
-      console.log('[useSessionMachine] → INIT_DRAFT');
-      send({ type: 'INIT_DRAFT', sessionId: session.id });
-    }
-  }, [sessionId, session?.conversation_id, send]); // ✅ Fixed: only re-init when sessionId or conversation_id changes
-
-  // ✅ BEST PRACTICE: Update Zustand store on promotion success
-  // ✅ 优化：使用精确的依赖项（state.value 和 state.context.xxx）
-  useEffect(() => {
-    const isActive = state.matches('active');
-    const conversationId = state.context.pendingConversationId;
-
-    if (isActive && conversationId) {
-      console.log(
-        '[useSessionMachine] Promotion succeeded, updating Zustand:',
-        conversationId,
-      );
-
-      // Update Zustand store (single source of truth)
-      updateSession(sessionId, {
-        conversation_id: conversationId,
-        state: 'active',
-      });
-
-      // Notify callback
-      if (onPromotionSuccess) {
-        onPromotionSuccess(conversationId);
-      }
-    }
-  }, [
-    state.value, // ✅ 精确依赖：只在状态值变化时触发
-    state.context.pendingConversationId, // ✅ 精确依赖：只在这个字段变化时触发
-    sessionId,
-    updateSession,
-    onPromotionSuccess,
-  ]);
-
-  // ✅ Handle promotion failure
-  // ✅ 优化：使用精确的依赖项
-  useEffect(() => {
-    const isFailure = state.matches('promoting.failure');
-    const error = state.context.promotionError;
-
-    if (isFailure && error) {
-      console.error('[useSessionMachine] Promotion failed:', error);
-
-      // Notify callback
-      if (onPromotionFailure) {
-        onPromotionFailure(error);
-      }
-    }
-  }, [
-    state.value, // ✅ 精确依赖
-    state.context.promotionError, // ✅ 精确依赖
-    onPromotionFailure,
-  ]);
-
-  // 🔧 DEBUG: Log actor state to understand why invoke isn't firing
-  useEffect(() => {
-    console.log('[useSessionMachine] State changed:', {
-      value: state.value,
-      matches_promoting: state.matches('promoting'),
-      matches_creating: state.matches('promoting.creatingConversation'),
-      context: state.context,
-    });
-  }, [state.value, state.context]);
-
-  // ========== Actions (Simplified) ==========
-
-  /**
-   * ✅ Promote draft to active
-   * This triggers backend conversation creation and state transition.
-   * Business data (messages) stays in Zustand throughout the process.
-   */
-  const promoteToActive = useCallback(
-    (message: Message, dialogId: string, modelCardId: number) => {
-      console.log('[useSessionMachine] Promoting to active:', {
-        sessionId,
-        messageSample: message.content.slice(0, 30),
-      });
-
-      send({
-        type: 'PROMOTE_TO_ACTIVE',
-        message,
-        dialogId,
-        modelCardId,
-      });
-    },
-    [send, sessionId],
+      session,
+      promoteToActiveStore,
+      onPromotionSuccess,
+      onPromotionFailure,
+    ],
   );
 
-  /**
-   * ✅ Retry failed promotion
-   */
-  const retryPromotion = useCallback(() => {
-    console.log(
-      '[useSessionMachine] Retrying promotion for session:',
-      sessionId,
-    );
-    send({ type: 'RETRY_PROMOTION' });
-  }, [send, sessionId]);
+  // Retry promotion action
+  const retryPromotion = useMemo(
+    () => async () => {
+      try {
+        await retryPromotionStore(sessionId);
+      } catch (error) {
+        console.error('[useSessionMachine] Retry failed:', error);
+        onPromotionFailure?.(error as Error);
+      }
+    },
+    [sessionId, retryPromotionStore, onPromotionFailure],
+  );
 
-  /**
-   * ✅ Delete session
-   */
-  const deleteSession = useCallback(() => {
-    console.log('[useSessionMachine] Deleting session:', sessionId);
-    send({ type: 'DELETE' });
-  }, [send, sessionId]);
-
-  // ========== Computed State (from Machine) ==========
-
-  const currentState = getStateName(state);
-  const isDraft = state.matches('draft');
-  const isPromoting = state.matches('promoting');
-  const isActive = state.matches('active');
-  const isDeleted = state.matches('deleted');
-  const canSendMessages = canAcceptMessages(state);
-
-  // Debug: log state changes
-  useEffect(() => {
-    console.log('[useSessionMachine] State changed:', {
-      sessionId,
-      currentState,
-      isDraft,
-      isPromoting,
-      isActive,
-      conversationId: state.context.pendingConversationId,
-    });
-  }, [
-    sessionId,
-    currentState,
-    isDraft,
-    isPromoting,
-    isActive,
-    state.context.pendingConversationId,
-  ]);
-
-  // ✅ Return minimal interface - data comes from Zustand, not machine
   return {
-    // Machine state (read-only)
+    // State properties
+    sessionId,
     currentState,
     isDraft,
     isPromoting,
     isActive,
-    isDeleted,
-    canSendMessages,
+    isError,
+    canSendMessage,
+    promotionError: session?.promotionError,
 
-    // Error state (from machine)
-    error: state.context.promotionError,
-
-    // Actions (state transitions only)
+    // Actions
     promoteToActive,
     retryPromotion,
-    deleteSession,
 
-    // Raw state machine (for debugging)
-    state,
-    send,
+    // Raw session data (for compatibility)
+    session,
   };
+}
+
+// Helper function for checking if session can accept messages
+export function canAcceptMessages(state: string | undefined): boolean {
+  return state === 'draft' || state === 'active';
+}
+
+// Helper function for getting readable state name
+export function getStateName(state: string | undefined): string {
+  if (!state) return 'UNKNOWN';
+  return state.toUpperCase();
 }

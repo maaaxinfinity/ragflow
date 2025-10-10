@@ -1,17 +1,18 @@
 /**
- * useFreeChat with XState Integration (Refactored - Best Practices)
+ * useFreeChat with Simplified State Management (Refactored)
  *
  * ✅ Refactored (2025-01-11):
+ * - REMOVED XState complexity - now uses pure Zustand
  * - REMOVED polling anti-pattern (was: while (!conversationId) loop)
  * - State-driven UI (if promoting → show loading, if active → enable chat)
- * - Single source of truth (Zustand for data, XState for transitions)
- * - Proper async flow (no manual waiting, let machine handle it)
+ * - Single source of truth (Zustand for all data and state)
+ * - Proper async flow (no manual waiting, Zustand store handles transitions)
  *
  * CRITICAL FEATURE: Messages stay visible during Draft→Active transition
  * - User sends message in draft
  * - derivedMessages keeps the message visible in chat interface
- * - State machine promotes draft to active (automatic)
- * - UI updates driven by machine state, not polling
+ * - Store's promoteToActive action handles backend promotion (automatic)
+ * - UI updates driven by store state, not polling
  * - Chat interface NEVER refreshes
  */
 
@@ -87,29 +88,24 @@ export const useFreeChatWithMachine = (
     ),
   });
 
-  // ✅ XState: State machine for current session (manages transitions only)
-  const {
-    isDraft,
-    isPromoting,
-    isActive,
-    promoteToActive,
-    error: promotionError,
-  } = useSessionMachine({
-    sessionId: currentSessionId,
-    onPromotionSuccess: (conversationId) => {
-      console.log('[XState] Promotion succeeded:', conversationId);
-      // Zustand store already updated by useSessionMachine
-    },
-    onPromotionFailure: (error) => {
-      console.error('[XState] Promotion failed:', error);
-      logError(
-        'Failed to create conversation',
-        'useFreeChatWithMachine.onPromotionFailure',
-        true,
-        error.message,
-      );
-    },
-  });
+  // ✅ Simplified: Session state hook (no XState, pure Zustand)
+  const { isDraft, isPromoting, isActive, promoteToActive, promotionError } =
+    useSessionMachine({
+      sessionId: currentSessionId,
+      onPromotionSuccess: (conversationId) => {
+        console.log('[useSessionMachine] Promotion succeeded:', conversationId);
+        // Zustand store already updated by promoteToActive action
+      },
+      onPromotionFailure: (error) => {
+        console.error('[useSessionMachine] Promotion failed:', error);
+        logError(
+          'Failed to create conversation',
+          'useFreeChatWithMachine.onPromotionFailure',
+          true,
+          error.message,
+        );
+      },
+    });
 
   // SSE sending logic
   const { send, answer, done } = useSendMessageWithSse(
@@ -432,7 +428,7 @@ export const useFreeChatWithMachine = (
     resetDraft,
     ...sessionActions,
 
-    // ✅ XState state (for UI to show loading/disabled states)
+    // ✅ Session state (for UI to show loading/disabled states)
     isDraft,
     isPromoting, // ✅ IMPORTANT: UI should disable input when true
     isActive,
