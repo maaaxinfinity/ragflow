@@ -302,6 +302,9 @@ export const useSessionStore = create<SessionStore>()(
           );
 
           try {
+            // Generate conversation_id for new conversation
+            const conversationId = uuid();
+
             // Call backend API with authentication
             const response = await fetch('/v1/conversation/set', {
               method: 'POST',
@@ -311,6 +314,7 @@ export const useSessionStore = create<SessionStore>()(
               },
               credentials: 'include',
               body: JSON.stringify({
+                conversation_id: conversationId, // ✅ FIX: Backend requires this even for is_new=true
                 dialog_id: dialogId,
                 name: message.content.slice(0, 50),
                 is_new: true,
@@ -332,8 +336,11 @@ export const useSessionStore = create<SessionStore>()(
               throw new Error(errorMsg);
             }
 
-            const conversationId = result.data.id;
-            console.log('[Zustand] promoteToActive SUCCESS:', conversationId);
+            const finalConversationId = result.data.id || conversationId;
+            console.log(
+              '[Zustand] promoteToActive SUCCESS:',
+              finalConversationId,
+            );
 
             // Update to active state
             set(
@@ -341,7 +348,7 @@ export const useSessionStore = create<SessionStore>()(
                 const s = state.sessions.find((s) => s.id === sessionId);
                 if (s) {
                   s.state = 'active';
-                  s.conversation_id = conversationId;
+                  s.conversation_id = finalConversationId;
                   s.name = message.content.slice(0, 50);
                   s.updated_at = Date.now();
                 }
@@ -350,7 +357,7 @@ export const useSessionStore = create<SessionStore>()(
               'promoteToActive:success',
             );
 
-            return conversationId;
+            return finalConversationId;
           } catch (error) {
             console.error('[Zustand] promoteToActive FAILED:', error);
 
