@@ -124,18 +124,6 @@ function FreeChatContent() {
   // If user is NOT in tenantUsers, they are the OWNER -> show their own team (tenantInfo is already correct)
   const displayTenantInfo = tenantInfo;
 
-  // Debug: Log user info display conditions
-  console.log('[UserInfo] Display conditions:', {
-    userId,
-    hasCurrentUserInfo: !!currentUserInfo,
-    hasUserInfo: !!userInfo,
-    hasTenantInfo: !!tenantInfo,
-    tenantUsersCount: Array.isArray(tenantUsers) ? tenantUsers.length : 0,
-    currentUserInfo,
-    userInfo,
-    tenantInfo,
-  });
-
   // Handle sessions change with debounce (5 seconds)
   // Sessions are saved silently without triggering "unsaved changes" indicator
   const handleSessionsChange = useCallback(

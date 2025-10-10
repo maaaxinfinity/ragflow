@@ -1,18 +1,36 @@
 # FreeChat 后端 API 实现详解
 
-> 详细分析 FreeChat 后端 API 的实现、权限验证和数据处理逻辑
+> 最后更新: 2025-01-10 - 添加新的 Session/Message API
 
 ## 1. API 端点概览
 
-### 1.1 端点列表
+### 1.1 Settings API（旧架构，保留用于兼容）
 
 | 端点 | 方法 | 认证 | 功能 |
 |------|------|------|------|
-| `/api/free_chat/settings` | GET | API Key / Session | 获取用户设置 |
-| `/api/free_chat/settings` | POST/PUT | API Key / Session | 保存/更新设置 |
-| `/api/free_chat/settings/<user_id>` | DELETE | Session | 删除用户设置 |
-| `/api/free_chat/admin_token` | GET | Session / Access Token | 获取 API Token |
-| `/api/conversation/completion` | POST | Session | 对话补全 (SSE) |
+| `/api/v1/free_chat/settings` | GET | API Key / Session | 获取用户设置 |
+| `/api/v1/free_chat/settings` | POST/PUT | API Key / Session | 保存/更新设置 |
+| `/api/v1/free_chat/settings/<user_id>` | DELETE | Session | 删除用户设置 |
+| `/api/v1/free_chat/admin_token` | GET | Session / Access Token | 获取 API Token |
+
+### 1.2 Session/Message API（新架构，推荐使用）
+
+| 端点 | 方法 | 认证 | 功能 |
+|------|------|------|------|
+| `/api/v1/free_chat_session/sessions` | GET | API Key / Session | 获取会话列表 |
+| `/api/v1/free_chat_session/sessions` | POST | API Key / Session | 创建会话 |
+| `/api/v1/free_chat_session/sessions/<id>` | PUT | API Key / Session | 更新会话 |
+| `/api/v1/free_chat_session/sessions/<id>` | DELETE | API Key / Session | 删除会话 |
+| `/api/v1/free_chat_session/sessions/<id>/messages` | GET | API Key / Session | 获取消息（支持分页） |
+| `/api/v1/free_chat_session/sessions/<id>/messages` | POST | API Key / Session | 创建消息 |
+| `/api/v1/free_chat_session/messages/<id>` | PUT | API Key / Session | 更新消息 |
+| `/api/v1/free_chat_session/messages/<id>` | DELETE | API Key / Session | 删除消息 |
+
+### 1.3 对话 API
+
+| 端点 | 方法 | 认证 | 功能 |
+|------|------|------|------|
+| `/api/v1/conversation/completion` | POST | Session | 对话补全 (SSE) |
 
 ### 1.2 文件结构
 

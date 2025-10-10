@@ -37,9 +37,12 @@ class RedisLock:
         end_time = time.time() + self.timeout
 
         while time.time() < end_time:
-            # 使用SET NX EX原子操作
+            # 使用 SETNX 模拟 SET NX
             identifier = str(time.time())
-            if REDIS_CONN.set(self.lock_name, identifier, nx=True, ex=self.timeout):
+            # 使用原生 Redis SETNX
+            if REDIS_CONN.REDIS.setnx(self.lock_name, identifier):
+                # 设置过期时间
+                REDIS_CONN.REDIS.expire(self.lock_name, self.timeout)
                 self.identifier = identifier
                 logging.debug(f"[RedisLock] Acquired lock: {self.lock_name}")
                 return True
