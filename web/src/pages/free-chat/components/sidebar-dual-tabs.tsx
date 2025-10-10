@@ -214,34 +214,53 @@ export function SidebarDualTabs({
               <div className="space-y-2">
                 {/* Draft Session */}
                 {draftSession && (
-                  <>
-                    <div className="mb-2">
-                      <div
-                        onClick={() => onSessionSelect(draftSession.id)}
-                        className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all border border-dashed ${
+                  <div className="mb-3">
+                    <div
+                      onClick={() => onSessionSelect(draftSession.id)}
+                      className={`group relative p-3 rounded-lg transition-all duration-200 cursor-pointer border-2 border-dashed ${
+                        currentSessionId === draftSession.id
+                          ? 'bg-amber-50/50 border-amber-400 shadow-md'
+                          : 'bg-card/50 border-muted-foreground/30 hover:border-amber-300 hover:bg-amber-50/30'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${
                           currentSessionId === draftSession.id
-                            ? 'bg-primary/10 border-primary text-primary'
-                            : 'hover:bg-accent border-muted-foreground/30'
-                        }`}
-                      >
-                        <MessageSquareDashed className="h-4 w-4 flex-shrink-0 opacity-60" />
-                        <span className="flex-1 truncate text-sm font-medium opacity-80">
-                          {draftSession.name}
-                        </span>
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          草稿
-                        </span>
+                            ? 'bg-amber-100'
+                            : 'bg-muted'
+                        }`}>
+                          <MessageSquareDashed className={`h-5 w-5 ${
+                            currentSessionId === draftSession.id
+                              ? 'text-amber-600'
+                              : 'text-muted-foreground'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-sm truncate">
+                              {draftSession.name}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+                              草稿
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            点击开始对话
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    {activeSessions.length > 0 && (
-                      <div className="flex items-center gap-2 my-3 px-2">
-                        <div className="flex-1 h-px bg-border"></div>
-                        <span className="text-xs text-muted-foreground">历史对话</span>
-                        <div className="flex-1 h-px bg-border"></div>
-                      </div>
-                    )}
-                  </>
+                  </div>
                 )}
+                
+                {/* Divider */}
+                <div className="flex items-center gap-2 my-4 px-2">
+                  <div className="flex-1 h-px bg-border"></div>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    {draftSession ? '历史对话' : '对话列表'}
+                  </span>
+                  <div className="flex-1 h-px bg-border"></div>
+                </div>
                 
                 {!currentModelCardId ? (
                   <div className="p-8 text-center">
@@ -320,12 +339,7 @@ export function SidebarDualTabs({
                                 </Button>
                               </div>
                             ) : (
-                              <div className="font-medium text-sm truncate mb-1 flex items-center gap-2">
-                                {isDraft && (
-                                  <span className="text-amber-600 text-xs font-semibold bg-amber-100 px-1.5 py-0.5 rounded">
-                                    草稿
-                                  </span>
-                                )}
+                              <div className="font-medium text-sm truncate mb-1">
                                 {session.name}
                               </div>
                             )}
