@@ -802,7 +802,7 @@ class Dialog(DataBaseModel):
 
 
 class Conversation(DataBaseModel):
-    id = CharField(max_length=32, primary_key=True)
+    id = CharField(max_length=36, primary_key=True)  # FIX: UUID requires 36 chars (32 + 4 hyphens)
     dialog_id = CharField(max_length=32, null=False, index=True)
     name = CharField(max_length=255, null=True, help_text="converastion name", index=True)
     message = JSONField(null=True, help_text="message array - each message can include 'params' field for request parameters")
