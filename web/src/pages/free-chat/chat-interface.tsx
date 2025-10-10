@@ -1,13 +1,12 @@
-import MessageItem from '@/components/message-item';
 import { NextMessageInput } from '@/components/message-input/next';
-import { MessageType } from '@/constants/chat';
-import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
-import { buildMessageUuidWithRole } from '@/utils/chat';
-import { Message } from '@/interfaces/database/chat';
-import { Button } from '@/components/ui/button';
-import { Trash2, MessageCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { useTranslate } from '@/hooks/common-hooks';
+import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
+import { Message } from '@/interfaces/database/chat';
+import { MessageCircle, Trash2 } from 'lucide-react';
+// ✅ 导入虚拟滚动组件
+import { VirtualMessageList } from './components/virtual-message-list';
 
 interface ChatInterfaceProps {
   messages: Message[];
@@ -95,45 +94,28 @@ export function ChatInterface({
         </div>
       )}
 
-      {/* Messages */}
-      <div ref={messageContainerRef} className="flex-1 overflow-auto min-h-0">
-        <div className="w-full pr-5">
-          {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center space-y-4">
-                <h2 className="text-xl font-semibold">{t('startFreeChat')}</h2>
-                <p className="text-muted-foreground max-w-md">
-                  {t('freeChatWelcomeMessage')}
-                </p>
-              </div>
-            </div>
-          ) : (
-            messages.map((message, i) => {
-              return (
-                <MessageItem
-                  loading={
-                    message.role === MessageType.Assistant &&
-                    sendLoading &&
-                    messages.length - 1 === i
-                  }
-                  key={buildMessageUuidWithRole(message)}
-                  item={message}
-                  nickname={displayNickname}
-                  avatar={displayAvatar}
-                  avatarDialog={dialogAvatar || ''}
-                  reference={(message as any).reference}
-                  clickDocumentButton={() => {}}
-                  index={i}
-                  removeMessageById={removeMessageById}
-                  regenerateMessage={regenerateMessage}
-                  sendLoading={sendLoading}
-                />
-              );
-            })
-          )}
+      {/* Messages - 使用虚拟滚动优化 */}
+      {messages.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <h2 className="text-xl font-semibold">{t('startFreeChat')}</h2>
+            <p className="text-muted-foreground max-w-md">
+              {t('freeChatWelcomeMessage')}
+            </p>
+          </div>
         </div>
-        <div ref={scrollRef} />
-      </div>
+      ) : (
+        <VirtualMessageList
+          messages={messages}
+          sendLoading={sendLoading}
+          nickname={displayNickname}
+          avatar={displayAvatar}
+          dialogAvatar={dialogAvatar || ''}
+          removeMessageById={removeMessageById}
+          regenerateMessage={regenerateMessage}
+          scrollRef={scrollRef}
+        />
+      )}
 
       {/* Input */}
       <NextMessageInput

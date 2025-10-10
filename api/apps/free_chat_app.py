@@ -37,6 +37,8 @@ from api.exceptions.free_chat_exceptions import (
     LockTimeoutError
 )
 from api.utils.redis_lock import redis_lock
+# ✅ 导入新的缓存管理器
+from api.utils.cache_manager import cache_manager, FreeChatCache, CacheKeys, CacheTTL
 from datetime import datetime
 import json
 import logging
@@ -60,36 +62,24 @@ REDIS_SESSION_KEY_PREFIX = "freechat:sessions:"
 REDIS_SESSION_TTL = 7 * 24 * 60 * 60  # 7 days
 
 
+# ✅ 使用新的缓存管理器替代原有函数
 def get_sessions_from_redis(user_id: str):
-    """Get sessions from Redis cache (L1 cache)"""
-    try:
-        key = f"{REDIS_SESSION_KEY_PREFIX}{user_id}"
-        data = REDIS_CONN.get(key)
-        if data:
-            return json.loads(data)
-    except Exception as e:
-        logging.warning(f"[FreeChat] Redis get failed for user {user_id}: {e}")
-    return None
+    """Get sessions from Redis cache (使用缓存管理器)"""
+    return FreeChatCache.get_sessions(user_id)
 
 
 def save_sessions_to_redis(user_id: str, sessions: list):
-    """Save sessions to Redis cache with TTL"""
-    try:
-        key = f"{REDIS_SESSION_KEY_PREFIX}{user_id}"
-        REDIS_CONN.set_obj(key, sessions, REDIS_SESSION_TTL)
+    """Save sessions to Redis cache (使用缓存管理器)"""
+    if FreeChatCache.set_sessions(user_id, sessions):
         logging.info(f"[FreeChat] Cached sessions to Redis for user {user_id}")
-    except Exception as e:
-        logging.error(f"[FreeChat] Redis save failed for user {user_id}: {e}")
+    else:
+        logging.error(f"[FreeChat] Failed to cache sessions for user {user_id}")
 
 
 def invalidate_sessions_cache(user_id: str):
-    """Invalidate Redis cache for user"""
-    try:
-        key = f"{REDIS_SESSION_KEY_PREFIX}{user_id}"
-        REDIS_CONN.delete(key)
-        logging.info(f"[FreeChat] Invalidated Redis cache for user {user_id}")
-    except Exception as e:
-        logging.error(f"[FreeChat] Redis delete failed for user {user_id}: {e}")
+    """Invalidate Redis cache for user (使用缓存管理器)"""
+    count = FreeChatCache.invalidate_user(user_id)
+    logging.info(f"[FreeChat] Invalidated {count} cache entries for user {user_id}")
 
 
 def verify_team_access(user_id: str, current_tenant_id: str = None) -> tuple[bool, str]:
