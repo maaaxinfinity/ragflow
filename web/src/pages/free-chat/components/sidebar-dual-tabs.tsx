@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { MessageSquarePlus, MessageSquare, ChevronLeft, ChevronRight, Sparkles, Pencil, Trash2, Check, X, MessageSquareDashed } from 'lucide-react';
+import { MessageSquarePlus, MessageSquare, ChevronLeft, ChevronRight, Sparkles, Pencil, Trash2, Check, X, MessageSquareDashed, Star } from 'lucide-react';
 import { IFreeChatSession } from '../hooks/use-free-chat-session';
 import { useFetchModelCards } from '../hooks/use-fetch-model-cards';
 import { useTranslate } from '@/hooks/common-hooks';
@@ -29,6 +29,8 @@ interface SidebarDualTabsProps {
   onNewSession: () => void;
   onSessionRename?: (sessionId: string, newName: string) => void;
   onSessionDelete?: (sessionId: string) => void;
+  onToggleFavorite?: (sessionId: string) => void;
+  onDeleteUnfavorited?: () => void;
   // User info props (detailed)
   userId?: string;
   currentUserInfo?: any;
@@ -49,6 +51,8 @@ export function SidebarDualTabs({
   onNewSession,
   onSessionRename,
   onSessionDelete,
+  onToggleFavorite,
+  onDeleteUnfavorited,
   userId,
   currentUserInfo,
   userInfo,
@@ -276,12 +280,13 @@ export function SidebarDualTabs({
                       暂无对话
                     </p>
                     <Button
-                      onClick={onNewSession}
-                      className="mt-4"
+                      onClick={onDeleteUnfavorited}
+                      variant="outline"
+                      className="mt-4 hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
                       size="sm"
                     >
-                      <MessageSquarePlus className="h-4 w-4 mr-2" />
-                      新建对话
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      删除未收藏对话
                     </Button>
                   </div>
                 ) : (
@@ -369,6 +374,15 @@ export function SidebarDualTabs({
                           </div>
                           {!isEditing && (
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className={`h-7 w-7 ${session.is_favorited ? 'opacity-100 text-amber-500' : ''}`}
+                                onClick={() => onToggleFavorite?.(session.id)}
+                                title={session.is_favorited ? '取消收藏' : '收藏对话'}
+                              >
+                                <Star className={`h-3.5 w-3.5 ${session.is_favorited ? 'fill-current' : ''}`} />
+                              </Button>
                               <Button
                                 size="icon"
                                 variant="ghost"

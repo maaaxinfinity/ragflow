@@ -114,6 +114,8 @@ function FreeChatContent() {
     deleteSession,
     clearAllSessions,
     updateSession,
+    toggleFavorite,
+    deleteUnfavorited,
     dialogId,
     setDialogId,
   } = useFreeChat(controller.current, userId, settings);
@@ -320,19 +322,22 @@ function FreeChatContent() {
 
   const handleModelCardChange = useCallback(
     (newModelCardId: number) => {
-      // FIX: Delete any existing draft sessions before creating new one
-      const draftSession = sessions.find(s => s.state === 'draft');
-      if (draftSession) {
-        console.log('[ModelCardChange] Deleting existing draft:', draftSession.id);
-        deleteSession(draftSession.id);
-      }
+      // Find draft for this model card or create new one
+      const draftSession = sessions.find(s => 
+        s.state === 'draft' && s.model_card_id === newModelCardId
+      );
       
-      // Create draft session (local only, not persisted to backend)
-      // Draft will be promoted to active when user sends first message
-      console.log('[ModelCardChange] Creating new draft for model card:', newModelCardId);
-      createSession('新对话', newModelCardId, true);  // isDraft=true
+      if (draftSession) {
+        // Switch to existing draft
+        console.log('[ModelCardChange] Switching to existing draft:', draftSession.id);
+        switchSession(draftSession.id);
+      } else {
+        // Create new draft for this model card
+        console.log('[ModelCardChange] Creating new draft for model card:', newModelCardId);
+        createSession('新对话', newModelCardId, true);
+      }
     },
-    [createSession, deleteSession, sessions],
+    [createSession, switchSession, sessions],
   );
 
   const handleRolePromptChange = useCallback(
@@ -421,6 +426,8 @@ function FreeChatContent() {
         onNewSession={handleNewSession}
         onSessionRename={handleSessionRename}
         onSessionDelete={handleSessionDelete}
+        onToggleFavorite={toggleFavorite}
+        onDeleteUnfavorited={deleteUnfavorited}
         userId={userId}
         currentUserInfo={currentUserInfo}
         userInfo={userInfo}

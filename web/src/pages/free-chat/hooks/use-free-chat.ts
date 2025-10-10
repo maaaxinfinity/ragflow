@@ -52,6 +52,8 @@ export const useFreeChat = (
     switchSession,
     deleteSession,
     clearAllSessions,
+    toggleFavorite,
+    deleteUnfavorited,
   } = useFreeChatSession({
     initialSessions: settings?.sessions,
     onSessionsChange: (sessions) => {
@@ -449,6 +451,8 @@ export const useFreeChat = (
     switchSession,
     deleteSession,
     clearAllSessions,
+    toggleFavorite,
+    deleteUnfavorited,
 
     // Dialog ID
     dialogId,

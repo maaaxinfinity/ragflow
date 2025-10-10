@@ -44,6 +44,8 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   const deleteSession = useSessionStore((state) => state.deleteSession);
   const switchSession = useSessionStore((state) => state.switchSession);
   const clearAllSessions = useSessionStore((state) => state.clearAllSessions);
+  const toggleFavorite = useSessionStore((state) => state.toggleFavorite);
+  const deleteUnfavorited = useSessionStore((state) => state.deleteUnfavorited);
 
   // Initialize from props on mount
   useEffect(() => {
@@ -92,5 +94,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     deleteSession,
     switchSession,
     clearAllSessions,
+    toggleFavorite,
+    deleteUnfavorited,
   };
 };

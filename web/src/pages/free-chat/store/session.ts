@@ -25,6 +25,7 @@ export interface IFreeChatSession {
   created_at: number;
   updated_at: number;
   state?: 'draft' | 'active';  // draft = temporary local only, active = persisted to backend
+  is_favorited?: boolean;  // favorite status (only for active sessions)
   params?: {
     temperature?: number;
     top_p?: number;
@@ -52,6 +53,8 @@ interface SessionActions {
   deleteSession: (id: string) => void;
   switchSession: (id: string) => void;
   clearAllSessions: () => void;
+  toggleFavorite: (id: string) => void;
+  deleteUnfavorited: () => void;
   
   // Advanced operations
   duplicateSession: (id: string, newName?: string) => IFreeChatSession | null;
@@ -248,6 +251,49 @@ export const useSessionStore = create<SessionStore>()(
       
       setLoading: (isLoading) => {
         set({ isLoading }, false, 'setLoading');
+      },
+      
+      toggleFavorite: (id) => {
+        set(
+          (state) => ({
+            sessions: state.sessions.map((s) =>
+              s.id === id
+                ? { ...s, is_favorited: !s.is_favorited, updated_at: Date.now() }
+                : s
+            ),
+          }),
+          false,
+          'toggleFavorite',
+        );
+      },
+      
+      deleteUnfavorited: () => {
+        set(
+          (state) => {
+            const unfavorited = state.sessions.filter(
+              (s) => s.state === 'active' && !s.is_favorited
+            );
+            const remaining = state.sessions.filter(
+              (s) => s.state === 'draft' || s.is_favorited
+            );
+            
+            console.log('[deleteUnfavorited] Deleting', unfavorited.length, 'unfavorited sessions');
+            
+            // Switch to draft if current session is deleted
+            let newCurrentId = state.currentSessionId;
+            if (unfavorited.some(s => s.id === state.currentSessionId)) {
+              const draft = remaining.find(s => s.state === 'draft');
+              newCurrentId = draft?.id || remaining[0]?.id || '';
+            }
+            
+            return {
+              sessions: remaining,
+              currentSessionId: newCurrentId,
+            };
+          },
+          false,
+          'deleteUnfavorited',
+        );
       },
     }),
     {
