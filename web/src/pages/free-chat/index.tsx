@@ -50,13 +50,39 @@ function FreeChatContent() {
   // Fetch tenant info (required for team queries)
   const { data: tenantInfo, loading: tenantInfoLoading } = useFetchTenantInfo();
 
+  // Fetch current logged-in user info (for right-bottom user card display)
+  const { data: currentLoginUser } = useQuery({
+    queryKey: ['currentLoginUser'],
+    queryFn: async () => {
+      const authToken = searchParams.get('auth');
+      const headers: Record<string, string> = {};
+
+      // Add Authorization header if auth token exists
+      if (authToken && authToken !== 'null') {
+        headers.Authorization = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch(`${api.user_info}`, {
+        headers,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        console.error('[currentLoginUser] Fetch failed:', response.status);
+        return {};
+      }
+
+      const data = await response.json();
+      return data?.data ?? {};
+    },
+  });
+
   // Fetch current user info with user_id parameter (for beta token mode)
   const { data: userInfo } = useQuery({
     queryKey: ['freeChatUserInfo', userId],
     enabled: !!userId,
     queryFn: async () => {
       const url = `${api.user_info}?user_id=${userId}`;
-      console.log('[UserInfo] Fetching from:', url);
       const authToken = searchParams.get('auth');
       const headers: Record<string, string> = {};
 
@@ -70,8 +96,6 @@ function FreeChatContent() {
         credentials: 'include', // Include cookies for session-based auth
       });
       const data = await response.json();
-      console.log('[UserInfo] Response:', data);
-      console.log('[UserInfo] Final userInfo:', data?.data);
       return data?.data ?? {};
     },
   });
@@ -398,6 +422,7 @@ function FreeChatContent() {
           currentUserInfo={currentUserInfo}
           userInfo={userInfo}
           tenantInfo={tenantInfo}
+          currentLoginUser={currentLoginUser}
         />
       </div>
 
@@ -428,6 +453,7 @@ function FreeChatContent() {
             currentUserInfo={currentUserInfo}
             userInfo={userInfo}
             tenantInfo={tenantInfo}
+            currentLoginUser={currentLoginUser}
             isMobile={true}
           />
         </SheetContent>

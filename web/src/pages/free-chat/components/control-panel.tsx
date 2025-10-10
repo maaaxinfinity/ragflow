@@ -1,17 +1,7 @@
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Textarea } from '@/components/ui/textarea';
-import { RotateCcw, ChevronDown, ChevronUp, Settings2, Sparkles, Save, Loader2, Maximize2, Minimize2, Moon, Sun } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useDynamicParams } from '../hooks/use-dynamic-params';
-import { useTranslate } from '@/hooks/common-hooks';
-import { KnowledgeBaseSelector } from './knowledge-base-selector';
-import { DialogSelector } from './dialog-selector';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import { useTheme } from '@/components/theme-provider';
-import { ThemeEnum } from '@/constants/common';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
@@ -20,11 +10,32 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Textarea } from '@/components/ui/textarea';
+import { ThemeEnum } from '@/constants/common';
+import { useTranslate } from '@/hooks/common-hooks';
+import {
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Maximize2,
+  Moon,
+  RotateCcw,
+  Save,
+  Settings2,
+  Sparkles,
+  Sun,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useDynamicParams } from '../hooks/use-dynamic-params';
 import { DynamicModelParams } from '../types';
+import { DialogSelector } from './dialog-selector';
+import { KnowledgeBaseSelector } from './knowledge-base-selector';
 
 interface ControlPanelProps {
   dialogId: string;
@@ -42,6 +53,7 @@ interface ControlPanelProps {
   currentUserInfo?: any;
   userInfo?: any;
   tenantInfo?: any;
+  currentLoginUser?: any;
   // Mobile mode
   isMobile?: boolean;
 }
@@ -60,13 +72,13 @@ export function ControlPanel({
   currentUserInfo,
   userInfo,
   tenantInfo,
+  currentLoginUser,
   isMobile = false,
 }: ControlPanelProps) {
-  const { params, updateParam, resetParams, paramsChanged } =
-    useDynamicParams({
-      initialParams: modelParams,
-      onParamsChange: onModelParamsChange,
-    });
+  const { params, updateParam, resetParams, paramsChanged } = useDynamicParams({
+    initialParams: modelParams,
+    onParamsChange: onModelParamsChange,
+  });
   const { t } = useTranslate('chat');
   const { theme, setTheme } = useTheme();
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -83,24 +95,10 @@ export function ControlPanel({
     setTempPrompt(rolePrompt);
   }, [rolePrompt]);
 
-  // Debug: Log user info received in ControlPanel
-  useEffect(() => {
-    console.log('[ControlPanel] Props received:', {
-      userId,
-      userInfo,
-      currentUserInfo,
-      tenantInfo,
-      hasUserInfo: !!userInfo,
-      hasCurrentUserInfo: !!currentUserInfo,
-      userInfoNickname: userInfo?.nickname,
-      userInfoEmail: userInfo?.email,
-      currentUserInfoNickname: currentUserInfo?.nickname,
-      currentUserInfoEmail: currentUserInfo?.email,
-    });
-  }, [userId, userInfo, currentUserInfo, tenantInfo]);
-
   return (
-    <div className={`${isMobile ? 'w-full' : 'w-80 border-l'} flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto`}>
+    <div
+      className={`${isMobile ? 'w-full' : 'w-80 border-l'} flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto`}
+    >
       {/* Header */}
       <div className="p-4 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 space-y-3">
         <div className="flex items-center justify-between">
@@ -115,7 +113,9 @@ export function ControlPanel({
               size="sm"
               variant="ghost"
               className="h-8 w-8 p-0"
-              title={theme === ThemeEnum.Dark ? '切换到亮色模式' : '切换到暗色模式'}
+              title={
+                theme === ThemeEnum.Dark ? '切换到亮色模式' : '切换到暗色模式'
+              }
             >
               {theme === ThemeEnum.Dark ? (
                 <Sun className="h-4 w-4" />
@@ -129,7 +129,7 @@ export function ControlPanel({
                 onClick={onManualSave}
                 disabled={saving || !hasUnsavedChanges}
                 size="sm"
-                variant={hasUnsavedChanges ? "default" : "outline"}
+                variant={hasUnsavedChanges ? 'default' : 'outline'}
                 className="gap-2"
               >
                 {saving ? (
@@ -247,7 +247,9 @@ export function ControlPanel({
               {/* Role Prompt */}
               <div className="space-y-2 p-3 rounded-lg bg-card border">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">系统提示词 (Role Prompt)</Label>
+                  <Label className="text-sm font-medium">
+                    系统提示词 (Role Prompt)
+                  </Label>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -281,34 +283,66 @@ export function ControlPanel({
           <KnowledgeBaseSelector />
         </div>
 
-        {/* User Info Display */}
-        {userId && (currentUserInfo || userInfo) && (
+        {/* User Info Display - Show current logged-in user or fallback to userInfo */}
+        {(currentLoginUser || userInfo || currentUserInfo) && (
           <div className="pt-4 border-t">
             <div className="flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200">
               <RAGFlowAvatar
-                name={(userInfo?.nickname || userInfo?.email) || (currentUserInfo?.nickname || currentUserInfo?.email) || 'User'}
-                avatar={userInfo?.avatar || currentUserInfo?.avatar}
+                name={
+                  currentLoginUser?.nickname ||
+                  currentLoginUser?.email ||
+                  userInfo?.nickname ||
+                  userInfo?.email ||
+                  currentUserInfo?.nickname ||
+                  currentUserInfo?.email ||
+                  'User'
+                }
+                avatar={
+                  currentLoginUser?.avatar ||
+                  userInfo?.avatar ||
+                  currentUserInfo?.avatar
+                }
                 isPerson={true}
                 className="w-9 h-9 ring-2 ring-primary/20"
               />
               <div className="flex flex-col">
                 <span className="text-sm font-semibold flex items-center gap-2">
-                  {(userInfo?.nickname || userInfo?.email) || (currentUserInfo?.nickname || currentUserInfo?.email) || 'User'}
-                  {userInfo?.is_su && (
+                  {currentLoginUser?.nickname ||
+                    currentLoginUser?.email ||
+                    userInfo?.nickname ||
+                    userInfo?.email ||
+                    currentUserInfo?.nickname ||
+                    currentUserInfo?.email ||
+                    'User'}
+                  {(currentLoginUser?.is_su || userInfo?.is_su) && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm">
                       SU
                     </span>
                   )}
                 </span>
-                {((userInfo?.nickname && userInfo?.email) || (currentUserInfo?.nickname && currentUserInfo?.email)) && (
+                {((currentLoginUser?.nickname && currentLoginUser?.email) ||
+                  (userInfo?.nickname && userInfo?.email) ||
+                  (currentUserInfo?.nickname && currentUserInfo?.email)) && (
                   <span className="text-xs text-muted-foreground">
-                    {userInfo?.email || currentUserInfo?.email}
+                    {currentLoginUser?.email ||
+                      userInfo?.email ||
+                      currentUserInfo?.email}
                   </span>
                 )}
                 {tenantInfo?.name && (
                   <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
                     </svg>
                     团队：{tenantInfo.name}
                   </span>
