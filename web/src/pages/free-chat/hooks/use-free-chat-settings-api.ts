@@ -221,14 +221,16 @@ export const useFreeChatSettingsApi = (userId: string) => {
         immediate,
       );
 
-      if (!settings) {
-        console.warn('[UpdateField] No settings, skipping');
-        return;
-      }
+      // ✅ FIX: Use functional setState to avoid dependency on settings
+      setSettings((prevSettings) => {
+        if (!prevSettings) {
+          console.warn('[UpdateField] No settings, skipping');
+          return prevSettings;
+        }
 
-      // Update local state immediately
-      const updatedSettings = { ...settings, [field]: value };
-      setSettings(updatedSettings);
+        // Update local state immediately
+        return { ...prevSettings, [field]: value };
+      });
 
       // Only set hasUnsavedChanges if not silent
       if (!silent) {
@@ -270,7 +272,7 @@ export const useFreeChatSettingsApi = (userId: string) => {
         }, debounceTime);
       }
     },
-    [settings, saveToAPI],
+    [saveToAPI], // ✅ FIX: Removed 'settings' dependency to prevent infinite loop
   );
 
   // Cleanup auto-save timer on unmount
