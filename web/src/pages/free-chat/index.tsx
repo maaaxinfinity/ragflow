@@ -51,25 +51,8 @@ function FreeChatContent() {
   const { data: tenantInfo, loading: tenantInfoLoading } = useFetchTenantInfo();
 
   // Fetch current logged-in user info (for right-bottom user card display)
-  // NOTE: Don't send Authorization header - let it use session cookie to get current user
-  const { data: currentLoginUser } = useQuery({
-    queryKey: ['currentLoginUser'],
-    queryFn: async () => {
-      const response = await fetch(`${api.user_info}`, {
-        credentials: 'include', // Use session cookie only
-      });
-
-      if (!response.ok) {
-        console.error('[currentLoginUser] Fetch failed:', response.status);
-        return {};
-      }
-
-      const data = await response.json();
-      console.log('[currentLoginUser] Response:', data);
-      console.log('[currentLoginUser] Parsed data:', data?.data);
-      return data?.data ?? {};
-    },
-  });
+  // Use existing hook that handles authentication automatically
+  const { data: currentLoginUser } = useFetchUserInfo();
 
   // Fetch current user info with user_id parameter (for beta token mode)
   const { data: userInfo } = useQuery({
