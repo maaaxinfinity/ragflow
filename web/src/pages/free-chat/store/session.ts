@@ -320,9 +320,16 @@ export const useSessionStore = create<SessionStore>()(
             });
 
             const result = await response.json();
+            console.log('[Zustand] promoteToActive API response:', {
+              code: result.code,
+              message: result.message,
+              data: result.data,
+            });
 
             if (result.code !== 0) {
-              throw new Error(result.message || '创建对话失败');
+              const errorMsg = `API Error ${result.code}: ${result.message || '创建对话失败'}`;
+              console.error('[Zustand] promoteToActive API error:', errorMsg);
+              throw new Error(errorMsg);
             }
 
             const conversationId = result.data.id;
