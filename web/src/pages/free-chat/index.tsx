@@ -1,23 +1,30 @@
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import { useFreeChat } from './hooks/use-free-chat';
-import { ControlPanel } from './components/control-panel';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatInterface } from './chat-interface';
+import { ControlPanel } from './components/control-panel';
 import { SessionList } from './components/session-list';
 import { KBProvider } from './contexts/kb-context';
+import { useFreeChat } from './hooks/use-free-chat';
 import { useFreeChatUserId } from './hooks/use-free-chat-user-id';
-import { useFreeChatSettingsApi } from './hooks/use-free-chat-settings-api';
-import { Spin } from 'antd';
-import { Helmet, useSearchParams } from 'umi';
-import { useListTenantUser, useFetchTenantInfo } from '@/hooks/user-setting-hooks';
-import { useFetchDialogList } from '@/hooks/use-chat-request';
-import chatService from '@/services/next-chat-service';
-import { RAGFlowAvatar } from '@/components/ragflow-avatar';
-import i18n from '@/locales/config';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/utils/api';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+// ✅ 迁移到 React Query Hooks
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { useFetchDialogList } from '@/hooks/use-chat-request';
+import {
+  useFetchTenantInfo,
+  useListTenantUser,
+} from '@/hooks/user-setting-hooks';
+import i18n from '@/locales/config';
+import chatService from '@/services/next-chat-service';
+import api from '@/utils/api';
+import { useQuery } from '@tanstack/react-query';
+import { Spin } from 'antd';
 import { Settings2 } from 'lucide-react';
+import { Helmet, useSearchParams } from 'umi';
+import {
+  useFreeChatSettings,
+  useManualSaveSettings,
+  useUpdateSettingsField,
+} from './hooks/use-free-chat-settings-query';
 
 // BUG FIX: Separate component to use hooks inside KBProvider
 function FreeChatContent() {
@@ -26,14 +33,19 @@ function FreeChatContent() {
   const [searchParams] = useSearchParams();
   // Mobile control panel state
   const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
+
+  // ✅ 使用新的 React Query Hooks
   const {
-    settings,
-    loading: settingsLoading,
-    saving: settingsSaving,
-    hasUnsavedChanges,
-    updateField,
+    data: settings,
+    isLoading: settingsLoading,
+    error: settingsError,
+  } = useFreeChatSettings(userId);
+  const updateField = useUpdateSettingsField(userId);
+  const {
     manualSave,
-  } = useFreeChatSettingsApi(userId);
+    isSaving: settingsSaving,
+    hasUnsavedChanges,
+  } = useManualSaveSettings(userId);
 
   // Fetch tenant info (required for team queries)
   const { data: tenantInfo, loading: tenantInfoLoading } = useFetchTenantInfo();
@@ -47,7 +59,7 @@ function FreeChatContent() {
       console.log('[UserInfo] Fetching from:', url);
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${searchParams.get('auth')}` || '',
+          Authorization: `Bearer ${searchParams.get('auth')}` || '',
         },
       });
       const data = await response.json();
@@ -69,27 +81,35 @@ function FreeChatContent() {
     if (languageParam) {
       // Map URL parameter to i18n language code
       const languageMap: Record<string, string> = {
-        'zhcn': 'zh',
-        'zhtw': 'zh-TRADITIONAL',
-        'en': 'en',
+        zhcn: 'zh',
+        zhtw: 'zh-TRADITIONAL',
+        en: 'en',
       };
-      const language = languageMap[languageParam.toLowerCase()] || languageParam;
+      const language =
+        languageMap[languageParam.toLowerCase()] || languageParam;
       i18n.changeLanguage(language);
     }
   }, [searchParams]);
 
   // Find current user info from tenant users
-  const currentUserInfo = Array.isArray(tenantUsers) ? tenantUsers.find(user => user.user_id === userId) : undefined;
+  const currentUserInfo = Array.isArray(tenantUsers)
+    ? tenantUsers.find((user) => user.user_id === userId)
+    : undefined;
 
   // Find current dialog by dialogId
   const currentDialog = useMemo(() => {
-    return dialogData?.dialogs?.find(d => d.id === dialogId);
+    return dialogData?.dialogs?.find((d) => d.id === dialogId);
   }, [dialogData, dialogId]);
 
   // Calculate user avatar and nickname
   // Priority: userInfo (from /user/info?user_id=xxx) > currentUserInfo (from tenant users list)
   const userAvatar = userInfo?.avatar || currentUserInfo?.avatar;
-  const userNickname = userInfo?.nickname || userInfo?.email || currentUserInfo?.nickname || currentUserInfo?.email || 'User';
+  const userNickname =
+    userInfo?.nickname ||
+    userInfo?.email ||
+    currentUserInfo?.nickname ||
+    currentUserInfo?.email ||
+    'User';
   const dialogAvatar = currentDialog?.icon; // Use dialog icon if set, otherwise MessageItem will show default AssistantIcon
 
   // Determine which team info to display
@@ -170,7 +190,15 @@ function FreeChatContent() {
       }
       setHasSetInitialDialogId(true);
     }
-  }, [searchParams, dialogId, setDialogId, userId, settings, updateField, hasSetInitialDialogId]);
+  }, [
+    searchParams,
+    dialogId,
+    setDialogId,
+    userId,
+    settings,
+    updateField,
+    hasSetInitialDialogId,
+  ]);
 
   // Load conversation from URL parameter if present
   useEffect(() => {
@@ -182,7 +210,9 @@ function FreeChatContent() {
     }
 
     // Check if session with this conversation_id already exists (use ref for latest value)
-    const existingSession = sessionsRef.current.find(s => s.conversation_id === conversationId);
+    const existingSession = sessionsRef.current.find(
+      (s) => s.conversation_id === conversationId,
+    );
     if (existingSession) {
       // Switch to existing session
       switchSession(existingSession.id);
@@ -196,7 +226,7 @@ function FreeChatContent() {
       try {
         const { data } = await chatService.getConversation(
           { params: { conversation_id: conversationId } },
-          true
+          true,
         );
 
         // Check if this effect was cancelled (e.g., conversation_id changed)
@@ -206,7 +236,9 @@ function FreeChatContent() {
           const conversation = data.data;
 
           // Create new session with conversation data
-          const newSession = createSession(conversation.name || 'Chat from conversation');
+          const newSession = createSession(
+            conversation.name || 'Chat from conversation',
+          );
 
           // Update session with conversation_id and messages
           if (newSession && conversation.message) {
@@ -231,7 +263,13 @@ function FreeChatContent() {
     return () => {
       isCancelled = true;
     };
-  }, [searchParams, loadedConversationId, switchSession, createSession, updateSession]);
+  }, [
+    searchParams,
+    loadedConversationId,
+    switchSession,
+    createSession,
+    updateSession,
+  ]);
 
   const handleNewSession = useCallback(() => {
     createSession();
@@ -239,7 +277,12 @@ function FreeChatContent() {
 
   const handleSessionRename = useCallback(
     (sessionId: string, newName: string) => {
-      console.log('[SessionRename] Renaming session:', sessionId, 'to:', newName);
+      console.log(
+        '[SessionRename] Renaming session:',
+        sessionId,
+        'to:',
+        newName,
+      );
       // Update the session locally (this will trigger handleSessionsChange via onSessionsChange)
       updateSession(sessionId, { name: newName });
 
@@ -301,7 +344,9 @@ function FreeChatContent() {
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
           <p className="text-lg font-semibold mb-2">Access Denied</p>
-          <p className="text-muted-foreground">This page requires a user_id parameter to access.</p>
+          <p className="text-muted-foreground">
+            This page requires a user_id parameter to access.
+          </p>
         </div>
       </div>
     );
@@ -398,13 +443,15 @@ function FreeChatContent() {
 
 export default function FreeChat() {
   const userId = useFreeChatUserId();
-  const { settings, updateField } = useFreeChatSettingsApi(userId);
+  // ✅ 使用新的 React Query Hooks（外层组件不需要完整的 settings）
+  // 只在 FreeChatContent 中使用完整的 settings
 
   // Apply 京华老宋体 font
   useEffect(() => {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = 'https://chinese-fonts-cdn.deno.dev/packages/jhlst/dist/%E4%BA%AC%E8%8F%AF%E8%80%81%E5%AE%8B%E4%BD%93v1_007/result.css';
+    link.href =
+      'https://chinese-fonts-cdn.deno.dev/packages/jhlst/dist/%E4%BA%AC%E8%8F%AF%E8%80%81%E5%AE%8B%E4%BD%93v1_007/result.css';
     document.head.appendChild(link);
 
     // Apply font to body

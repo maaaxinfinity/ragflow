@@ -26,6 +26,17 @@ from api.db.db_models import APIToken
 from api.db import UserTenantRole, StatusEnum
 from api import settings
 from rag.utils.redis_conn import REDIS_CONN
+# ✅ 导入新的异常处理和分布式锁
+from api.exceptions.free_chat_exceptions import (
+    FreeChatError,
+    SettingsNotFoundError,
+    UnauthorizedAccessError,
+    InvalidSettingsError,
+    DatabaseError,
+    CacheError,
+    LockTimeoutError
+)
+from api.utils.redis_lock import redis_lock
 from datetime import datetime
 import json
 import logging
@@ -33,6 +44,16 @@ import os
 
 # Blueprint for free chat settings and sessions
 manager = Blueprint('free_chat', __name__)
+
+# ✅ 注册统一异常处理器
+@manager.errorhandler(FreeChatError)
+def handle_freechat_error(error: FreeChatError):
+    """统一处理 FreeChat 异常"""
+    logging.error(f"[FreeChat] {error.error_code}: {error.message}")
+    return get_data_error_result(
+        message=error.message,
+        code=error.status_code
+    ), error.status_code
 
 # Redis key prefix for sessions cache
 REDIS_SESSION_KEY_PREFIX = "freechat:sessions:"
@@ -179,72 +200,88 @@ def get_user_settings(**kwargs):
 @validate_request("user_id")
 def save_user_settings(**kwargs):
     """Save/update free chat settings for a user (team access required)"""
+    req = request.json
+    user_id = req.get("user_id")
+    
+    # ✅ 参数验证
+    if not user_id:
+        raise InvalidSettingsError("user_id is required")
+
+    # Get tenant_id based on authentication method
+    auth_method = kwargs.get("auth_method")
+    if auth_method == "api_key":
+        # API key authentication - tenant_id provided by decorator
+        current_tenant_id = kwargs.get("tenant_id")
+    else:
+        # Session authentication - get tenant from current_user
+        tenants = UserTenantService.query(user_id=current_user.id)
+        if not tenants:
+            raise UnauthorizedAccessError("User not associated with any tenant")
+        current_tenant_id = tenants[0].tenant_id
+
+    # Verify team access
+    is_authorized, error_msg = verify_team_access(user_id, current_tenant_id)
+    if not is_authorized:
+        raise UnauthorizedAccessError(error_msg)
+
+    # Extract settings
+    data = {
+        "dialog_id": req.get("dialog_id", ""),
+        "model_params": req.get("model_params", {}),
+        "kb_ids": req.get("kb_ids", []),
+        "role_prompt": req.get("role_prompt", ""),
+        "sessions": req.get("sessions", [])
+    }
+    logging.info(f"[FreeChat] Received save request for user {user_id}, sessions count: {len(data['sessions'])}")
+    if data['sessions']:
+        logging.info(f"[FreeChat] First session: id={data['sessions'][0].get('id')}, name={data['sessions'][0].get('name')}")
+
+    # Verify dialog belongs to current tenant if provided
+    if data["dialog_id"]:
+        dialog = DialogService.query(id=data["dialog_id"], tenant_id=current_tenant_id)
+        if not dialog:
+            raise UnauthorizedAccessError("Selected dialog does not belong to your team")
+
+    # ✅ 使用分布式锁防止并发冲突
+    lock_key = f"freechat_settings:{user_id}"
     try:
-        req = request.json
-        user_id = req.get("user_id")
+        with redis_lock(lock_key, timeout=5, blocking_timeout=3):
+            # Step 1: Save sessions to Redis immediately (fast response)
+            sessions = data.get("sessions", [])
+            try:
+                save_sessions_to_redis(user_id, sessions)
+                logging.info(f"[FreeChat] Saved sessions to Redis for user {user_id}")
+            except Exception as e:
+                raise CacheError(f"Failed to save sessions to Redis: {str(e)}")
 
-        # Get tenant_id based on authentication method
-        auth_method = kwargs.get("auth_method")
-        if auth_method == "api_key":
-            # API key authentication - tenant_id provided by decorator
-            current_tenant_id = kwargs.get("tenant_id")
-        else:
-            # Session authentication - get tenant from current_user
-            tenants = UserTenantService.query(user_id=current_user.id)
-            if not tenants:
-                return get_data_error_result(message="User not associated with any tenant")
-            current_tenant_id = tenants[0].tenant_id
-
-        # Verify team access
-        is_authorized, error_msg = verify_team_access(user_id, current_tenant_id)
-        if not is_authorized:
-            return get_data_error_result(
-                message=error_msg,
-                code=settings.RetCode.AUTHENTICATION_ERROR
-            )
-
-        # Extract settings
-        data = {
-            "dialog_id": req.get("dialog_id", ""),
-            "model_params": req.get("model_params", {}),
-            "kb_ids": req.get("kb_ids", []),
-            "role_prompt": req.get("role_prompt", ""),
-            "sessions": req.get("sessions", [])
-        }
-        logging.info(f"[FreeChat] Received save request for user {user_id}, sessions count: {len(data['sessions'])}")
-        if data['sessions']:
-            logging.info(f"[FreeChat] First session: id={data['sessions'][0].get('id')}, name={data['sessions'][0].get('name')}")
-
-        # Verify dialog belongs to current tenant if provided
-        if data["dialog_id"]:
-            dialog = DialogService.query(id=data["dialog_id"], tenant_id=current_tenant_id)
-            if not dialog:
-                return get_data_error_result(
-                    message="Selected dialog does not belong to your team",
-                    code=settings.RetCode.AUTHENTICATION_ERROR
-                )
-
-        # Step 1: Save sessions to Redis immediately (fast response)
-        sessions = data.get("sessions", [])
-        save_sessions_to_redis(user_id, sessions)
-        logging.info(f"[FreeChat] Saved sessions to Redis for user {user_id}")
-
-        # Step 2: Persist to MySQL (guaranteed durability)
-        success, result = FreeChatUserSettingsService.upsert(user_id, **data)
-        if success:
-            logging.info(f"[FreeChat] Persisted settings to MySQL for user {user_id}")
-            result_dict = result.to_dict()
-            logging.info(f"[FreeChat] Returning data: sessions count = {len(result_dict.get('sessions', []))}")
-            if result_dict.get('sessions'):
-                logging.info(f"[FreeChat] First session name: {result_dict['sessions'][0].get('name', 'N/A')}")
-            return get_json_result(data=result_dict)
-        else:
-            # MySQL save failed, invalidate Redis cache to prevent inconsistency
-            invalidate_sessions_cache(user_id)
-            logging.error(f"[FreeChat] MySQL save failed, invalidated Redis cache for user {user_id}")
-            return get_data_error_result(message=f"Failed to save settings: {result}")
+            # Step 2: Persist to MySQL (guaranteed durability)
+            try:
+                success, result = FreeChatUserSettingsService.upsert(user_id, **data)
+            except Exception as e:
+                raise DatabaseError(f"Failed to persist settings to MySQL: {str(e)}")
+            
+            if success:
+                logging.info(f"[FreeChat] Persisted settings to MySQL for user {user_id}")
+                result_dict = result.to_dict()
+                logging.info(f"[FreeChat] Returning data: sessions count = {len(result_dict.get('sessions', []))}")
+                if result_dict.get('sessions'):
+                    logging.info(f"[FreeChat] First session name: {result_dict['sessions'][0].get('name', 'N/A')}")
+                return get_json_result(data=result_dict)
+            else:
+                # MySQL save failed, invalidate Redis cache to prevent inconsistency
+                invalidate_sessions_cache(user_id)
+                logging.error(f"[FreeChat] MySQL save failed, invalidated Redis cache for user {user_id}")
+                raise DatabaseError(f"Failed to save settings: {result}")
+    
+    except LockTimeoutError:
+        logging.warning(f"[FreeChat] Lock timeout for user {user_id}, another save is in progress")
+        raise
+    except (CacheError, DatabaseError, UnauthorizedAccessError, InvalidSettingsError):
+        # Re-raise our custom exceptions
+        raise
     except Exception as e:
-        return server_error_response(e)
+        logging.error(f"[FreeChat] Unexpected error saving settings: {e}")
+        raise FreeChatError(f"Unexpected error: {str(e)}")
 
 
 @manager.route("/settings/<user_id>", methods=["DELETE"])  # noqa: F821
