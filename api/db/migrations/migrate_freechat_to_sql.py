@@ -23,6 +23,7 @@
 
 import sys
 import logging
+import uuid
 from pathlib import Path
 
 # 添加项目根目录到 Python 路径
@@ -124,8 +125,16 @@ def migrate_one_user(user_id: str, sessions_json: list) -> tuple[int, int]:
             if messages:
                 message_objs = []
                 for seq, msg in enumerate(messages):
+                    # 获取消息ID，如果不存在或长度不足32，则生成新的
+                    msg_id = msg.get('id', '')
+                    if not msg_id or len(msg_id) < 32:
+                        # 生成新的UUID
+                        msg_id = str(uuid.uuid4()).replace('-', '')
+                        old_id = msg.get('id', 'none')
+                        logger.warning(f"[{user_id}] Invalid message ID '{old_id}' (len={len(old_id) if old_id else 0}), generated new: {msg_id}")
+                    
                     message_obj = {
-                        'id': msg.get('id', f"{session_id}_{seq}"),
+                        'id': msg_id,
                         'session_id': session_id,
                         'role': msg.get('role', 'user'),
                         'content': msg.get('content', ''),
