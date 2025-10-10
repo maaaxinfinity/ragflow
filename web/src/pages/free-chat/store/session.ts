@@ -28,8 +28,9 @@ export interface IFreeChatSession {
   messages: Message[];
   created_at: number;
   updated_at: number;
-  state?: 'draft' | 'active'; // draft = temporary local only, active = persisted to backend
+  state?: 'draft' | 'promoting' | 'active' | 'error'; // ✅ Added 'promoting' and 'error' states
   is_favorited?: boolean; // favorite status (only for active sessions)
+  promotionError?: Error; // ✅ Store promotion errors
   params?: {
     temperature?: number;
     top_p?: number;
@@ -69,6 +70,14 @@ interface SessionActions {
   // Draft management (CRITICAL: Each model card has ONE and ONLY ONE permanent draft)
   getOrCreateDraftForCard: (model_card_id: number) => IFreeChatSession;
   resetDraft: (draftId: string) => void;
+
+  // ✅ Draft promotion (replaces XState machine)
+  promoteToActive: (
+    sessionId: string,
+    message: Message,
+    dialogId: string,
+  ) => Promise<string>; // Returns conversation_id
+  retryPromotion: (sessionId: string) => Promise<string>;
 
   // Advanced operations
   duplicateSession: (id: string, newName?: string) => IFreeChatSession | null;
@@ -263,6 +272,115 @@ export const useSessionStore = create<SessionStore>()(
             false,
             'resetDraft',
           ),
+
+        // ✅ NEW: Draft promotion (replaces XState machine)
+        promoteToActive: async (sessionId, message, dialogId) => {
+          const session = get().sessions.find((s) => s.id === sessionId);
+          if (!session || !session.model_card_id) {
+            throw new Error('Session not found or missing model_card_id');
+          }
+
+          console.log('[Zustand] promoteToActive START:', {
+            sessionId,
+            dialogId,
+            modelCardId: session.model_card_id,
+          });
+
+          // Set promoting state
+          set(
+            (state) => {
+              const s = state.sessions.find((s) => s.id === sessionId);
+              if (s) {
+                s.state = 'promoting';
+                s.promotionError = undefined;
+              }
+            },
+            false,
+            'promoteToActive:start',
+          );
+
+          try {
+            // Call backend API
+            const response = await fetch('/v1/conversation/set', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                dialog_id: dialogId,
+                name: message.content.slice(0, 50),
+                is_new: true,
+                model_card_id: session.model_card_id,
+                message: [{ role: 'assistant', content: '' }],
+              }),
+            });
+
+            const result = await response.json();
+
+            if (result.code !== 0) {
+              throw new Error(result.message || '创建对话失败');
+            }
+
+            const conversationId = result.data.id;
+            console.log('[Zustand] promoteToActive SUCCESS:', conversationId);
+
+            // Update to active state
+            set(
+              (state) => {
+                const s = state.sessions.find((s) => s.id === sessionId);
+                if (s) {
+                  s.state = 'active';
+                  s.conversation_id = conversationId;
+                  s.name = message.content.slice(0, 50);
+                  s.updated_at = Date.now();
+                }
+              },
+              false,
+              'promoteToActive:success',
+            );
+
+            return conversationId;
+          } catch (error) {
+            console.error('[Zustand] promoteToActive FAILED:', error);
+
+            // Set error state
+            set(
+              (state) => {
+                const s = state.sessions.find((s) => s.id === sessionId);
+                if (s) {
+                  s.state = 'error';
+                  s.promotionError = error as Error;
+                }
+              },
+              false,
+              'promoteToActive:error',
+            );
+
+            throw error;
+          }
+        },
+
+        retryPromotion: async (sessionId) => {
+          const session = get().sessions.find((s) => s.id === sessionId);
+          if (!session || !session.messages[0]) {
+            throw new Error('Cannot retry: no session or message found');
+          }
+          // Reset to draft and clear error
+          set(
+            (state) => {
+              const s = state.sessions.find((s) => s.id === sessionId);
+              if (s) {
+                s.state = 'draft';
+                s.promotionError = undefined;
+              }
+            },
+            false,
+            'retryPromotion',
+          );
+
+          throw new Error(
+            'retryPromotion: Please call promoteToActive again with message and dialogId',
+          );
+        },
 
         duplicateSession: (id, newName) => {
           const originalSession = get().sessions.find((s) => s.id === id);
