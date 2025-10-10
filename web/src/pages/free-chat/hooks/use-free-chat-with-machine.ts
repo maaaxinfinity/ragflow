@@ -95,10 +95,10 @@ export const useFreeChatWithMachine = (
   const { isDraft, isPromoting, isActive, promoteToActive, promotionError } =
     useSessionMachine({
       sessionId: currentSessionId,
-      onPromotionSuccess: (conversationId) => {
+      onPromotionSuccess: async (conversationId) => {
         console.log('[useSessionMachine] Promotion succeeded:', conversationId);
 
-        // ✅ FIX: Send the pending message after promotion succeeds
+        // ✅ FIX: Send the pending message directly using the returned conversationId
         if (pendingMessageRef.current) {
           console.log(
             '[useSessionMachine] Sending pending message after promotion',
@@ -106,10 +106,41 @@ export const useFreeChatWithMachine = (
           const pendingMessage = pendingMessageRef.current;
           pendingMessageRef.current = null; // Clear pending message
 
-          // Re-trigger sendMessage with the pending message
-          setTimeout(() => {
-            sendMessage(pendingMessage);
-          }, 100); // Small delay to ensure state is updated
+          // Get session from store to get model_card_id
+          const session = currentSessionRef.current;
+          if (!session || !session.model_card_id) {
+            console.error(
+              '[useSessionMachine] Session or model_card_id missing after promotion',
+            );
+            return;
+          }
+
+          // Send message directly using the conversationId we just got
+          const baseParams = session.params || {};
+          const kbIdsArray = Array.from(enabledKBs);
+
+          const requestBody = {
+            conversation_id: conversationId, // ✅ Use the new conversationId directly!
+            messages: [...derivedMessages, pendingMessage],
+            model_card_id: session.model_card_id,
+            kb_ids: kbIdsArray,
+            ...(baseParams.temperature !== undefined && {
+              temperature: baseParams.temperature,
+            }),
+            ...(baseParams.top_p !== undefined && { top_p: baseParams.top_p }),
+          };
+
+          console.log('[useSessionMachine] Sending to LLM:', {
+            conversationId,
+            messageCount: requestBody.messages.length,
+          });
+
+          const res = await send(requestBody, controller);
+
+          if (res && (res?.response.status !== 200 || res?.data?.code !== 0)) {
+            setValue(pendingMessage.content);
+            removeLatestMessage();
+          }
         }
       },
       onPromotionFailure: (error) => {
