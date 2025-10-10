@@ -53,36 +53,51 @@ export function useSessionMachine(props: UseSessionMachineProps) {
   const promoteDraftService = useCallback(async ({ input }: any) => {
     const { message, dialogId, modelCardId } = input;
 
-    console.log('[promoteDraftService] Creating conversation:', {
+    console.log('[promoteDraftService] START - Creating conversation:', {
       dialogId,
       modelCardId,
       messageSample: message.content.slice(0, 30),
     });
 
-    const response = await fetch('/v1/conversation/set', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        dialog_id: dialogId,
-        name: message.content.slice(0, 50),
-        is_new: true,
-        model_card_id: modelCardId,
-        message: [{ role: 'assistant', content: '' }],
-      }),
-    });
+    try {
+      const response = await fetch('/v1/conversation/set', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          dialog_id: dialogId,
+          name: message.content.slice(0, 50),
+          is_new: true,
+          model_card_id: modelCardId,
+          message: [{ role: 'assistant', content: '' }],
+        }),
+      });
 
-    const result = await response.json();
+      console.log('[promoteDraftService] Response status:', response.status);
 
-    if (result.code !== 0) {
-      throw new Error(result.message || '创建对话失败');
+      const result = await response.json();
+
+      console.log('[promoteDraftService] Response data:', result);
+
+      if (result.code !== 0) {
+        console.error('[promoteDraftService] FAILED:', result.message);
+        throw new Error(result.message || '创建对话失败');
+      }
+
+      console.log(
+        '[promoteDraftService] SUCCESS - conversation_id:',
+        result.data.id,
+      );
+
+      return {
+        conversationId: result.data.id,
+      };
+    } catch (error) {
+      console.error('[promoteDraftService] ERROR:', error);
+      throw error;
     }
-
-    return {
-      conversationId: result.data.id,
-    };
   }, []);
 
   // ✅ BEST PRACTICE: Use useMachine with injected services
@@ -99,16 +114,26 @@ export function useSessionMachine(props: UseSessionMachineProps) {
 
   // ✅ Initialize machine based on session state
   useEffect(() => {
-    if (!session || !state.matches('idle')) return;
+    if (!session) return;
+
+    // Only initialize if in idle state
+    if (!state.matches('idle')) return;
+
+    console.log(
+      '[useSessionMachine] Initializing machine for session:',
+      sessionId,
+    );
 
     if (session.conversation_id) {
       // Active session
+      console.log('[useSessionMachine] → INIT_ACTIVE');
       send({ type: 'INIT_ACTIVE', sessionId: session.id });
     } else {
       // Draft session
+      console.log('[useSessionMachine] → INIT_DRAFT');
       send({ type: 'INIT_DRAFT', sessionId: session.id });
     }
-  }, [session, send, state]);
+  }, [sessionId, session?.conversation_id, send]); // ✅ Fixed: only re-init when sessionId or conversation_id changes
 
   // ✅ BEST PRACTICE: Update Zustand store on promotion success
   // ✅ 优化：使用精确的依赖项（state.value 和 state.context.xxx）
@@ -212,6 +237,25 @@ export function useSessionMachine(props: UseSessionMachineProps) {
   const isActive = state.matches('active');
   const isDeleted = state.matches('deleted');
   const canSendMessages = canAcceptMessages(state);
+
+  // Debug: log state changes
+  useEffect(() => {
+    console.log('[useSessionMachine] State changed:', {
+      sessionId,
+      currentState,
+      isDraft,
+      isPromoting,
+      isActive,
+      conversationId: state.context.pendingConversationId,
+    });
+  }, [
+    sessionId,
+    currentState,
+    isDraft,
+    isPromoting,
+    isActive,
+    state.context.pendingConversationId,
+  ]);
 
   // ✅ Return minimal interface - data comes from Zustand, not machine
   return {
