@@ -50,7 +50,7 @@ export function useSessionMachine(props: UseSessionMachineProps) {
   );
 
   // ✅ BEST PRACTICE: Inject service implementation
-  const promoteDraftService = useCallback(async ({ input }: any) => {
+  const promoteDraftService = useCallback(async ({ input }: { input: any }) => {
     console.log('[promoteDraftService] INVOKED! Raw input:', input);
 
     const { message, dialogId, modelCardId } = input;
@@ -109,8 +109,11 @@ export function useSessionMachine(props: UseSessionMachineProps) {
       sessionId,
     },
     actors: {
-      // Inject service implementation
-      promoteDraftToActive: fromPromise(promoteDraftService),
+      // ✅ FIX: Proper fromPromise wrapping with explicit typing
+      promoteDraftToActive: fromPromise<
+        { conversationId: string },
+        { message: any; dialogId: string; modelCardId: number }
+      >(promoteDraftService),
     },
   });
 
@@ -192,6 +195,16 @@ export function useSessionMachine(props: UseSessionMachineProps) {
     state.context.promotionError, // ✅ 精确依赖
     onPromotionFailure,
   ]);
+
+  // 🔧 DEBUG: Log actor state to understand why invoke isn't firing
+  useEffect(() => {
+    console.log('[useSessionMachine] State changed:', {
+      value: state.value,
+      matches_promoting: state.matches('promoting'),
+      matches_creating: state.matches('promoting.creatingConversation'),
+      context: state.context,
+    });
+  }, [state.value, state.context]);
 
   // ========== Actions (Simplified) ==========
 

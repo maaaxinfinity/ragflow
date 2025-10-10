@@ -61,18 +61,18 @@ export type SessionEvent =
 
 export interface SessionTypeState {
   states: {
-    idle: {};
-    draft: {};
+    idle: Record<string, never>;
+    draft: Record<string, never>;
     promoting: {
       states: {
-        creatingConversation: {};
-        updatingSession: {};
-        success: {};
-        failure: {};
+        creatingConversation: Record<string, never>;
+        updatingSession: Record<string, never>;
+        success: Record<string, never>;
+        failure: Record<string, never>;
       };
     };
-    active: {};
-    deleted: {};
+    active: Record<string, never>;
+    deleted: Record<string, never>;
   };
 }
 
@@ -233,8 +233,14 @@ export const sessionMachine = createMachine(
               id: 'createConversation',
               // ✅ Service name reference (injected at runtime)
               src: 'promoteDraftToActive',
-              // ✅ CRITICAL FIX: Read from context (stored by startPromotion action)
+              // ✅ CRITICAL FIX: Ensure input returns valid object even if context is undefined
               input: ({ context }: any) => {
+                const inputData = {
+                  message: context.pendingMessage,
+                  dialogId: context.pendingDialogId,
+                  modelCardId: context.pendingModelCardId,
+                };
+
                 console.log(
                   '[StateMachine] Creating invoke input from context:',
                   {
@@ -244,13 +250,23 @@ export const sessionMachine = createMachine(
                     ),
                     pendingDialogId: context.pendingDialogId,
                     pendingModelCardId: context.pendingModelCardId,
+                    inputData,
                   },
                 );
-                return {
-                  message: context.pendingMessage,
-                  dialogId: context.pendingDialogId,
-                  modelCardId: context.pendingModelCardId, // ✅ Fixed: read from context
-                };
+
+                // ✅ Validate that all required fields exist
+                if (
+                  !inputData.message ||
+                  !inputData.dialogId ||
+                  !inputData.modelCardId
+                ) {
+                  console.error(
+                    '[StateMachine] Invalid input data:',
+                    inputData,
+                  );
+                }
+
+                return inputData;
               },
               onDone: {
                 target: 'success',
