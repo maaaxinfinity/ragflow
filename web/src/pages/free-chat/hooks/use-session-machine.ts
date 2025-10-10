@@ -54,7 +54,7 @@ export function useSessionMachine(props: UseSessionMachineProps) {
 
   // Promotion action wrapper
   const promoteToActive = useMemo(
-    () => async (message: Message, dialogId: string) => {
+    () => async (message: Message, dialogId: string, userId?: string) => {
       if (!session) {
         console.error('[useSessionMachine] No session found');
         return;
@@ -64,12 +64,14 @@ export function useSessionMachine(props: UseSessionMachineProps) {
         console.log('[useSessionMachine] Promoting draft to active:', {
           sessionId,
           dialogId,
+          userId,
         });
 
         const conversationId = await promoteToActiveStore(
           sessionId,
           message,
           dialogId,
+          userId,
         );
 
         console.log('[useSessionMachine] Promotion success:', conversationId);

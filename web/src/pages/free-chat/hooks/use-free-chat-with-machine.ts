@@ -266,7 +266,7 @@ export const useFreeChatWithMachine = (
 
         // ✅ Trigger promotion
         // onPromotionSuccess will re-send the message after conversation is created
-        promoteToActive(message, dialogId, session.model_card_id);
+        promoteToActive(message, dialogId, session.model_card_id, userId);
 
         // DON'T send message yet - wait for promotion to complete
         // User will see loading indicator (driven by isPromoting state)

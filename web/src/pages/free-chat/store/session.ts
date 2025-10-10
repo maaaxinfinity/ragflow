@@ -78,6 +78,7 @@ interface SessionActions {
     sessionId: string,
     message: Message,
     dialogId: string,
+    userId?: string,
   ) => Promise<string>; // Returns conversation_id
   retryPromotion: (sessionId: string) => Promise<string>;
 
@@ -276,7 +277,7 @@ export const useSessionStore = create<SessionStore>()(
           ),
 
         // ✅ NEW: Draft promotion (replaces XState machine)
-        promoteToActive: async (sessionId, message, dialogId) => {
+        promoteToActive: async (sessionId, message, dialogId, userId) => {
           const session = get().sessions.find((s) => s.id === sessionId);
           if (!session || !session.model_card_id) {
             throw new Error('Session not found or missing model_card_id');
@@ -286,6 +287,7 @@ export const useSessionStore = create<SessionStore>()(
             sessionId,
             dialogId,
             modelCardId: session.model_card_id,
+            userId,
           });
 
           // Set promoting state
@@ -306,6 +308,20 @@ export const useSessionStore = create<SessionStore>()(
             const conversationId = uuid();
 
             // Call backend API with authentication
+            const requestBody: any = {
+              conversation_id: conversationId, // ✅ FIX: Backend requires this even for is_new=true
+              dialog_id: dialogId,
+              name: message.content.slice(0, 50),
+              is_new: true,
+              model_card_id: session.model_card_id,
+              message: [{ role: 'assistant', content: '' }],
+            };
+
+            // ✅ FIX: Add user_id for API key authentication
+            if (userId) {
+              requestBody.user_id = userId;
+            }
+
             const response = await fetch('/v1/conversation/set', {
               method: 'POST',
               headers: {
@@ -313,14 +329,7 @@ export const useSessionStore = create<SessionStore>()(
                 'Content-Type': 'application/json',
               },
               credentials: 'include',
-              body: JSON.stringify({
-                conversation_id: conversationId, // ✅ FIX: Backend requires this even for is_new=true
-                dialog_id: dialogId,
-                name: message.content.slice(0, 50),
-                is_new: true,
-                model_card_id: session.model_card_id,
-                message: [{ role: 'assistant', content: '' }],
-              }),
+              body: JSON.stringify(requestBody),
             });
 
             const result = await response.json();
