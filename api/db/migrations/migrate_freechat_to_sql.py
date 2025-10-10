@@ -145,12 +145,38 @@ def migrate_one_user(user_id: str, sessions_json: list) -> tuple[int, int]:
                     message_objs.append(message_obj)
 
                 if message_objs:
+                    # 批量创建消息，如果遇到重复则逐条创建（跳过重复）
                     success, error_msg = FreeChatMessageService.batch_create_messages(message_objs)
                     if success:
                         messages_count += len(message_objs)
                         logger.info(f"[{user_id}] Created {len(message_objs)} messages for session {session_id}")
                     else:
-                        logger.error(f"[{user_id}] Failed to create messages for session {session_id}: {error_msg}")
+                        # 批量创建失败（可能是重复ID），改为逐条创建
+                        if "Duplicate entry" in error_msg:
+                            logger.warning(f"[{user_id}] Batch insert failed due to duplicate IDs, trying one-by-one...")
+                            success_count = 0
+                            for msg_obj in message_objs:
+                                try:
+                                    # 检查是否已存在
+                                    exists, _ = FreeChatMessageService.get_by_id(msg_obj['id'])
+                                    if exists:
+                                        # ID已存在，生成新ID
+                                        old_id = msg_obj['id']
+                                        msg_obj['id'] = str(uuid.uuid4()).replace('-', '')
+                                        logger.warning(f"[{user_id}] Message ID conflict: {old_id} -> {msg_obj['id']}")
+                                    
+                                    success, err = FreeChatMessageService.create_message(**msg_obj)
+                                    if success:
+                                        success_count += 1
+                                    else:
+                                        logger.error(f"[{user_id}] Failed to create message {msg_obj['id']}: {err}")
+                                except Exception as e:
+                                    logger.error(f"[{user_id}] Exception creating message: {e}")
+                            
+                            messages_count += success_count
+                            logger.info(f"[{user_id}] Created {success_count}/{len(message_objs)} messages for session {session_id}")
+                        else:
+                            logger.error(f"[{user_id}] Failed to create messages for session {session_id}: {error_msg}")
 
     except Exception as e:
         logger.error(f"[{user_id}] Error migrating user data: {e}")
