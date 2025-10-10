@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
-import { IFreeChatSession } from './use-free-chat-session';
-import { DynamicModelParams } from '../types';
+import { Routes } from '@/routes';
 import api from '@/utils/api';
 import request from '@/utils/request';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { history } from 'umi';
+import { DynamicModelParams } from '../types';
 import { logError, logInfo } from '../utils/error-handler';
-import { Routes } from '@/routes';
+import { IFreeChatSession } from './use-free-chat-session';
 
 interface FreeChatSettings {
   user_id: string;
@@ -59,7 +59,10 @@ export const useFreeChatSettingsApi = (userId: string) => {
       console.log('[Load] Response data:', response.data);
 
       if (response.code === 0) {
-        console.log('[Load] Success! Sessions count:', response.data.sessions?.length);
+        console.log(
+          '[Load] Success! Sessions count:',
+          response.data.sessions?.length,
+        );
         setSettings(response.data);
         logInfo(`Loaded settings for user ${userId}`, 'useFreeChatSettingsApi');
       } else if (response.code === 102) {
@@ -79,7 +82,8 @@ export const useFreeChatSettingsApi = (userId: string) => {
       setError(null);
     } catch (e) {
       console.error('[Load] Exception:', e);
-      const errorMsg = e instanceof Error ? e.message : 'Failed to load settings';
+      const errorMsg =
+        e instanceof Error ? e.message : 'Failed to load settings';
       logError(errorMsg, 'useFreeChatSettingsApi.loadSettings');
       setError(errorMsg);
       // Use default settings on error
@@ -102,22 +106,58 @@ export const useFreeChatSettingsApi = (userId: string) => {
     try {
       setSaving(true);
       console.log('[Save] Saving settings for user:', userId);
-      console.log('[Save] Sessions count:', settings.sessions?.length);
+      console.log(
+        '[Save] Sessions count (before filter):',
+        settings.sessions?.length,
+      );
       console.log('[Save] Dialog ID:', settings.dialog_id);
-      console.log('[Save] Role prompt length:', settings.role_prompt?.length || 0);
+      console.log(
+        '[Save] Role prompt length:',
+        settings.role_prompt?.length || 0,
+      );
+
+      // Filter out draft sessions and strip messages from active sessions
+      const activeSessions = (settings.sessions || [])
+        .filter((session) => session.state === 'active') // Only save active sessions
+        .map((session) => ({
+          id: session.id,
+          conversation_id: session.conversation_id,
+          model_card_id: session.model_card_id,
+          name: session.name,
+          created_at: session.created_at,
+          updated_at: session.updated_at,
+          state: session.state,
+          is_favorited: session.is_favorited,
+          params: session.params,
+          // messages are intentionally excluded - they should be fetched from /v1/conversation/get
+        }));
+
+      console.log(
+        '[Save] Active sessions count (after filter):',
+        activeSessions.length,
+      );
 
       const { data: response } = await request(api.saveFreeChatSettings, {
         method: 'POST',
-        data: settings,
+        data: {
+          ...settings,
+          sessions: activeSessions, // Only save active sessions without messages
+        },
       });
 
       console.log('[Save] Response code:', response.code);
       console.log('[Save] Response message:', response.message);
 
       if (response.code === 0) {
-        console.log('[Save] Success! Returned sessions:', response.data.sessions?.length);
+        console.log(
+          '[Save] Success! Returned sessions:',
+          response.data.sessions?.length,
+        );
         if (response.data.sessions?.length > 0) {
-          console.log('[Save] First session name:', response.data.sessions[0].name);
+          console.log(
+            '[Save] First session name:',
+            response.data.sessions[0].name,
+          );
         }
         setSettings(response.data);
         setHasUnsavedChanges(false);
@@ -142,7 +182,8 @@ export const useFreeChatSettingsApi = (userId: string) => {
       }
     } catch (e) {
       console.error('[Save] Exception:', e);
-      const errorMsg = e instanceof Error ? e.message : 'Failed to save settings';
+      const errorMsg =
+        e instanceof Error ? e.message : 'Failed to save settings';
       logError(errorMsg, 'useFreeChatSettingsApi.saveToAPI');
       return false;
     } finally {
@@ -165,11 +206,20 @@ export const useFreeChatSettingsApi = (userId: string) => {
     <K extends keyof Omit<FreeChatSettings, 'user_id'>>(
       field: K,
       value: FreeChatSettings[K],
-      options?: { silent?: boolean; immediate?: boolean }
+      options?: { silent?: boolean; immediate?: boolean },
     ) => {
       const silent = options?.silent ?? false;
       const immediate = options?.immediate ?? false;
-      console.log('[UpdateField] Field:', field, 'Value:', field === 'sessions' ? `${(value as any[]).length} sessions` : value, 'Silent:', silent, 'Immediate:', immediate);
+      console.log(
+        '[UpdateField] Field:',
+        field,
+        'Value:',
+        field === 'sessions' ? `${(value as any[]).length} sessions` : value,
+        'Silent:',
+        silent,
+        'Immediate:',
+        immediate,
+      );
 
       if (!settings) {
         console.warn('[UpdateField] No settings, skipping');
@@ -183,9 +233,13 @@ export const useFreeChatSettingsApi = (userId: string) => {
       // Only set hasUnsavedChanges if not silent
       if (!silent) {
         setHasUnsavedChanges(true);
-        console.log('[UpdateField] Updated local state, hasUnsavedChanges=true');
+        console.log(
+          '[UpdateField] Updated local state, hasUnsavedChanges=true',
+        );
       } else {
-        console.log('[UpdateField] Updated local state (silent mode, no unsaved flag)');
+        console.log(
+          '[UpdateField] Updated local state (silent mode, no unsaved flag)',
+        );
       }
 
       // Clear existing timer
@@ -204,7 +258,11 @@ export const useFreeChatSettingsApi = (userId: string) => {
       } else {
         // Debounce time: shorter for sessions (5s), longer for settings (30s)
         const debounceTime = field === 'sessions' ? 5000 : 30000;
-        console.log('[UpdateField] Scheduling auto-save in', debounceTime, 'ms');
+        console.log(
+          '[UpdateField] Scheduling auto-save in',
+          debounceTime,
+          'ms',
+        );
 
         autoSaveTimerRef.current = setTimeout(() => {
           console.log('[UpdateField] Auto-save timer triggered');

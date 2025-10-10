@@ -71,6 +71,42 @@ def invalidate_sessions_cache(user_id: str):
         logging.error(f"[FreeChat] Redis delete failed for user {user_id}: {e}")
 
 
+def filter_active_sessions_metadata(sessions: list) -> list:
+    """
+    Filter sessions to only return active sessions with metadata.
+    
+    Architectural Decision:
+    - Draft sessions should only exist in frontend (localStorage/Zustand)
+    - Messages should be fetched from /v1/conversation/get API (not stored in settings)
+    - Settings API should only contain session metadata for data separation
+    
+    Args:
+        sessions: Raw sessions list (may contain drafts and messages)
+        
+    Returns:
+        List of active sessions with only metadata fields (messages excluded)
+    """
+    active_sessions = []
+    for session in sessions:
+        # Only return active sessions (skip drafts)
+        if session.get("state") == "active":
+            # Remove messages field - should be fetched from conversation API
+            filtered_session = {
+                "id": session.get("id"),
+                "conversation_id": session.get("conversation_id"),
+                "model_card_id": session.get("model_card_id"),
+                "name": session.get("name"),
+                "created_at": session.get("created_at"),
+                "updated_at": session.get("updated_at"),
+                "state": session.get("state"),
+                "is_favorited": session.get("is_favorited"),
+                "params": session.get("params")
+                # messages intentionally excluded
+            }
+            active_sessions.append(filtered_session)
+    return active_sessions
+
+
 def verify_team_access(user_id: str, current_tenant_id: str = None) -> tuple[bool, str]:
     """
     Verify if the user_id has access within the current team/tenant.
@@ -150,12 +186,18 @@ def get_user_settings(**kwargs):
             result = setting.to_dict()
             # Use cached sessions if available, otherwise use DB sessions
             if cached_sessions is not None:
-                result['sessions'] = cached_sessions
+                raw_sessions = cached_sessions
                 logging.info(f"[FreeChat] Loaded sessions from Redis cache for user {user_id}")
             else:
+                raw_sessions = result.get('sessions', [])
                 # Cache miss, cache the DB sessions to Redis
-                save_sessions_to_redis(user_id, result.get('sessions', []))
+                save_sessions_to_redis(user_id, raw_sessions)
                 logging.info(f"[FreeChat] Loaded sessions from MySQL for user {user_id}")
+            
+            # Filter sessions: only active sessions with metadata (no drafts, no messages)
+            active_sessions = filter_active_sessions_metadata(raw_sessions)
+            result['sessions'] = active_sessions
+            logging.info(f"[FreeChat] Returning {len(active_sessions)} active sessions (filtered from {len(raw_sessions)} total)")
             return get_json_result(data=result)
         else:
             # Return default settings
@@ -204,16 +246,23 @@ def save_user_settings(**kwargs):
             )
 
         # Extract settings
+        raw_sessions = req.get("sessions", [])
+        
+        # Filter sessions: only active sessions with metadata (no drafts, no messages)
+        active_sessions = filter_active_sessions_metadata(raw_sessions)
+        
         data = {
             "dialog_id": req.get("dialog_id", ""),
             "model_params": req.get("model_params", {}),
             "kb_ids": req.get("kb_ids", []),
             "role_prompt": req.get("role_prompt", ""),
-            "sessions": req.get("sessions", [])
+            "sessions": active_sessions
         }
-        logging.info(f"[FreeChat] Received save request for user {user_id}, sessions count: {len(data['sessions'])}")
-        if data['sessions']:
-            logging.info(f"[FreeChat] First session: id={data['sessions'][0].get('id')}, name={data['sessions'][0].get('name')}")
+        
+        logging.info(f"[FreeChat] Received save request for user {user_id}")
+        logging.info(f"[FreeChat] Raw sessions count: {len(raw_sessions)}, Active sessions count: {len(active_sessions)}")
+        if active_sessions:
+            logging.info(f"[FreeChat] First active session: id={active_sessions[0].get('id')}, name={active_sessions[0].get('name')}")
 
         # Verify dialog belongs to current tenant if provided
         if data["dialog_id"]:
