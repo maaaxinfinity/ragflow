@@ -1,6 +1,7 @@
 import { Routes } from '@/routes';
 import api from '@/utils/api';
 import request from '@/utils/request';
+import { useLatest } from 'ahooks';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { history } from 'umi';
 import { DynamicModelParams } from '../types';
@@ -96,9 +97,13 @@ export const useFreeChatSettingsApi = (userId: string) => {
     }
   }, [userId]);
 
+  // ✅ FIX: Use ref to avoid dependency on settings (prevents infinite loop)
+  const settingsRef = useLatest(settings);
+
   // Save current settings to API
   const saveToAPI = useCallback(async () => {
-    if (!userId || !settings) {
+    const currentSettings = settingsRef.current;
+    if (!userId || !currentSettings) {
       console.warn('[Save] Skipped - no userId or settings');
       return false;
     }
@@ -108,16 +113,16 @@ export const useFreeChatSettingsApi = (userId: string) => {
       console.log('[Save] Saving settings for user:', userId);
       console.log(
         '[Save] Sessions count (before filter):',
-        settings.sessions?.length,
+        currentSettings.sessions?.length,
       );
-      console.log('[Save] Dialog ID:', settings.dialog_id);
+      console.log('[Save] Dialog ID:', currentSettings.dialog_id);
       console.log(
         '[Save] Role prompt length:',
-        settings.role_prompt?.length || 0,
+        currentSettings.role_prompt?.length || 0,
       );
 
       // Filter out draft sessions and strip messages from active sessions
-      const activeSessions = (settings.sessions || [])
+      const activeSessions = (currentSettings.sessions || [])
         .filter((session) => session.state === 'active') // Only save active sessions
         .map((session) => ({
           id: session.id,
@@ -140,7 +145,7 @@ export const useFreeChatSettingsApi = (userId: string) => {
       const { data: response } = await request(api.saveFreeChatSettings, {
         method: 'POST',
         data: {
-          ...settings,
+          ...currentSettings,
           sessions: activeSessions, // Only save active sessions without messages
         },
       });
@@ -189,7 +194,7 @@ export const useFreeChatSettingsApi = (userId: string) => {
     } finally {
       setSaving(false);
     }
-  }, [userId, settings]);
+  }, [userId, settingsRef]); // ✅ FIX: Removed 'settings' dependency to prevent infinite loop
 
   // Manual save - saves immediately
   const manualSave = useCallback(async () => {
