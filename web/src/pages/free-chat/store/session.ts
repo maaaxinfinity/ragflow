@@ -1,20 +1,24 @@
 /**
- * FreeChat Session Store (Zustand)
- * 
- * Migrated from Lobe Chat's state management pattern
- * Solves the state synchronization issues in the original useFreeChatSession hook
- * 
+ * FreeChat Session Store (Zustand + Immer)
+ *
+ * ✅ Refactored (2025-01-11):
+ * - Added Immer middleware for cleaner nested updates
+ * - Single source of truth for session data
+ * - XState machine only orchestrates transitions
+ *
  * Features:
  * - Centralized session state management
  * - Redux DevTools support for debugging
  * - Persistence support (localStorage backup)
+ * - Immer for mutable-style updates
  * - Type-safe operations
  */
 
+import type { Message } from '@/interfaces/database/chat';
+import { v4 as uuid } from 'uuid';
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
-import { v4 as uuid } from 'uuid';
-import type { Message } from '@/interfaces/database/chat';
+import { immer } from 'zustand/middleware/immer';
 
 export interface IFreeChatSession {
   id: string;
@@ -24,8 +28,8 @@ export interface IFreeChatSession {
   messages: Message[];
   created_at: number;
   updated_at: number;
-  state?: 'draft' | 'active';  // draft = temporary local only, active = persisted to backend
-  is_favorited?: boolean;  // favorite status (only for active sessions)
+  state?: 'draft' | 'active'; // draft = temporary local only, active = persisted to backend
+  is_favorited?: boolean; // favorite status (only for active sessions)
   params?: {
     temperature?: number;
     top_p?: number;
@@ -39,28 +43,41 @@ interface SessionState {
   sessions: IFreeChatSession[];
   currentSessionId: string;
   isLoading: boolean;
-  
-  // Computed
-  currentSession: IFreeChatSession | undefined;
+
+  // Computed (DEPRECATED: Use useMemo in hooks instead)
+  // currentSession getter removed to avoid stale closure issues
+  // Use: const currentSession = useMemo(() => sessions.find(s => s.id === currentSessionId), [sessions, currentSessionId])
 }
 
 interface SessionActions {
   // Basic CRUD
   setSessions: (sessions: IFreeChatSession[]) => void;
   setCurrentSessionId: (id: string) => void;
-  createSession: (name?: string, model_card_id?: number, isDraft?: boolean, conversationId?: string) => IFreeChatSession;
+  createSession: (
+    name?: string,
+    model_card_id?: number,
+    isDraft?: boolean,
+    conversationId?: string,
+  ) => IFreeChatSession;
   updateSession: (id: string, updates: Partial<IFreeChatSession>) => void;
   deleteSession: (id: string) => void;
   switchSession: (id: string) => void;
   clearAllSessions: () => void;
   toggleFavorite: (id: string) => void;
   deleteUnfavorited: () => void;
-  
+
+  // Draft management (CRITICAL: Each model card has ONE and ONLY ONE permanent draft)
+  getOrCreateDraftForCard: (model_card_id: number) => IFreeChatSession;
+  resetDraft: (draftId: string) => void;
+
   // Advanced operations
   duplicateSession: (id: string, newName?: string) => IFreeChatSession | null;
   updateSessionMessages: (id: string, messages: Message[]) => void;
-  updateSessionParams: (id: string, params: Partial<IFreeChatSession['params']>) => void;
-  
+  updateSessionParams: (
+    id: string,
+    params: Partial<IFreeChatSession['params']>,
+  ) => void;
+
   // Utility
   getSessionById: (id: string) => IFreeChatSession | undefined;
   setLoading: (isLoading: boolean) => void;
@@ -69,258 +86,321 @@ interface SessionActions {
 type SessionStore = SessionState & SessionActions;
 
 export const useSessionStore = create<SessionStore>()(
-  persist(
-    devtools(
-      (set, get) => ({
+  devtools(
+    persist(
+      immer((set, get) => ({
         // Initial State
         sessions: [],
         currentSessionId: '',
         isLoading: false,
-        
-        // Computed
-        get currentSession() {
-          const { sessions, currentSessionId } = get();
-          return sessions.find((s) => s.id === currentSessionId);
+
+        // Actions
+        setSessions: (sessions) => {
+          // Ensure all sessions have proper state field (backward compatibility)
+          const normalizedSessions = sessions.map((s) => ({
+            ...s,
+            // If no state, infer from conversation_id
+            state: s.state || (s.conversation_id ? 'active' : 'draft'),
+          }));
+          set({ sessions: normalizedSessions }, false, 'setSessions');
         },
-      
-      // Actions
-      setSessions: (sessions) => {
-        // Ensure all sessions have proper state field (backward compatibility)
-        const normalizedSessions = sessions.map(s => ({
-          ...s,
-          // If no state, infer from conversation_id
-          state: s.state || (s.conversation_id ? 'active' : 'draft')
-        }));
-        set({ sessions: normalizedSessions }, false, 'setSessions');
-      },
-      
-      setCurrentSessionId: (id) => {
-        set({ currentSessionId: id }, false, 'setCurrentSessionId');
-      },
-      
-      createSession: (name, model_card_id, isDraft = false, conversationId) => {
-        // If conversationId provided, use it as id (for Draft→Active promotion)
-        // Otherwise generate new UUID
-        const sessionId = conversationId || uuid();
-        
-        const newSession: IFreeChatSession = {
-          id: sessionId,
-          conversation_id: isDraft ? undefined : conversationId,  // Draft has no conversation_id
-          name: name || '新对话',
+
+        setCurrentSessionId: (id) => {
+          set({ currentSessionId: id }, false, 'setCurrentSessionId');
+        },
+
+        createSession: (
+          name,
           model_card_id,
-          messages: [],
-          created_at: Date.now(),
-          updated_at: Date.now(),
-          state: isDraft ? 'draft' : 'active',
-          params: {},
-        };
-        
-        console.log('[Zustand] createSession:', {
-          id: sessionId,
-          isDraft,
+          isDraft = false,
           conversationId,
-          state: newSession.state
-        });
-        
-        set(
-          (state) => ({
-            sessions: [newSession, ...state.sessions],
-            currentSessionId: newSession.id,
-          }),
-          false,
-          'createSession',
-        );
-        
-        return newSession;
-      },
-      
-      updateSession: (id, updates) => {
-        set(
-          (state) => ({
-            sessions: state.sessions.map((s) =>
-              s.id === id
-                ? { ...s, ...updates, updated_at: Date.now() }
-                : s
-            ),
-          }),
-          false,
-          'updateSession',
-        );
-      },
-      
-      deleteSession: (id) => {
-        set(
-          (state) => {
-            const newSessions = state.sessions.filter((s) => s.id !== id);
-            const newCurrentId =
-              state.currentSessionId === id && newSessions.length > 0
-                ? newSessions[0].id
-                : state.currentSessionId === id
-                ? ''
-                : state.currentSessionId;
-            
-            return {
-              sessions: newSessions,
-              currentSessionId: newCurrentId,
-            };
-          },
-          false,
-          'deleteSession',
-        );
-      },
-      
-      switchSession: (id) => {
-        const session = get().sessions.find((s) => s.id === id);
-        if (session) {
-          set({ currentSessionId: id }, false, 'switchSession');
-        }
-      },
-      
-      clearAllSessions: () => {
-        set(
-          {
-            sessions: [],
-            currentSessionId: '',
-          },
-          false,
-          'clearAllSessions',
-        );
-      },
-      
-      duplicateSession: (id, newName) => {
-        const originalSession = get().sessions.find((s) => s.id === id);
-        if (!originalSession) return null;
-        
-        const duplicatedSession: IFreeChatSession = {
-          ...originalSession,
-          id: uuid(),
-          name: newName || `${originalSession.name} (副本)`,
-          conversation_id: undefined, // Reset conversation_id
-          messages: [], // Start with empty messages
-          created_at: Date.now(),
-          updated_at: Date.now(),
-        };
-        
-        set(
-          (state) => ({
-            sessions: [duplicatedSession, ...state.sessions],
-            currentSessionId: duplicatedSession.id,
-          }),
-          false,
-          'duplicateSession',
-        );
-        
-        return duplicatedSession;
-      },
-      
-      updateSessionMessages: (id, messages) => {
-        set(
-          (state) => ({
-            sessions: state.sessions.map((s) =>
-              s.id === id
-                ? { ...s, messages, updated_at: Date.now() }
-                : s
-            ),
-          }),
-          false,
-          'updateSessionMessages',
-        );
-      },
-      
-      updateSessionParams: (id, params) => {
-        set(
-          (state) => ({
-            sessions: state.sessions.map((s) =>
-              s.id === id
-                ? {
-                    ...s,
-                    params: { ...s.params, ...params },
-                    updated_at: Date.now(),
-                  }
-                : s
-            ),
-          }),
-          false,
-          'updateSessionParams',
-        );
-      },
-      
-      getSessionById: (id) => {
-        return get().sessions.find((s) => s.id === id);
-      },
-      
-      setLoading: (isLoading) => {
-        set({ isLoading }, false, 'setLoading');
-      },
-      
-      toggleFavorite: (id) => {
-        set(
-          (state) => ({
-            sessions: state.sessions.map((s) =>
-              s.id === id
-                ? { ...s, is_favorited: !s.is_favorited, updated_at: Date.now() }
-                : s
-            ),
-          }),
-          false,
-          'toggleFavorite',
-        );
-      },
-      
-      deleteUnfavorited: () => {
-        set(
-          (state) => {
-            const unfavorited = state.sessions.filter(
-              (s) => s.state === 'active' && !s.is_favorited
+        ) => {
+          // If conversationId provided, use it as id (for Draft→Active promotion)
+          // Otherwise generate new UUID
+          const sessionId = conversationId || uuid();
+
+          const newSession: IFreeChatSession = {
+            id: sessionId,
+            conversation_id: isDraft ? undefined : conversationId, // Draft has no conversation_id
+            name: name || '新对话',
+            model_card_id,
+            messages: [],
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            state: isDraft ? 'draft' : 'active',
+            params: {},
+          };
+
+          console.log('[Zustand] createSession:', {
+            id: sessionId,
+            isDraft,
+            conversationId,
+            state: newSession.state,
+          });
+
+          set(
+            (state) => ({
+              sessions: [newSession, ...state.sessions],
+              currentSessionId: newSession.id,
+            }),
+            false,
+            'createSession',
+          );
+
+          return newSession;
+        },
+
+        // ✅ BEST PRACTICE: Immer simplifies nested updates
+        updateSession: (id, updates) =>
+          set(
+            (state) => {
+              const session = state.sessions.find((s) => s.id === id);
+              if (session) {
+                Object.assign(session, updates);
+                session.updated_at = Date.now();
+              }
+            },
+            false,
+            'updateSession',
+          ),
+
+        deleteSession: (id) => {
+          set(
+            (state) => {
+              const newSessions = state.sessions.filter((s) => s.id !== id);
+              const newCurrentId =
+                state.currentSessionId === id && newSessions.length > 0
+                  ? newSessions[0].id
+                  : state.currentSessionId === id
+                    ? ''
+                    : state.currentSessionId;
+
+              return {
+                sessions: newSessions,
+                currentSessionId: newCurrentId,
+              };
+            },
+            false,
+            'deleteSession',
+          );
+        },
+
+        switchSession: (id) => {
+          const session = get().sessions.find((s) => s.id === id);
+          if (session) {
+            set({ currentSessionId: id }, false, 'switchSession');
+          }
+        },
+
+        clearAllSessions: () => {
+          set(
+            {
+              sessions: [],
+              currentSessionId: '',
+            },
+            false,
+            'clearAllSessions',
+          );
+        },
+
+        // CRITICAL: Get or create the ONE and ONLY draft for a model card
+        getOrCreateDraftForCard: (model_card_id) => {
+          const { sessions } = get();
+
+          // Find existing draft for this model card
+          const existingDraft = sessions.find(
+            (s) => s.state === 'draft' && s.model_card_id === model_card_id,
+          );
+
+          if (existingDraft) {
+            console.log(
+              '[Zustand] Found existing draft for card:',
+              model_card_id,
             );
-            const remaining = state.sessions.filter(
-              (s) => s.state === 'draft' || s.is_favorited
-            );
-            
-            console.log('[deleteUnfavorited] Deleting', unfavorited.length, 'unfavorited sessions');
-            
-            // Switch to draft if current session is deleted
-            let newCurrentId = state.currentSessionId;
-            if (unfavorited.some(s => s.id === state.currentSessionId)) {
-              const draft = remaining.find(s => s.state === 'draft');
-              newCurrentId = draft?.id || remaining[0]?.id || '';
-            }
-            
-            return {
-              sessions: remaining,
-              currentSessionId: newCurrentId,
-            };
-          },
-          false,
-          'deleteUnfavorited',
-        );
+            return existingDraft;
+          }
+
+          // No existing draft - create new one
+          const draftId = `draft_${model_card_id}_${uuid()}`;
+          const newDraft: IFreeChatSession = {
+            id: draftId,
+            conversation_id: undefined,
+            model_card_id,
+            name: '新对话',
+            messages: [],
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            state: 'draft',
+            params: {},
+          };
+
+          console.log('[Zustand] Creating new draft for card:', model_card_id);
+
+          set(
+            (state) => ({
+              sessions: [newDraft, ...state.sessions],
+            }),
+            false,
+            'getOrCreateDraftForCard',
+          );
+
+          return newDraft;
+        },
+
+        // Reset draft to initial state (used after Draft→Active promotion)
+        // ✅ BEST PRACTICE: Reset properties directly
+        resetDraft: (draftId) =>
+          set(
+            (state) => {
+              const draft = state.sessions.find((s) => s.id === draftId);
+              if (draft) {
+                draft.name = '新对话';
+                draft.messages = [];
+                draft.params = {};
+                draft.updated_at = Date.now();
+              }
+            },
+            false,
+            'resetDraft',
+          ),
+
+        duplicateSession: (id, newName) => {
+          const originalSession = get().sessions.find((s) => s.id === id);
+          if (!originalSession) return null;
+
+          const duplicatedSession: IFreeChatSession = {
+            ...originalSession,
+            id: uuid(),
+            name: newName || `${originalSession.name} (副本)`,
+            conversation_id: undefined, // Reset conversation_id
+            messages: [], // Start with empty messages
+            created_at: Date.now(),
+            updated_at: Date.now(),
+          };
+
+          set(
+            (state) => ({
+              sessions: [duplicatedSession, ...state.sessions],
+              currentSessionId: duplicatedSession.id,
+            }),
+            false,
+            'duplicateSession',
+          );
+
+          return duplicatedSession;
+        },
+
+        // ✅ BEST PRACTICE: Direct assignment with Immer
+        updateSessionMessages: (id, messages) =>
+          set(
+            (state) => {
+              const session = state.sessions.find((s) => s.id === id);
+              if (session) {
+                session.messages = messages;
+                session.updated_at = Date.now();
+              }
+            },
+            false,
+            'updateSessionMessages',
+          ),
+
+        // ✅ BEST PRACTICE: Merge params easily
+        updateSessionParams: (id, params) =>
+          set(
+            (state) => {
+              const session = state.sessions.find((s) => s.id === id);
+              if (session) {
+                session.params = { ...session.params, ...params };
+                session.updated_at = Date.now();
+              }
+            },
+            false,
+            'updateSessionParams',
+          ),
+
+        getSessionById: (id) => {
+          return get().sessions.find((s) => s.id === id);
+        },
+
+        setLoading: (isLoading) => {
+          set({ isLoading }, false, 'setLoading');
+        },
+
+        // ✅ BEST PRACTICE: Toggle boolean directly
+        toggleFavorite: (id) =>
+          set(
+            (state) => {
+              const session = state.sessions.find((s) => s.id === id);
+              if (session) {
+                session.is_favorited = !session.is_favorited;
+                session.updated_at = Date.now();
+              }
+            },
+            false,
+            'toggleFavorite',
+          ),
+
+        deleteUnfavorited: () => {
+          set(
+            (state) => {
+              const unfavorited = state.sessions.filter(
+                (s) => s.state === 'active' && !s.is_favorited,
+              );
+              const remaining = state.sessions.filter(
+                (s) => s.state === 'draft' || s.is_favorited,
+              );
+
+              console.log(
+                '[deleteUnfavorited] Deleting',
+                unfavorited.length,
+                'unfavorited sessions',
+              );
+
+              // Switch to draft if current session is deleted
+              let newCurrentId = state.currentSessionId;
+              if (unfavorited.some((s) => s.id === state.currentSessionId)) {
+                const draft = remaining.find((s) => s.state === 'draft');
+                newCurrentId = draft?.id || remaining[0]?.id || '';
+              }
+
+              return {
+                sessions: remaining,
+                currentSessionId: newCurrentId,
+              };
+            },
+            false,
+            'deleteUnfavorited',
+          );
+        },
+      })),
+      {
+        name: 'freechat-session-storage',
+        // Only persist sessions and currentSessionId
+        partialize: (state) => ({
+          sessions: state.sessions,
+          currentSessionId: state.currentSessionId,
+        }),
+        // Skip persistence in test environment
+        skipHydration: process.env.NODE_ENV === 'test',
       },
-    }),
+    ),
     {
       name: 'FreeChat_Session',
       enabled: process.env.NODE_ENV === 'development',
     },
   ),
-  {
-    name: 'freechat-session-storage',
-    // Only persist sessions and currentSessionId
-    partialize: (state) => ({
-      sessions: state.sessions,
-      currentSessionId: state.currentSessionId,
-    }),
-    // Skip persistence in test environment
-    skipHydration: process.env.NODE_ENV === 'test',
-  },
-),
 );
 
 // Selectors (following Lobe Chat pattern)
 export const sessionSelectors = {
-  currentSession: (state: SessionStore) => state.currentSession,
+  // ✅ 修复：重新实现为计算属性（原来引用了不存在的 state.currentSession）
+  currentSession: (state: SessionStore) =>
+    state.sessions.find((s) => s.id === state.currentSessionId),
   currentSessionId: (state: SessionStore) => state.currentSessionId,
   sessions: (state: SessionStore) => state.sessions,
   isLoading: (state: SessionStore) => state.isLoading,
-  getSessionById: (id: string) => (state: SessionStore) => state.getSessionById(id),
+  getSessionById: (id: string) => (state: SessionStore) =>
+    state.getSessionById(id),
   sessionCount: (state: SessionStore) => state.sessions.length,
   hasSession: (state: SessionStore) => state.sessions.length > 0,
 };

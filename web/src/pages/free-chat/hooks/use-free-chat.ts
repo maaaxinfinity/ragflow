@@ -1,20 +1,26 @@
 import { MessageType } from '@/constants/chat';
+import { useTranslate } from '@/hooks/common-hooks';
 import {
   useHandleMessageInputChange,
-  useSendMessageWithSse,
   useSelectDerivedMessages,
+  useSendMessageWithSse,
 } from '@/hooks/logic-hooks';
+import { useUpdateConversation } from '@/hooks/use-chat-request';
 import { Message } from '@/interfaces/database/chat';
 import api from '@/utils/api';
-import { trim } from 'lodash';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { debounce, trim } from 'lodash';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import { DynamicModelParams } from '../types';
+import {
+  ERROR_MESSAGES,
+  MESSAGE_SYNC_DEBOUNCE_MS,
+  SESSION_STATE,
+  SYNC_CLEANUP_DELAY_MS,
+} from '../constants';
 import { useKBContext } from '../contexts/kb-context';
+import { DynamicModelParams } from '../types';
+import { logError } from '../utils/error-handler';
 import { useFreeChatSession } from './use-free-chat-session';
-import { useUpdateConversation } from '@/hooks/use-chat-request';
-import { logError, logInfo } from '../utils/error-handler';
-import { useTranslate } from '@/hooks/common-hooks';
 
 interface UseFreeChatProps {
   userId: string;
@@ -54,6 +60,8 @@ export const useFreeChat = (
     clearAllSessions,
     toggleFavorite,
     deleteUnfavorited,
+    getOrCreateDraftForCard,
+    resetDraft,
   } = useFreeChatSession({
     initialSessions: settings?.sessions,
     onSessionsChange: (sessions) => {
@@ -82,31 +90,46 @@ export const useFreeChat = (
   // BUG FIX #10 & CRITICAL FIX: Force refresh messages when switching sessions
   // Use ref to track last loaded session to prevent unnecessary reloads
   const lastLoadedSessionIdRef = useRef<string>('');
-  
+
   useEffect(() => {
     // Only reload if session ID actually changed
     if (lastLoadedSessionIdRef.current === currentSessionId) {
       return;
     }
-    
-    console.log('[MessageSync] Session ID changed from', lastLoadedSessionIdRef.current, 'to', currentSessionId);
+
+    console.log(
+      '[MessageSync] Session ID changed from',
+      lastLoadedSessionIdRef.current,
+      'to',
+      currentSessionId,
+    );
     lastLoadedSessionIdRef.current = currentSessionId;
-    
+
     if (!currentSessionId) {
       console.log('[MessageSync] No session selected, clearing messages');
       setDerivedMessages([]);
       return;
     }
-    
+
     // Find session from sessions array
-    const session = sessions.find(s => s.id === currentSessionId);
-    
+    const session = sessions.find((s) => s.id === currentSessionId);
+
     if (session) {
       const newMessages = session.messages || [];
-      console.log('[MessageSync] Loading session:', session.name, 'state:', session.state, 'messages:', newMessages.length);
+      console.log(
+        '[MessageSync] Loading session:',
+        session.name,
+        'state:',
+        session.state,
+        'messages:',
+        newMessages.length,
+      );
       setDerivedMessages(newMessages);
     } else {
-      console.warn('[MessageSync] Session not found in cache:', currentSessionId);
+      console.warn(
+        '[MessageSync] Session not found in cache:',
+        currentSessionId,
+      );
       setDerivedMessages([]);
     }
   }, [currentSessionId, sessions, setDerivedMessages]);
@@ -127,10 +150,10 @@ export const useFreeChat = (
     async (message: Message, customParams?: DynamicModelParams) => {
       if (!dialogId) {
         logError(
-          t('noDialogIdError'),
+          ERROR_MESSAGES.NO_DIALOG_ID,
           'useFreeChat.sendMessage',
           true,
-          t('noDialogIdError')
+          t('noDialogIdError'),
         );
         return;
       }
@@ -148,22 +171,23 @@ export const useFreeChat = (
             'Please select an assistant first',
             'useFreeChat.sendMessage',
             true,
-            t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
+            t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手'),
           );
           removeLatestMessage();
           return;
         }
 
         // Use session name if user renamed it (not the default "新对话"), otherwise use message content
-        const conversationName = session.name && session.name !== '新对话'
-          ? session.name
-          : message.content.slice(0, 50);
+        const conversationName =
+          session.name && session.name !== '新对话'
+            ? session.name
+            : message.content.slice(0, 50);
 
         const convData = await updateConversation({
           dialog_id: dialogId,
           name: conversationName,
           is_new: true,
-          model_card_id: session.model_card_id,  // Add model_card_id
+          model_card_id: session.model_card_id, // Add model_card_id
           message: [
             {
               role: MessageType.Assistant,
@@ -174,43 +198,44 @@ export const useFreeChat = (
 
         if (convData.code === 0) {
           conversationId = convData.data.id;
-          
-          // FIX: Draft → Active promotion (keep draft, create new active)
+
+          // FIX: Draft → Active promotion (reset draft, create new active)
+          // CRITICAL: Each model card has ONE permanent draft that gets reset, not deleted
           if (session) {
             const draftId = session.id;
             const draftModelCardId = session.model_card_id;
             const draftParams = session.params;
             const currentMessages = [...derivedMessages];
-            
-            // 1. Reset Draft (clear messages, keep it for next conversation)
-            updateSession(draftId, { 
-              messages: [],
-              name: '新对话',
-              params: {}
-            });
-            
+
+            // 1. Reset Draft to initial state (permanent draft stays in store)
+            resetDraft(draftId);
+
             // 2. Create Active with backend ID
             const newActiveSession = createSession(
-              conversationName, 
-              draftModelCardId, 
-              false,
-              conversationId
+              conversationName,
+              draftModelCardId,
+              false, // isDraft = false
+              conversationId, // Use backend-generated ID
             );
-            
+
             // 3. Restore params and messages to Active
             if (draftParams && newActiveSession) {
               updateSession(conversationId, { params: draftParams });
             }
             updateSession(conversationId, { messages: currentMessages });
-            
-            console.log('[SendMessage] Draft promoted to Active:', conversationId, '| Draft reset:', draftId);
+
+            console.log('[SendMessage] Draft→Active promotion:', {
+              draftId,
+              activeId: conversationId,
+              modelCardId: draftModelCardId,
+            });
           }
         } else {
           logError(
             t('failedToCreateConversation'),
             'useFreeChat.sendMessage',
             true,
-            t('failedToCreateConversation')
+            t('failedToCreateConversation'),
           );
           removeLatestMessage();
           return;
@@ -224,7 +249,7 @@ export const useFreeChat = (
           'Please select an assistant first',
           'useFreeChat.sendMessage',
           true,
-          t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
+          t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手'),
         );
         removeLatestMessage();
         return;
@@ -240,7 +265,9 @@ export const useFreeChat = (
         conversation_id: conversationId,
         messages: [...derivedMessages, message],
         // Dynamic parameters from session (temperature, top_p)
-        ...(baseParams.temperature !== undefined && { temperature: baseParams.temperature }),
+        ...(baseParams.temperature !== undefined && {
+          temperature: baseParams.temperature,
+        }),
         ...(baseParams.top_p !== undefined && { top_p: baseParams.top_p }),
         // Model card ID (REQUIRED - for parameter merging on backend)
         // Type assertion: we've already validated model_card_id exists above
@@ -248,7 +275,9 @@ export const useFreeChat = (
         // Dynamic knowledge base (always include, overrides any kb_ids in params)
         kb_ids: kbIdsArray,
         // Dynamic role prompt from session (system prompt override)
-        ...(baseParams.role_prompt !== undefined && { role_prompt: baseParams.role_prompt }),
+        ...(baseParams.role_prompt !== undefined && {
+          role_prompt: baseParams.role_prompt,
+        }),
       };
 
       const res = await send(requestBody, controller);
@@ -291,15 +320,15 @@ export const useFreeChat = (
       hasSession: !!session,
       sessionId: session?.id,
       model_card_id: session?.model_card_id,
-      state: session?.state
+      state: session?.state,
     });
-    
+
     if (!session?.model_card_id) {
       logError(
         'Please select an assistant first',
         'useFreeChat.handlePressEnter',
         true,
-        t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
+        t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手'),
       );
       return;
     }
@@ -315,7 +344,7 @@ export const useFreeChat = (
     sendMessage(message);
   }, [value, done, addNewestQuestion, setValue, sendMessage, t]);
 
-  // FIX: Regenerate answer with proper error handling
+  // FIX: Regenerate answer with proper error handling and session params
   // Prevents message loss when regeneration fails
   const regenerateMessage = useCallback(
     async (message: Message) => {
@@ -326,9 +355,9 @@ export const useFreeChat = (
           'Cannot regenerate: no assistant selected',
           'useFreeChat.regenerateMessage',
           true,
-          t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手')
+          t('pleaseSelectAssistant', '请先在左侧"助手"标签中选择一个助手'),
         );
-        return;  // Don't delete messages, just return
+        return; // Don't delete messages, just return
       }
 
       if (message.id) {
@@ -338,9 +367,10 @@ export const useFreeChat = (
           const originalMessages = [...derivedMessages];
           const newMessages = derivedMessages.slice(0, index + 1);
           setDerivedMessages(newMessages);
-          
+
           try {
-            await sendMessage(message);
+            // FIX: Pass session.params to maintain user's temperature/top_p settings
+            await sendMessage(message, session.params);
           } catch (error) {
             // Rollback to original messages on failure
             setDerivedMessages(originalMessages);
@@ -348,7 +378,9 @@ export const useFreeChat = (
               'Failed to regenerate message',
               'useFreeChat.regenerateMessage',
               true,
-              error instanceof Error ? error.message : t('unknownError', '未知错误')
+              error instanceof Error
+                ? error.message
+                : t('unknownError', '未知错误'),
             );
           }
         }
@@ -371,63 +403,67 @@ export const useFreeChat = (
   const isSyncingRef = useRef(false);
 
   useEffect(() => {
-    currentSessionIdRef.current = currentSessionId;
-  }, [currentSessionId]);
+    currentSessionIdRef.current = currentSession;
+  }, [currentSession]);
 
   useEffect(() => {
     sessionsRef.current = sessions;
   }, [sessions]);
 
+  // FIX: Add debounced update to prevent frequent localStorage writes
+  const debouncedUpdateSession = useMemo(
+    () =>
+      debounce((id: string, updates: any) => {
+        updateSession(id, updates);
+      }, MESSAGE_SYNC_DEBOUNCE_MS),
+    [updateSession],
+  );
+
+  // BUG FIX: Sync messages to session (including empty arrays for delete all)
   useEffect(() => {
-    const sessionId = currentSessionIdRef.current;
-    
+    const session = currentSessionRef.current;
+    const sessionId = session?.id;
+
     // CRITICAL: Don't sync if no session or syncing is in progress
     if (!sessionId || isSyncingRef.current) {
       return;
     }
-    
-    // Don't sync empty messages (this happens during initialization or when clearing)
-    if (derivedMessages.length === 0) {
-      return;
-    }
-    
-    // Find the current session from the ref to avoid circular dependency
-    const session = sessionsRef.current.find(s => s.id === sessionId);
-    if (!session) {
-      console.warn('[MessageSync→Session] Session not found, skipping sync');
-      return;
-    }
-    
+
+    // FIX: Remove empty check to allow syncing empty messages (delete all scenario)
+    // Previously: if (derivedMessages.length === 0) return;
+    // This prevented clearing messages from being persisted
+
     // CRITICAL FIX: NEVER sync messages back to draft sessions
     // Draft should remain empty until promoted to active
     // Draft messages are only created during conversation, not loaded from anywhere
-    if (session.state === 'draft') {
-      console.log('[MessageSync→Session] Draft session, no sync needed');
+    if (session.state === SESSION_STATE.DRAFT) {
       return;
     }
 
     const currentMessages = session.messages || [];
-    
-    // Check if messages actually changed
+
+    // Check if messages actually changed (including empty array case)
     const messagesChanged =
       derivedMessages.length !== currentMessages.length ||
       derivedMessages.some((msg, idx) => {
         const current = currentMessages[idx];
-        return !current || msg.id !== current.id || msg.content !== current.content;
+        return (
+          !current || msg.id !== current.id || msg.content !== current.content
+        );
       });
 
     if (messagesChanged) {
       isSyncingRef.current = true;
-      console.log('[MessageSync→Session] Syncing', derivedMessages.length, 'messages to active session:', session.name);
-      updateSession(sessionId, {
+      // FIX: Use debounced update to prevent frequent localStorage writes
+      debouncedUpdateSession(sessionId, {
         messages: derivedMessages,
       });
-      // Use Promise.resolve() for microtask scheduling
-      Promise.resolve().then(() => {
+      // Schedule reset after debounce time + small buffer
+      setTimeout(() => {
         isSyncingRef.current = false;
-      });
+      }, SYNC_CLEANUP_DELAY_MS);
     }
-  }, [derivedMessages, updateSession]); // BUG FIX: Remove sessions dependency to avoid circular updates
+  }, [derivedMessages, debouncedUpdateSession]); // BUG FIX: Remove sessions dependency to avoid circular updates
 
   return {
     // Message related
@@ -457,6 +493,8 @@ export const useFreeChat = (
     clearAllSessions,
     toggleFavorite,
     deleteUnfavorited,
+    getOrCreateDraftForCard,
+    resetDraft,
 
     // Dialog ID
     dialogId,

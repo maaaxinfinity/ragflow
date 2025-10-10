@@ -1,24 +1,26 @@
 # 09 - 会话管理系统 (2025年1月最新版)
 
-**版本**: v2.0 (Zustand重构版)  
-**更新日期**: 2025年1月10日  
-**架构**: Zustand Store + localStorage持久化
+**版本**: v3.0 (Zustand最终版)  
+**更新日期**: 2025年1月11日  
+**架构**: Zustand Store + localStorage持久化 + 常驻草稿
 
 ---
 
 ## 🎯 架构演进历史
 
-### 历史版本问题 (v1.0)
+### 历史版本问题 (v1.0-v2.0)
 - ❌ 使用React useState管理sessions
-- ❌ 手动同步前端状态到后端
+- ❌ TanStack Query与Zustand双重状态源冲突
 - ❌ 循环依赖导致状态不一致
-- ❌ 组件重渲染过多
+- ❌ 闭包陷阱导致currentSession读取到过期值
 
-### 当前架构 (v2.0 - Zustand)
-- ✅ Zustand统一管理会话状态
+### 当前架构 (v3.0 - Zustand最终版)
+- ✅ **纯Zustand**统一管理会话状态
 - ✅ localStorage自动持久化
 - ✅ Redux DevTools调试支持
-- ✅ 性能优化 (useShallow避免重渲染)
+- ✅ **常驻草稿机制** (每个助手卡有独立草稿)
+- ✅ **收藏功能** (可收藏对话，批量删除未收藏)
+- ✅ 使用useRef解决闭包陷阱
 - ✅ 类型安全的状态操作
 
 ---
@@ -36,7 +38,8 @@ export interface IFreeChatSession {
   messages: Message[];         // 消息列表
   created_at: number;          // 创建时间戳
   updated_at: number;          // 更新时间戳
-  state?: 'draft' | 'active'; // 会话状态
+  state?: 'draft' | 'active';  // 会话状态
+  is_favorited?: boolean;      // 收藏状态 (仅Active)
   params?: {
     temperature?: number;
     top_p?: number;
@@ -48,26 +51,39 @@ export interface IFreeChatSession {
 ### 状态转换图
 
 ```
+用户点击助手卡
+    ↓
+查找或创建该卡的草稿
+    ↓
 ┌─────────────────────────────────────────────────────────┐
-│                   Draft Session                         │
+│             Draft Session (常驻)                        │
 │  • id = 本地UUID                                         │
 │  • conversation_id = undefined                          │
 │  • state = 'draft'                                      │
-│  • 不持久化到后端                                        │
-│  • 用户选择Model Card时自动创建                          │
+│  • 仅存储在localStorage                                 │
+│  • 每个助手卡有独立草稿                                  │
+│  • 显示在对话列表顶部                                    │
 └─────────────────────────────────────────────────────────┘
                         ↓
             用户发送第一条消息
             调用 /v1/conversation/set
+                        ↓
+                  【原子操作】
+          1. Reset Draft (清空消息)
+          2. Create Active (backend ID)
+          3. Switch to Active
                         ↓
 ┌─────────────────────────────────────────────────────────┐
 │                  Active Session                         │
 │  • id = conversation_id (后端返回)                      │
 │  • conversation_id = 存在                                │
 │  • state = 'active'                                     │
-│  • 持久化到后端和FreeChatUserSettings                   │
-│  • 后续消息正常发送                                      │
+│  • is_favorited = false (可收藏)                        │
+│  • 持久化到后端和localStorage                           │
+│  • 显示在"历史对话"区域                                  │
 └─────────────────────────────────────────────────────────┘
+    ↓
+用户可继续点击草稿开始新对话 (草稿已重置)
 ```
 
 ---
@@ -87,18 +103,19 @@ interface SessionState {
   sessions: IFreeChatSession[];
   currentSessionId: string;
   isLoading: boolean;
-  currentSession: IFreeChatSession | undefined;
+  // 不使用getter，在hook中用useMemo计算
 }
 
 interface SessionActions {
   setSessions: (sessions: IFreeChatSession[]) => void;
   setCurrentSessionId: (id: string) => void;
-  createSession: (name?: string, model_card_id?: number) => IFreeChatSession;
+  createSession: (name?: string, model_card_id?: number, isDraft?: boolean, conversationId?: string) => IFreeChatSession;
   updateSession: (id: string, updates: Partial<IFreeChatSession>) => void;
   deleteSession: (id: string) => void;
   switchSession: (id: string) => void;
   clearAllSessions: () => void;
-  // ... 其他actions
+  toggleFavorite: (id: string) => void;           // 新增：切换收藏
+  deleteUnfavorited: () => void;                  // 新增：删除未收藏
 }
 
 export const useSessionStore = create<SessionState & SessionActions>()(
@@ -144,7 +161,18 @@ export const useFreeChatSession = (props?: {
   // 从Zustand Store获取状态和方法
   const sessions = useSessionStore(state => state.sessions);
   const currentSessionId = useSessionStore(state => state.currentSessionId);
-  const currentSession = useSessionStore(state => state.currentSession);
+  
+  // FIX: 使用useMemo计算currentSession，避免getter问题
+  const currentSession = useMemo(() => {
+    const found = sessions.find(s => s.id === currentSessionId);
+    console.log('[useFreeChatSession] currentSession computed:', {
+      currentSessionId,
+      found: !!found,
+      model_card_id: found?.model_card_id,
+      state: found?.state
+    });
+    return found;
+  }, [sessions, currentSessionId]);
   
   const setSessions = useSessionStore(state => state.setSessions);
   const createSession = useSessionStore(state => state.createSession);
@@ -152,12 +180,14 @@ export const useFreeChatSession = (props?: {
   const deleteSession = useSessionStore(state => state.deleteSession);
   const switchSession = useSessionStore(state => state.switchSession);
   const clearAllSessions = useSessionStore(state => state.clearAllSessions);
+  const toggleFavorite = useSessionStore(state => state.toggleFavorite);
+  const deleteUnfavorited = useSessionStore(state => state.deleteUnfavorited);
 
   // 从FreeChatUserSettings初始化
   useEffect(() => {
     if (initialSessions && initialSessions.length > 0) {
       setSessions(initialSessions);
-      if (!currentSessionId) {
+      if (!currentSessionId && initialSessions[0]) {
         setCurrentSessionId(initialSessions[0].id);
       }
     }
@@ -179,6 +209,8 @@ export const useFreeChatSession = (props?: {
     deleteSession,
     switchSession,
     clearAllSessions,
+    toggleFavorite,
+    deleteUnfavorited,
   };
 };
 ```
@@ -258,7 +290,7 @@ deleteSession: (id) => {
 },
 ```
 
-### Draft → Active 原子化转换
+### Draft → Active 转换（保留草稿）
 
 在用户发送第一条消息时执行：
 
@@ -271,21 +303,26 @@ if (!conversationId) {
     dialog_id: dialogId,
     name: conversationName,
     is_new: true,
-    model_card_id: currentSession.model_card_id,
+    model_card_id: session.model_card_id,
     message: [{ role: MessageType.Assistant, content: '' }],
   });
 
   if (convData.code === 0) {
     conversationId = convData.data.id;
     
-    // 2. 原子化转换
-    if (currentSession) {
-      const draftId = currentSession.id;
-      const draftModelCardId = currentSession.model_card_id;
-      const draftParams = currentSession.params;
+    // 2. 保留草稿，创建Active
+    if (session) {
+      const draftId = session.id;
+      const draftModelCardId = session.model_card_id;
+      const draftParams = session.params;
+      const currentMessages = [...derivedMessages];
       
-      // ① 删除Draft
-      deleteSession(draftId);
+      // ① 重置Draft（清空消息，保留草稿本身）
+      updateSession(draftId, { 
+        messages: [],
+        name: '新对话',
+        params: {}
+      });
       
       // ② 同步创建Active (使用backend返回的conversation_id)
       const newActiveSession = createSession(
@@ -295,26 +332,112 @@ if (!conversationId) {
         conversationId   // 使用backend ID
       );
       
-      // ③ 恢复Draft参数到Active
+      // ③ 恢复参数和消息到Active
       if (draftParams && newActiveSession) {
         updateSession(conversationId, { params: draftParams });
       }
+      updateSession(conversationId, { messages: currentMessages });
       
-      console.log('[Draft→Active] Atomic promotion:', draftId, '→', conversationId);
+      console.log('[Draft→Active] Draft reset:', draftId, '| Active created:', conversationId);
     }
   }
 }
 ```
 
 **关键特性**:
-1. **同步执行**: `createSession(conversationId)` 直接操作cache，立即生效
-2. **无竞态条件**: 删除Draft和创建Active在同一个同步代码块中
-3. **参数保留**: Draft中用户设置的temperature等参数迁移到Active
-4. **自动切换**: 新Active会话自动成为currentSessionId
+1. **草稿常驻**: 草稿不删除，只重置为初始状态，用户可继续使用
+2. **同步执行**: `createSession(conversationId)` 直接操作cache，立即生效
+3. **消息保留**: 用户发送的消息完整迁移到Active会话
+4. **参数保留**: Draft中用户设置的temperature等参数迁移到Active
+5. **自动切换**: 新Active会话自动成为currentSessionId
 
 ---
 
-## 🔄 Mutations详解
+## 🆕 新增功能
+
+### 1. 常驻草稿机制
+
+**设计理念**: 每个助手卡有独立的常驻草稿，不会因为创建正式对话而消失
+
+**实现**:
+```typescript
+// index.tsx - handleModelCardChange
+const handleModelCardChange = (newModelCardId: number) => {
+  // 查找该助手卡的草稿
+  const draftSession = sessions.find(s => 
+    s.state === 'draft' && s.model_card_id === newModelCardId
+  );
+  
+  if (draftSession) {
+    // 已存在，直接切换
+    switchSession(draftSession.id);
+  } else {
+    // 不存在，创建新草稿
+    createSession('新对话', newModelCardId, true);
+  }
+};
+```
+
+**UI展示**:
+- 草稿显示在对话列表顶部
+- 虚线边框 + "草稿"标签
+- 分割线隔开草稿和历史对话
+- 助手卡统计数量不包含草稿
+
+### 2. 收藏功能
+
+**字段**: `is_favorited?: boolean`
+
+**操作**:
+```typescript
+// 切换收藏
+toggleFavorite: (id) => {
+  set(state => ({
+    sessions: state.sessions.map(s =>
+      s.id === id ? { ...s, is_favorited: !s.is_favorited } : s
+    ),
+  }));
+}
+
+// 删除未收藏
+deleteUnfavorited: () => {
+  set(state => {
+    const remaining = state.sessions.filter(
+      s => s.state === 'draft' || s.is_favorited
+    );
+    // 自动切换到草稿或收藏的会话
+  });
+}
+```
+
+**UI展示**:
+- 收藏按钮：收藏后始终显示金色星标
+- 未收藏：仅hover时显示
+- 底部按钮："删除未收藏对话"
+
+### 3. 闭包陷阱修复
+
+**问题**: useCallback中读取currentSession可能是过期值
+
+**解决**: 使用useRef
+```typescript
+// useFreeChat.ts
+const currentSessionRef = useRef(currentSession);
+useEffect(() => {
+  currentSessionRef.current = currentSession;
+}, [currentSession]);
+
+const handlePressEnter = useCallback(() => {
+  const session = currentSessionRef.current;  // 读取最新值
+  if (!session?.model_card_id) {
+    logError('Please select an assistant first');
+    return;
+  }
+  // ...
+}, [value, done, ...]);  // 不依赖currentSession
+```
+
+## 🔄 已废弃功能
 
 ### 1. Create Session Mutation
 

@@ -1,25 +1,25 @@
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import { useFreeChat } from './hooks/use-free-chat';
-import { ControlPanel } from './components/control-panel';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+// XState Integration: Use state machine for seamless Draft→Active transitions
+import { useFetchDialogList } from '@/hooks/use-chat-request';
+import {
+  useFetchTenantInfo,
+  useListTenantUser,
+} from '@/hooks/user-setting-hooks';
+import i18n from '@/locales/config';
+import chatService from '@/services/next-chat-service';
+import api from '@/utils/api';
+import { useQuery } from '@tanstack/react-query';
+import { Spin, message } from 'antd';
+import { Helmet, useSearchParams } from 'umi';
 import { ChatInterface } from './chat-interface';
+import { ControlPanel } from './components/control-panel';
 import { SidebarDualTabs } from './components/sidebar-dual-tabs';
 import { SimplifiedMessageInput } from './components/simplified-message-input';
 import { KBProvider } from './contexts/kb-context';
-import { useFreeChatUserId } from './hooks/use-free-chat-user-id';
-import { useFreeChatSettingsApi } from './hooks/use-free-chat-settings-api';
-import { Spin } from 'antd';
-import { Helmet, useSearchParams } from 'umi';
-import { useListTenantUser, useFetchTenantInfo } from '@/hooks/user-setting-hooks';
-import { useFetchDialogList } from '@/hooks/use-chat-request';
 import { useFetchModelCards } from './hooks/use-fetch-model-cards';
-import chatService from '@/services/next-chat-service';
-import { RAGFlowAvatar } from '@/components/ragflow-avatar';
-import i18n from '@/locales/config';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/utils/api';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
-import { Settings2, X } from 'lucide-react';
+import { useFreeChatSettingsApi } from './hooks/use-free-chat-settings-api';
+import { useFreeChatUserId } from './hooks/use-free-chat-user-id';
+import { useFreeChatWithMachine } from './hooks/use-free-chat-with-machine';
 
 // BUG FIX: Separate component to use hooks inside KBProvider
 function FreeChatContent() {
@@ -50,7 +50,7 @@ function FreeChatContent() {
       const url = `${api.user_info}?user_id=${userId}`;
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${searchParams.get('auth')}` || '',
+          Authorization: `Bearer ${searchParams.get('auth')}` || '',
         },
       });
       const data = await response.json();
@@ -73,17 +73,20 @@ function FreeChatContent() {
     if (languageParam) {
       // Map URL parameter to i18n language code
       const languageMap: Record<string, string> = {
-        'zhcn': 'zh',
-        'zhtw': 'zh-TRADITIONAL',
-        'en': 'en',
+        zhcn: 'zh',
+        zhtw: 'zh-TRADITIONAL',
+        en: 'en',
       };
-      const language = languageMap[languageParam.toLowerCase()] || languageParam;
+      const language =
+        languageMap[languageParam.toLowerCase()] || languageParam;
       i18n.changeLanguage(language);
     }
   }, [searchParams]);
 
   // Find current user info from tenant users
-  const currentUserInfo = Array.isArray(tenantUsers) ? tenantUsers.find(user => user.user_id === userId) : undefined;
+  const currentUserInfo = Array.isArray(tenantUsers)
+    ? tenantUsers.find((user) => user.user_id === userId)
+    : undefined;
 
   // Determine which team info to display
   // If user is found in tenantUsers, they are a NORMAL member -> show joined team (tenantInfo)
@@ -94,6 +97,7 @@ function FreeChatContent() {
   // Sessions are now managed by TanStack Query (auto-synced with backend)
   // No need to manually save to FreeChatUserSettings.sessions
 
+  // XState Integration: Enhanced hook with state machine for Draft→Active transitions
   const {
     handlePressEnter,
     handleInputChange,
@@ -109,38 +113,47 @@ function FreeChatContent() {
     stopOutputMessage,
     sessions,
     currentSessionId,
-    createSession,
     switchSession,
-    deleteSession,
-    clearAllSessions,
     updateSession,
     toggleFavorite,
     deleteUnfavorited,
+    getOrCreateDraftForCard,
+    resetDraft,
     dialogId,
     setDialogId,
-  } = useFreeChat(controller.current, userId, settings);
+    // XState: New state indicators
+    isDraft,
+    isPromoting,
+    isActive,
+  } = useFreeChatWithMachine(controller.current, userId, settings);
 
   // Find current dialog by dialogId
   const currentDialog = useMemo(() => {
-    return dialogData?.dialogs?.find(d => d.id === dialogId);
+    return dialogData?.dialogs?.find((d) => d.id === dialogId);
   }, [dialogData, dialogId]);
 
   // Get current session and model card
-  const currentSession = sessions?.find(s => s.id === currentSessionId);
+  const currentSession = sessions?.find((s) => s.id === currentSessionId);
   const currentModelCard = useMemo(() => {
     if (!currentSession?.model_card_id) return null;
-    return modelCards?.find(c => c.id === currentSession.model_card_id);
+    return modelCards?.find((c) => c.id === currentSession.model_card_id);
   }, [currentSession, modelCards]);
 
   // Calculate user avatar and nickname
   // Priority: userInfo (from /user/info?user_id=xxx) > currentUserInfo (from tenant users list)
   const userAvatar = userInfo?.avatar || currentUserInfo?.avatar;
-  const userNickname = userInfo?.nickname || userInfo?.email || currentUserInfo?.nickname || currentUserInfo?.email || 'User';
+  const userNickname =
+    userInfo?.nickname ||
+    userInfo?.email ||
+    currentUserInfo?.nickname ||
+    currentUserInfo?.email ||
+    'User';
   const dialogAvatar = currentDialog?.icon; // Use dialog icon if set, otherwise MessageItem will show default AssistantIcon
 
   const [loadedConversationId, setLoadedConversationId] = useState<string>('');
   const [hasSetInitialDialogId, setHasSetInitialDialogId] = useState(false);
-  const [hasSetInitialModelCardId, setHasSetInitialModelCardId] = useState(false);
+  const [hasSetInitialModelCardId, setHasSetInitialModelCardId] =
+    useState(false);
 
   // Use ref to track latest sessions without causing re-renders
   const sessionsRef = useRef(sessions);
@@ -160,7 +173,15 @@ function FreeChatContent() {
       }
       setHasSetInitialDialogId(true);
     }
-  }, [searchParams, dialogId, setDialogId, userId, settings, updateField, hasSetInitialDialogId]);
+  }, [
+    searchParams,
+    dialogId,
+    setDialogId,
+    userId,
+    settings,
+    updateField,
+    hasSetInitialDialogId,
+  ]);
 
   // Handle model_card_id from URL parameter (only once on mount)
   // When user selects a model card, create a new session with that model_card_id
@@ -187,8 +208,10 @@ function FreeChatContent() {
       return;
     }
 
-    // Check if session with this conversation_id already exists (use ref for latest value)
-    const existingSession = sessionsRef.current.find(s => s.conversation_id === conversationId);
+    // Check if session with this conversation_id already exists
+    const existingSession = sessions.find(
+      (s) => s.conversation_id === conversationId,
+    );
     if (existingSession) {
       // Switch to existing session
       switchSession(existingSession.id);
@@ -202,7 +225,7 @@ function FreeChatContent() {
       try {
         const { data } = await chatService.getConversation(
           { params: { conversation_id: conversationId } },
-          true
+          true,
         );
 
         // Check if this effect was cancelled (e.g., conversation_id changed)
@@ -211,17 +234,18 @@ function FreeChatContent() {
         if (data.code === 0 && data.data) {
           const conversation = data.data;
 
-          // Create new session with conversation data
-          const newSession = createSession(conversation.name || 'Chat from conversation');
+          // This is an existing conversation from backend
+          // We need to add it to our sessions store manually
+          // Note: This is a rare case (URL parameter loading)
+          updateSession(conversationId, {
+            conversation_id: conversationId,
+            name: conversation.name || 'Chat from conversation',
+            messages: conversation.message || [],
+            state: 'active',
+          });
 
-          // Update session with conversation_id and messages
-          if (newSession && conversation.message) {
-            updateSession(newSession.id, {
-              conversation_id: conversationId,
-              messages: conversation.message,
-            });
-          }
-
+          // Switch to this session
+          switchSession(conversationId);
           setLoadedConversationId(conversationId);
         }
       } catch (error) {
@@ -237,42 +261,68 @@ function FreeChatContent() {
     return () => {
       isCancelled = true;
     };
-  }, [searchParams, loadedConversationId, switchSession, createSession, updateSession]);
+  }, [
+    searchParams,
+    loadedConversationId,
+    switchSession,
+    updateSession,
+    sessions,
+  ]);
 
   const handleNewSession = useCallback(() => {
-    // FIX: Always pass current model_card_id when creating new session
-    // This ensures the new session is associated with the current assistant
+    // Get or create draft for current model card
     let modelCardId = currentSession?.model_card_id;
-    
+
     // Fallback: If no current session or no model_card_id, use first available model card
     if (!modelCardId && modelCards.length > 0) {
-      console.warn('[NewSession] No model_card_id in current session, using first available model card:', modelCards[0].name);
+      console.warn(
+        '[NewSession] No model_card_id in current session, using first available model card:',
+        modelCards[0].name,
+      );
       modelCardId = modelCards[0].id;
     }
-    
+
     if (!modelCardId) {
-      console.error('[NewSession] Cannot create session: no model cards available');
+      console.error(
+        '[NewSession] Cannot create session: no model cards available',
+      );
       message.warning('请先配置至少一个助手');
       return;
     }
-    
-    createSession(undefined, modelCardId);
-  }, [createSession, currentSession?.model_card_id, modelCards]);
+
+    // Get or create the permanent draft for this model card
+    const draft = getOrCreateDraftForCard(modelCardId);
+
+    // Switch to this draft
+    switchSession(draft.id);
+  }, [
+    getOrCreateDraftForCard,
+    switchSession,
+    currentSession?.model_card_id,
+    modelCards,
+  ]);
 
   const handleSessionRename = useCallback(
     async (sessionId: string, newName: string) => {
-      console.log('[SessionRename] Renaming session:', sessionId, 'to:', newName);
+      console.log(
+        '[SessionRename] Renaming session:',
+        sessionId,
+        'to:',
+        newName,
+      );
 
-      const session = sessions.find(s => s.id === sessionId);
+      const session = sessions.find((s) => s.id === sessionId);
       if (!session) return;
 
-      // Update local state first
+      // Save old name for rollback
+      const oldName = session.name;
+
+      // FIX: Optimistic update with rollback on failure
       updateSession(sessionId, { name: newName });
 
       // If session has conversation_id, update backend as well
       if (session.conversation_id) {
         try {
-          // FIX: Add Authorization header with beta token from URL
           const authToken = searchParams.get('auth');
           const headers: HeadersInit = {
             'Content-Type': 'application/json',
@@ -294,16 +344,26 @@ function FreeChatContent() {
 
           const result = await response.json();
           if (result.code !== 0) {
-            console.error('[SessionRename] Backend update failed:', result.message);
+            console.error(
+              '[SessionRename] Backend update failed:',
+              result.message,
+            );
+            // FIX: Rollback on backend failure
+            updateSession(sessionId, { name: oldName });
+            message.error(`重命名失败: ${result.message}`);
+            return;
           }
         } catch (error) {
-          console.error('[SessionRename] Failed to update conversation name in backend:', error);
+          console.error('[SessionRename] Network error:', error);
+          // FIX: Rollback on network error
+          updateSession(sessionId, { name: oldName });
+          message.error('网络错误，重命名失败');
+          return;
         }
       }
 
-      // Save to FreeChatUserSettings
+      // Save to FreeChatUserSettings only on success
       setTimeout(() => {
-        console.log('[SessionRename] Triggering immediate save via manualSave');
         manualSave();
       }, 50);
     },
@@ -313,31 +373,66 @@ function FreeChatContent() {
   const handleSessionDelete = useCallback(
     async (sessionId: string) => {
       console.log('[handleSessionDelete] Deleting session:', sessionId);
-      // FIX: Delegate all deletion logic to deleteSession mutation
-      // It will handle both draft (local) and active (backend) sessions
-      deleteSession(sessionId);
-    },
-    [deleteSession],
-  );
 
-  const handleModelCardChange = useCallback(
-    (newModelCardId: number) => {
-      // Find draft for this model card or create new one
-      const draftSession = sessions.find(s => 
-        s.state === 'draft' && s.model_card_id === newModelCardId
-      );
-      
-      if (draftSession) {
-        // Switch to existing draft
-        console.log('[ModelCardChange] Switching to existing draft:', draftSession.id);
-        switchSession(draftSession.id);
-      } else {
-        // Create new draft for this model card
-        console.log('[ModelCardChange] Creating new draft for model card:', newModelCardId);
-        createSession('新对话', newModelCardId, true);
+      // Find the session
+      const session = sessions.find((s) => s.id === sessionId);
+      if (!session) return;
+
+      // For active sessions, call backend to delete
+      if (session.conversation_id) {
+        try {
+          const authToken = searchParams.get('auth');
+          const response = await fetch('/v1/conversation/rm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(authToken && { Authorization: `Bearer ${authToken}` }),
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              conversation_ids: [session.conversation_id],
+            }),
+          });
+
+          const result = await response.json();
+          if (result.code !== 0) {
+            message.error(`删除失败: ${result.message}`);
+            return;
+          }
+        } catch (error) {
+          message.error('网络错误，删除失败');
+          return;
+        }
+      }
+
+      // Remove from local store (for both draft and active)
+      // Note: We can't truly "delete" a draft - it's permanent per card
+      // So we just switch away from it
+      const remainingSessions = sessions.filter((s) => s.id !== sessionId);
+      if (remainingSessions.length > 0) {
+        switchSession(remainingSessions[0].id);
       }
     },
-    [createSession, switchSession, sessions],
+    [sessions, switchSession, searchParams],
+  );
+
+  // CRITICAL: Each model card has ONE and ONLY ONE permanent draft
+  const handleModelCardChange = useCallback(
+    (newModelCardId: number) => {
+      // Get or create the permanent draft for this model card
+      const draft = getOrCreateDraftForCard(newModelCardId);
+
+      // Switch to this draft
+      switchSession(draft.id);
+
+      console.log(
+        '[ModelCardChange] Switched to draft for card:',
+        newModelCardId,
+        'draftId:',
+        draft.id,
+      );
+    },
+    [getOrCreateDraftForCard, switchSession],
   );
 
   const handleRolePromptChange = useCallback(
@@ -374,10 +469,12 @@ function FreeChatContent() {
   // Priority: session.params > modelCard.params > system defaults
   const effectiveModelParams = useMemo(() => {
     const defaults = { temperature: 0.7, top_p: 0.9 };
-    const modelCardParams = currentModelCard ? {
-      temperature: currentModelCard.temperature,
-      top_p: currentModelCard.top_p,
-    } : {};
+    const modelCardParams = currentModelCard
+      ? {
+          temperature: currentModelCard.temperature,
+          top_p: currentModelCard.top_p,
+        }
+      : {};
     const sessionParams = currentSession?.params || {};
 
     return {
@@ -390,7 +487,9 @@ function FreeChatContent() {
   // Calculate effective role prompt
   // Priority: session.params.role_prompt > modelCard.prompt > empty string
   const effectiveRolePrompt = useMemo(() => {
-    return currentSession?.params?.role_prompt || currentModelCard?.prompt || '';
+    return (
+      currentSession?.params?.role_prompt || currentModelCard?.prompt || ''
+    );
   }, [currentSession, currentModelCard]);
 
   // Show loading state while settings are being loaded
@@ -408,7 +507,9 @@ function FreeChatContent() {
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
           <p className="text-lg font-semibold mb-2">Access Denied</p>
-          <p className="text-muted-foreground">This page requires a user_id parameter to access.</p>
+          <p className="text-muted-foreground">
+            This page requires a user_id parameter to access.
+          </p>
         </div>
       </div>
     );
@@ -435,10 +536,18 @@ function FreeChatContent() {
       />
 
       {/* Chat Interface */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative">
+        {/* XState: Promotion indicator - shows when Draft is being promoted to Active */}
+        {isPromoting && (
+          <div className="absolute top-0 left-0 right-0 z-10 bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center gap-2">
+            <Spin size="small" />
+            <span className="text-sm text-blue-700">正在创建对话...</span>
+          </div>
+        )}
+
         <ChatInterface
           messages={derivedMessages}
-          sendLoading={sendLoading}
+          sendLoading={sendLoading || isPromoting}
           scrollRef={scrollRef}
           messageContainerRef={messageContainerRef}
           removeMessageById={removeMessageById}
@@ -451,7 +560,9 @@ function FreeChatContent() {
           sessionName={currentSession?.name}
           modelCardName={currentModelCard?.name}
           isSettingsPanelOpen={isSettingsPanelOpen}
-          onToggleSettingsPanel={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
+          onToggleSettingsPanel={() =>
+            setIsSettingsPanelOpen(!isSettingsPanelOpen)
+          }
         />
 
         {/* Simplified Input - replacing NextMessageInput */}
@@ -461,8 +572,8 @@ function FreeChatContent() {
           onSend={handlePressEnter}
           onNewTopic={handleNewSession}
           onClearMessages={removeAllMessages}
-          disabled={!currentSession?.model_card_id}
-          sendLoading={sendLoading}
+          disabled={!currentSession?.model_card_id || isPromoting}
+          sendLoading={sendLoading || isPromoting}
         />
       </div>
 
@@ -493,7 +604,8 @@ export default function FreeChat() {
   useEffect(() => {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = 'https://chinese-fonts-cdn.deno.dev/packages/jhlst/dist/%E4%BA%AC%E8%8F%AF%E8%80%81%E5%AE%8B%E4%BD%93v1_007/result.css';
+    link.href =
+      'https://chinese-fonts-cdn.deno.dev/packages/jhlst/dist/%E4%BA%AC%E8%8F%AF%E8%80%81%E5%AE%8B%E4%BD%93v1_007/result.css';
     document.head.appendChild(link);
 
     // Apply font to body
