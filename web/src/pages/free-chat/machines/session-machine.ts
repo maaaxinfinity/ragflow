@@ -213,12 +213,22 @@ export const sessionMachine = createMachine(
 
       // ========== PROMOTING STATE ==========
       promoting: {
-        entry: () => {
+        entry: (ctx) => {
           console.log('[StateMachine] Entered PROMOTING state');
+          console.log('[StateMachine] PROMOTING context:', {
+            pendingMessage: ctx.context.pendingMessage?.content?.slice(0, 30),
+            pendingDialogId: ctx.context.pendingDialogId,
+            pendingModelCardId: ctx.context.pendingModelCardId,
+          });
         },
         initial: 'creatingConversation',
         states: {
           creatingConversation: {
+            entry: () => {
+              console.log(
+                '[StateMachine] Entered creatingConversation sub-state',
+              );
+            },
             invoke: {
               id: 'createConversation',
               // ✅ Service name reference (injected at runtime)

@@ -51,12 +51,14 @@ export function useSessionMachine(props: UseSessionMachineProps) {
 
   // ✅ BEST PRACTICE: Inject service implementation
   const promoteDraftService = useCallback(async ({ input }: any) => {
+    console.log('[promoteDraftService] INVOKED! Raw input:', input);
+
     const { message, dialogId, modelCardId } = input;
 
     console.log('[promoteDraftService] START - Creating conversation:', {
       dialogId,
       modelCardId,
-      messageSample: message.content.slice(0, 30),
+      messageSample: message?.content?.slice(0, 30),
     });
 
     try {
@@ -110,6 +112,11 @@ export function useSessionMachine(props: UseSessionMachineProps) {
       // Inject service implementation
       promoteDraftToActive: fromPromise(promoteDraftService),
     },
+  });
+
+  // Debug: confirm machine is initialized
+  console.log('[useSessionMachine] Machine created with actors:', {
+    hasPromoteDraftService: !!promoteDraftService,
   });
 
   // ✅ Initialize machine based on session state
