@@ -819,10 +819,50 @@ class FreeChatUserSettings(DataBaseModel):
     model_params = JSONField(null=False, default={"temperature": 0.7, "top_p": 0.9})
     kb_ids = ListField(null=False, default=[])
     role_prompt = LongTextField(null=True, default="", help_text="custom system prompt")
-    sessions = JSONField(null=False, default=[], help_text="chat sessions data")
+    sessions = JSONField(null=False, default=[], help_text="DEPRECATED: use FreeChatSession table instead")
 
     class Meta:
         db_table = "free_chat_user_settings"
+
+
+class FreeChatSession(DataBaseModel):
+    """
+    FreeChat 会话表 - SQL 作为唯一可信数据源
+    每个会话代表一个独立的对话上下文
+    """
+    id = CharField(max_length=32, primary_key=True, help_text="session UUID")
+    user_id = CharField(max_length=255, null=False, index=True, help_text="external user ID")
+    name = CharField(max_length=255, null=False, default="New Chat", help_text="session name")
+    conversation_id = CharField(max_length=32, null=True, index=True, help_text="linked Conversation ID")
+    created_at = BigIntegerField(null=False, help_text="creation timestamp (ms)")
+    updated_at = BigIntegerField(null=False, help_text="last update timestamp (ms)")
+
+    class Meta:
+        db_table = "free_chat_session"
+        indexes = (
+            (("user_id", "created_at"), False),  # 复合索引：按用户查询会话列表
+        )
+
+
+class FreeChatMessage(DataBaseModel):
+    """
+    FreeChat 消息表 - SQL 作为唯一可信数据源
+    存储会话中的每条消息
+    """
+    id = CharField(max_length=32, primary_key=True, help_text="message UUID")
+    session_id = CharField(max_length=32, null=False, index=True, help_text="session ID")
+    role = CharField(max_length=16, null=False, help_text="user or assistant")
+    content = LongTextField(null=False, help_text="message content")
+    reference = JSONField(null=True, default=[], help_text="AI response references")
+    seq = IntegerField(null=False, help_text="message sequence number in session")
+    created_at = BigIntegerField(null=False, help_text="creation timestamp (ms)")
+
+    class Meta:
+        db_table = "free_chat_message"
+        indexes = (
+            (("session_id", "seq"), False),  # 复合索引：按会话按序号查询
+            (("session_id", "created_at"), False),  # 复合索引：按会话按时间查询
+        )
 
 
 class APIToken(DataBaseModel):

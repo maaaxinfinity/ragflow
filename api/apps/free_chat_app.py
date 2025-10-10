@@ -33,8 +33,7 @@ from api.exceptions.free_chat_exceptions import (
     UnauthorizedAccessError,
     InvalidSettingsError,
     DatabaseError,
-    CacheError,
-    LockTimeoutError
+    CacheError
 )
 from api.utils.redis_lock import redis_lock
 # ✅ 导入新的缓存管理器
@@ -235,7 +234,7 @@ def save_user_settings(**kwargs):
     # ✅ 使用分布式锁防止并发冲突
     lock_key = f"freechat_settings:{user_id}"
     try:
-        with redis_lock(lock_key, timeout=5, blocking_timeout=3):
+        with redis_lock(lock_key, timeout=10):
             # Step 1: Save sessions to Redis immediately (fast response)
             sessions = data.get("sessions", [])
             try:
@@ -263,9 +262,9 @@ def save_user_settings(**kwargs):
                 logging.error(f"[FreeChat] MySQL save failed, invalidated Redis cache for user {user_id}")
                 raise DatabaseError(f"Failed to save settings: {result}")
     
-    except LockTimeoutError:
+    except TimeoutError:
         logging.warning(f"[FreeChat] Lock timeout for user {user_id}, another save is in progress")
-        raise
+        raise FreeChatError("Another save operation is in progress, please try again", status_code=409)
     except (CacheError, DatabaseError, UnauthorizedAccessError, InvalidSettingsError):
         # Re-raise our custom exceptions
         raise
