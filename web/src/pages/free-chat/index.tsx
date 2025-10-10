@@ -113,6 +113,7 @@ function FreeChatContent() {
     stopOutputMessage,
     sessions,
     currentSessionId,
+    createSession,
     switchSession,
     updateSession,
     toggleFavorite,
