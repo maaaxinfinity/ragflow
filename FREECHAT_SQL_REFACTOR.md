@@ -138,18 +138,48 @@ docker exec ragflow-mysql mysqldump -u ragflow -p ragflow > backup.sql
 
 ### 步骤 3: 数据迁移
 
+**注意**：迁移脚本必须在 **Docker 容器内** 执行（因为依赖项在容器内）
+
+#### 方式 1: 在运行中的容器内执行（推荐）
+
 ```bash
-# 进入项目目录
-cd /path/to/ragflow
+# 查找 ragflow-server 容器 ID
+docker ps | grep ragflow
 
-# 激活虚拟环境（如果使用）
-source .venv/bin/activate
+# 进入容器执行迁移
+docker exec -it <container_id> python -m api.db.migrations.migrate_freechat_to_sql
 
-# 执行迁移脚本
-python -m api.db.migrations.migrate_freechat_to_sql
+# 或者使用容器名称
+docker exec -it ragflow-server python -m api.db.migrations.migrate_freechat_to_sql
 
 # 仅验证不迁移
-python -m api.db.migrations.migrate_freechat_to_sql --verify-only
+docker exec -it ragflow-server python -m api.db.migrations.migrate_freechat_to_sql --verify-only
+```
+
+#### 方式 2: 使用便捷脚本（推荐）
+
+```bash
+# 使用提供的便捷脚本
+bash scripts/migrate_freechat.sh
+
+# 仅验证
+bash scripts/migrate_freechat.sh --verify-only
+```
+
+#### 方式 3: 本地开发环境（仅开发模式）
+
+如果你使用本地开发环境（非 Docker）：
+
+```bash
+# 确保所有依赖已安装
+uv sync --all-extras
+
+# 确保服务已启动（ES, MySQL, Redis等）
+docker compose -f docker/docker-compose-base.yml up -d
+
+# 执行迁移
+source .venv/bin/activate
+python -m api.db.migrations.migrate_freechat_to_sql
 ```
 
 ### 步骤 4: 重启服务

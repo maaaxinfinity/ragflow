@@ -29,7 +29,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from api.db.db_models import FreeChatUserSettings, FreeChatSession, FreeChatMessage
+from api.db.db_models import FreeChatUserSettings, FreeChatSession, FreeChatMessage, DB
 from api.db.services.free_chat_session_service import FreeChatSessionService
 from api.db.services.free_chat_message_service import FreeChatMessageService
 from api.db.services.free_chat_user_settings_service import FreeChatUserSettingsService
@@ -39,6 +39,41 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def ensure_tables_exist():
+    """
+    确保新表存在，如果不存在则创建
+    """
+    logger.info("Checking if tables exist...")
+    
+    try:
+        # 检查 free_chat_session 表是否存在
+        DB.execute_sql("SELECT 1 FROM free_chat_session LIMIT 1")
+        logger.info("✓ Table 'free_chat_session' exists")
+    except Exception:
+        logger.warning("✗ Table 'free_chat_session' does not exist, creating...")
+        try:
+            FreeChatSession.create_table()
+            logger.info("✓ Created table 'free_chat_session'")
+        except Exception as e:
+            logger.error(f"Failed to create table 'free_chat_session': {e}")
+            raise
+    
+    try:
+        # 检查 free_chat_message 表是否存在
+        DB.execute_sql("SELECT 1 FROM free_chat_message LIMIT 1")
+        logger.info("✓ Table 'free_chat_message' exists")
+    except Exception:
+        logger.warning("✗ Table 'free_chat_message' does not exist, creating...")
+        try:
+            FreeChatMessage.create_table()
+            logger.info("✓ Created table 'free_chat_message'")
+        except Exception as e:
+            logger.error(f"Failed to create table 'free_chat_message': {e}")
+            raise
+    
+    logger.info("All required tables are ready!")
 
 
 def migrate_one_user(user_id: str, sessions_json: list) -> tuple[int, int]:
@@ -121,6 +156,10 @@ def migrate_all():
     logger.info("=" * 60)
     logger.info("Starting FreeChat data migration")
     logger.info("=" * 60)
+    
+    # 首先确保表存在
+    ensure_tables_exist()
+    logger.info("")
 
     total_users = 0
     total_sessions = 0
