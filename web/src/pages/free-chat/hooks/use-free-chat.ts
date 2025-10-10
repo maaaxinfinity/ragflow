@@ -175,15 +175,19 @@ export const useFreeChat = (
         if (convData.code === 0) {
           conversationId = convData.data.id;
           
-          // FIX: Draft → Active promotion with messages preserved
+          // FIX: Draft → Active promotion (keep draft, create new active)
           if (session) {
             const draftId = session.id;
             const draftModelCardId = session.model_card_id;
             const draftParams = session.params;
             const currentMessages = [...derivedMessages];
             
-            // 1. Delete Draft
-            deleteSession(draftId);
+            // 1. Reset Draft (clear messages, keep it for next conversation)
+            updateSession(draftId, { 
+              messages: [],
+              name: '新对话',
+              params: {}
+            });
             
             // 2. Create Active with backend ID
             const newActiveSession = createSession(
@@ -193,13 +197,13 @@ export const useFreeChat = (
               conversationId
             );
             
-            // 3. Restore params and messages
+            // 3. Restore params and messages to Active
             if (draftParams && newActiveSession) {
               updateSession(conversationId, { params: draftParams });
             }
             updateSession(conversationId, { messages: currentMessages });
             
-            console.log('[SendMessage] Draft promoted:', draftId, '→', conversationId, 'messages:', currentMessages.length);
+            console.log('[SendMessage] Draft promoted to Active:', conversationId, '| Draft reset:', draftId);
           }
         } else {
           logError(

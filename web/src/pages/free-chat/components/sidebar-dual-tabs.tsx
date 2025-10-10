@@ -196,7 +196,7 @@ export function SidebarDualTabs({
                             <div className="text-xs text-muted-foreground flex items-center gap-2">
                               <span className="flex items-center gap-1">
                                 <MessageSquare className="h-3 w-3" />
-                                {cardSessions.length}
+                                {cardSessions.filter(s => s.state !== 'draft').length}
                               </span>
                             </div>
                           </div>
@@ -373,41 +373,50 @@ export function SidebarDualTabs({
                             </div>
                           </div>
                           {!isEditing && (
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              {/* Favorite - Always visible when favorited */}
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className={`h-7 w-7 ${session.is_favorited ? 'opacity-100 text-amber-500' : ''}`}
+                                className={`h-7 w-7 transition-opacity ${
+                                  session.is_favorited 
+                                    ? 'opacity-100 text-amber-500' 
+                                    : 'opacity-0 group-hover:opacity-100'
+                                }`}
                                 onClick={() => onToggleFavorite?.(session.id)}
                                 title={session.is_favorited ? '取消收藏' : '收藏对话'}
                               >
                                 <Star className={`h-3.5 w-3.5 ${session.is_favorited ? 'fill-current' : ''}`} />
                               </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7"
-                                onClick={() => {
-                                  setEditingSessionId(session.id);
-                                  setEditingName(session.name);
-                                }}
-                                title="重命名"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={async () => {
-                                  if (window.confirm(`确定要删除"${session.name}"吗？`)) {
-                                    await onSessionDelete?.(session.id);
-                                  }
-                                }}
-                                title="删除"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              
+                              {/* Edit & Delete - Only on hover */}
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => {
+                                    setEditingSessionId(session.id);
+                                    setEditingName(session.name);
+                                  }}
+                                  title="重命名"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={async () => {
+                                    if (window.confirm(`确定要删除"${session.name}"吗？`)) {
+                                      await onSessionDelete?.(session.id);
+                                    }
+                                  }}
+                                  title="删除"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -419,8 +428,21 @@ export function SidebarDualTabs({
             )}
           </div>
 
-          {/* Footer - User Info */}
+          {/* Footer - Actions & User Info */}
           <div className="border-t space-y-3 p-3 bg-card/50 backdrop-blur-sm">
+            {/* Delete Unfavorited Button - Only show in topics tab */}
+            {activeTab === 'topics' && (
+              <Button
+                onClick={onDeleteUnfavorited}
+                variant="outline"
+                className="w-full hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
+                size="sm"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                删除未收藏对话
+              </Button>
+            )}
+            
             {/* User Profile */}
             {userId && (currentUserInfo || userInfo) && (
               <div className="flex items-center gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 rounded-xl px-4 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200">
