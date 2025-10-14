@@ -103,11 +103,14 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
 
       if (response.code === 0) {
         const normalized = (response.data ?? []).map(normalizeSession);
+        const deduped = Array.from(
+          new Map(normalized.map((s) => [s.id, s])).values(),
+        );
         if (!isUnmountedRef.current) {
-          setSessions(normalized);
-          ensureCurrentSession(normalized);
+          setSessions(deduped);
+          ensureCurrentSession(deduped);
         }
-        return normalized;
+        return deduped;
       }
 
       logError(
@@ -165,6 +168,8 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
         return fallback;
       }
 
+      const fallbackId = fallback.id;
+
       try {
         const { data: response } = await request(api.createFreeChatSession, {
           method: 'POST',
@@ -177,7 +182,12 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
 
         if (response.code === 0 && response.data) {
           const normalized = normalizeSession(response.data);
-          setSessions((prev) => [normalized, ...prev]);
+          setSessions((prev) => {
+            const filtered = prev.filter(
+              (session) => session.id !== fallbackId,
+            );
+            return [normalized, ...filtered];
+          });
           setCurrentSessionId(normalized.id);
           setIsDraftMode(false);
           return normalized;
@@ -194,7 +204,10 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
         );
       }
 
-      setSessions((prev) => [fallback, ...prev]);
+      setSessions((prev) => {
+        const filtered = prev.filter((session) => session.id !== fallbackId);
+        return [fallback, ...filtered];
+      });
       setCurrentSessionId(fallback.id);
       return fallback;
     },

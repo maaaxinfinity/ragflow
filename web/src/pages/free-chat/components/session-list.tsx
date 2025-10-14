@@ -68,7 +68,7 @@ export function SessionList({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const draftTitle = '来聊点啥';
   const hasRemovableSessions = sessions.some((session) => !session.is_favorite);
-  const showUserMeta = Boolean(userId) || Boolean(teamName) || isSuperUser;
+  // UX: 不再在左下角显示用户/团队卡片，按需保留 props 但不使用
 
   const handleStartEdit = useCallback(
     (session: IFreeChatSession, e: React.MouseEvent) => {
@@ -167,28 +167,22 @@ export function SessionList({
             </>
           ) : (
             <div
-              className={`group relative overflow-hidden rounded-2xl border p-5 cursor-pointer transition-all duration-300 ${
+              className={`group relative overflow-hidden rounded-xl border p-4 cursor-pointer transition-all duration-200 ${
                 isDraftMode
-                  ? 'border-primary/60 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.14),_transparent_70%)] shadow-[0_18px_38px_-28px_rgba(59,130,246,0.75)]'
-                  : 'border border-border/70 bg-gradient-to-r from-primary/5 via-background to-background hover:border-primary/40 hover:bg-primary/5'
+                  ? 'border-primary/50 bg-primary/5 ring-1 ring-primary/30 shadow-sm'
+                  : 'border-border/60 bg-card hover:bg-accent hover:border-primary/30'
               }`}
               onClick={onDraftSelect}
             >
               <div className="flex items-center gap-3">
-                <div className="rounded-xl bg-primary/15 p-2 shadow-inner shadow-primary/20">
+                <div className="rounded-lg bg-primary/10 p-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-primary/70">
-                    <span className="rounded-full border border-primary/40 px-2 py-0.5">
-                      Draft
-                    </span>
-                    <span className="h-[2px] w-6 rounded-full bg-primary/30" />
-                  </div>
-                  <h3 className="mt-2 font-semibold text-sm text-primary">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-foreground">
                     {draftTitle}
                   </h3>
-                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                  <p className="mt-1 text-xs text-muted-foreground truncate">
                     {t('freeChatWelcomeMessage')}
                   </p>
                 </div>
@@ -199,7 +193,7 @@ export function SessionList({
         {isCollapsed ? (
           <div className="space-y-2">
             <div
-              className={`w-10 h-10 mx-auto rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center ${
+              className={`group relative w-10 h-10 mx-auto rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center ${
                 variant === 'mockTest'
                   ? isDraftMode
                     ? 'bg-primary/25 border border-primary/50 ring-1 ring-primary/30 shadow-[0_6px_12px_-8px_rgba(59,130,246,0.35)]'
@@ -219,7 +213,7 @@ export function SessionList({
               return (
                 <div
                   key={session.id}
-                  className={`relative w-10 h-10 mx-auto rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center ${
+                  className={`group relative w-10 h-10 mx-auto rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center ${
                     variant === 'mockTest'
                       ? isActive
                         ? 'bg-primary/25 border border-primary/60 ring-1 ring-primary/35 shadow-[0_6px_15px_-10px_rgba(59,130,246,0.55)]'
@@ -239,7 +233,7 @@ export function SessionList({
                   {onToggleFavorite && (
                     <button
                       type="button"
-                      className={`absolute -top-1 -right-1 grid h-5 w-5 place-items-center rounded-full border border-white/80 bg-background/90 shadow-sm transition-colors ${
+                      className={`absolute -top-1 -right-1 grid h-5 w-5 place-items-center rounded-full border border-white/80 bg-background/90 shadow-sm transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 ${
                         isFavorite ? 'text-amber-500' : 'text-muted-foreground'
                       }`}
                       onClick={(e) => {
@@ -333,7 +327,7 @@ export function SessionList({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className={`h-7 w-7 ${
+                            className={`h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity ${
                               isFavorite
                                 ? 'text-amber-500 hover:bg-amber-500/15'
                                 : 'hover:bg-primary/20'
@@ -390,7 +384,7 @@ export function SessionList({
             <>
               <Button
                 onClick={onNewSession}
-                className="w-full shadow-sm"
+                className="w-full h-10 shadow-sm"
                 size="icon"
                 title={t('newChat')}
               >
@@ -400,7 +394,7 @@ export function SessionList({
                 <Button
                   onClick={onClearAll}
                   variant="outline"
-                  className="w-full"
+                  className="w-full h-10"
                   size="icon"
                   title="清除全部（已收藏保留）"
                   disabled={!hasRemovableSessions}
@@ -413,8 +407,8 @@ export function SessionList({
             <>
               <Button
                 onClick={onNewSession}
-                className="w-full shadow-sm"
-                size="sm"
+                className="w-full h-10 shadow-sm"
+                size="default"
               >
                 <MessageSquarePlus className="h-4 w-4 mr-2" />
                 {t('newChat')}
@@ -423,8 +417,8 @@ export function SessionList({
                 <Button
                   onClick={onClearAll}
                   variant="outline"
-                  className="w-full"
-                  size="sm"
+                  className="w-full h-10"
+                  size="default"
                   disabled={!hasRemovableSessions}
                 >
                   <Eraser className="h-4 w-4 mr-2" />
@@ -434,42 +428,6 @@ export function SessionList({
             </>
           )}
         </div>
-
-        {showUserMeta &&
-          (isCollapsed ? (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 text-center text-[11px] text-muted-foreground leading-relaxed">
-              <div className="font-semibold text-foreground truncate">
-                {userId || '未识别用户'}
-              </div>
-              {teamName && <div className="truncate">{teamName}</div>}
-              {isSuperUser && (
-                <div className="mt-1 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                  SU
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-3 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">用户 ID</p>
-                  <p className="text-sm font-semibold text-foreground break-all">
-                    {userId || '未识别用户'}
-                  </p>
-                </div>
-                {isSuperUser && (
-                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm">
-                    SU
-                  </span>
-                )}
-              </div>
-              {teamName && (
-                <p className="mt-2 text-xs text-muted-foreground truncate">
-                  团队：{teamName}
-                </p>
-              )}
-            </div>
-          ))}
       </div>
     </div>
   );
