@@ -1,27 +1,31 @@
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { useTranslate } from '@/hooks/common-hooks';
 import { useFetchDialogList } from '@/hooks/use-chat-request';
 import { Select, Spin } from 'antd';
-import { useTranslate } from '@/hooks/common-hooks';
 
 interface DialogSelectorProps {
   selectedDialogId: string;
   onDialogChange: (dialogId: string) => void;
+  // Optional mock data for test mode (bypass network)
+  mockDialogs?: Array<{ id: string; name: string }>;
 }
 
 export function DialogSelector({
   selectedDialogId,
   onDialogChange,
+  mockDialogs,
 }: DialogSelectorProps) {
   const { t } = useTranslate('chat');
-  const { data, loading } = useFetchDialogList();
+  // Disable fetching when mock is provided
+  const { data, loading } = useFetchDialogList(!mockDialogs);
 
   const handleChange = (value: string) => {
     localStorage.setItem('free_chat_dialog_id', value);
     onDialogChange(value);
   };
 
-  if (loading) {
+  if (!mockDialogs && loading) {
     return (
       <div className="space-y-2">
         <Label>{t('selectDialog')}</Label>
@@ -32,7 +36,11 @@ export function DialogSelector({
     );
   }
 
-  if (data.dialogs.length === 0) {
+  const dialogs = mockDialogs
+    ? mockDialogs.map((d) => ({ id: d.id, name: d.name }))
+    : data?.dialogs ?? [];
+
+  if (dialogs.length === 0) {
     return (
       <div className="space-y-2">
         <Label>{t('selectDialog')}</Label>
@@ -59,7 +67,7 @@ export function DialogSelector({
         placeholder={t('selectDialog')}
         value={selectedDialogId || undefined}
         onChange={handleChange}
-        options={data.dialogs.map((dialog) => ({
+        options={dialogs.map((dialog) => ({
           label: dialog.name,
           value: dialog.id,
         }))}

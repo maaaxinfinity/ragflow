@@ -30,6 +30,7 @@ import {
   Settings2,
   Sparkles,
   Sun,
+  X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useDynamicParams } from '../hooks/use-dynamic-params';
@@ -56,6 +57,17 @@ interface ControlPanelProps {
   currentLoginUser?: any;
   // Mobile mode
   isMobile?: boolean;
+  // Mock-only: inject static lists to bypass network
+  mockDialogs?: Array<{ id: string; name: string }>;
+  mockKBs?: Array<{
+    id: string;
+    name: string;
+    avatar?: string;
+    chunk_num?: number;
+  }>;
+  mockEnabledKBs?: Set<string>;
+  onToggleMockKB?: (id: string) => void;
+  onClosePanel?: () => void;
 }
 
 export function ControlPanel({
@@ -74,6 +86,11 @@ export function ControlPanel({
   tenantInfo,
   currentLoginUser,
   isMobile = false,
+  mockDialogs,
+  mockKBs,
+  mockEnabledKBs,
+  onToggleMockKB,
+  onClosePanel,
 }: ControlPanelProps) {
   const { params, updateParam, resetParams, paramsChanged } = useDynamicParams({
     initialParams: modelParams,
@@ -145,6 +162,17 @@ export function ControlPanel({
                 )}
               </Button>
             )}
+            {onClosePanel && (
+              <Button
+                onClick={onClosePanel}
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                title="收起配置面板"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
         {hasUnsavedChanges && !saving && (
@@ -157,6 +185,7 @@ export function ControlPanel({
         <DialogSelector
           selectedDialogId={dialogId}
           onDialogChange={onDialogChange}
+          mockDialogs={mockDialogs}
         />
       </div>
 
@@ -280,7 +309,11 @@ export function ControlPanel({
 
         {/* Knowledge Base Selector */}
         <div className="pt-4 border-t">
-          <KnowledgeBaseSelector />
+          <KnowledgeBaseSelector
+            mockKBs={mockKBs}
+            mockEnabled={mockEnabledKBs}
+            onToggleMock={onToggleMockKB}
+          />
         </div>
 
         {/* User Info Display - Show current logged-in user or fallback to userInfo */}

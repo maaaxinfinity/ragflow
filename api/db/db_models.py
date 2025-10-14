@@ -836,6 +836,7 @@ class FreeChatSession(DataBaseModel):
     conversation_id = CharField(max_length=32, null=True, index=True, help_text="linked Conversation ID")
     created_at = BigIntegerField(null=False, help_text="creation timestamp (ms)")
     updated_at = BigIntegerField(null=False, help_text="last update timestamp (ms)")
+    is_favorite = BooleanField(null=False, default=False, help_text="whether the session is marked as favorite")
 
     class Meta:
         db_table = "free_chat_session"

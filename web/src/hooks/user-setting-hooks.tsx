@@ -26,13 +26,16 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { history } from 'umi';
 
-export const useFetchUserInfo = (): ResponseGetType<IUserInfo> => {
+export const useFetchUserInfo = (
+  enabled: boolean = true,
+): ResponseGetType<IUserInfo> => {
   const { i18n } = useTranslation();
 
   const { data, isFetching: loading } = useQuery({
     queryKey: ['userInfo'],
     initialData: {},
     gcTime: 0,
+    enabled,
     queryFn: async () => {
       const { data } = await userService.user_info();
       if (data.code === 0) {

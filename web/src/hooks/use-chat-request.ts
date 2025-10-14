@@ -74,7 +74,7 @@ export const useClickDialogCard = () => {
   return { handleClickDialog };
 };
 
-export const useFetchDialogList = () => {
+export const useFetchDialogList = (enabled: boolean = true) => {
   const { searchString, handleInputChange } = useHandleSearchChange();
   const { pagination, setPagination } = useGetPaginationWithRouter();
   const debouncedSearchString = useDebounce(searchString, { wait: 500 });
@@ -94,6 +94,7 @@ export const useFetchDialogList = () => {
     initialData: { dialogs: [], total: 0 },
     gcTime: 0,
     refetchOnWindowFocus: false,
+    enabled,
     queryFn: async () => {
       const { data } = await chatService.listDialog(
         {
@@ -256,8 +257,15 @@ export const useFetchConversationList = () => {
     },
     queryFn: async ({ queryKey }) => {
       const [, currentId] = queryKey as [string, string];
-      if (!currentId || typeof currentId !== 'string' || currentId.trim() === '') {
-        console.warn('useFetchConversationList called with invalid id:', currentId);
+      if (
+        !currentId ||
+        typeof currentId !== 'string' ||
+        currentId.trim() === ''
+      ) {
+        console.warn(
+          'useFetchConversationList called with invalid id:',
+          currentId,
+        );
         return [];
       }
       const { data } = await chatService.listConversation(

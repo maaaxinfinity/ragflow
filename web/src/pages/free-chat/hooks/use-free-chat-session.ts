@@ -20,6 +20,7 @@ export interface IFreeChatSession {
   created_at: number;
   updated_at: number;
   message_count?: number;
+  is_favorite: boolean;
 }
 
 interface UseFreeChatSessionProps {
@@ -49,6 +50,7 @@ const normalizeSession = (session: any): IFreeChatSession => ({
   created_at: session.created_at,
   updated_at: session.updated_at,
   message_count: session.message_count,
+  is_favorite: Boolean(session.is_favorite),
   messages: Array.isArray(session.messages)
     ? normalizeMessages(session.messages)
     : [],
@@ -58,12 +60,19 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   const { userId } = props || {};
   const [sessions, setSessions] = useState<IFreeChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const [isDraftMode, setIsDraftMode] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
   const isUnmountedRef = useRef(false);
 
   const ensureCurrentSession = useCallback(
     (sessionList: IFreeChatSession[]) => {
       if (sessionList.length === 0) {
+        setCurrentSessionId('');
+        setIsDraftMode(true);
+        return;
+      }
+
+      if (isDraftMode) {
         setCurrentSessionId('');
         return;
       }
@@ -75,7 +84,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
         setCurrentSessionId(sessionList[0].id);
       }
     },
-    [currentSessionId],
+    [currentSessionId, isDraftMode],
   );
 
   const fetchSessions = useCallback(async () => {
@@ -140,6 +149,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
       messages: [],
       created_at: Date.now(),
       updated_at: Date.now(),
+      is_favorite: false,
     }),
     [sessions.length],
   );
@@ -147,6 +157,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   const createSession = useCallback(
     async (name?: string) => {
       const fallback = createLocalSession(name);
+      setIsDraftMode(false);
 
       if (!userId) {
         setSessions((prev) => [fallback, ...prev]);
@@ -168,6 +179,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
           const normalized = normalizeSession(response.data);
           setSessions((prev) => [normalized, ...prev]);
           setCurrentSessionId(normalized.id);
+          setIsDraftMode(false);
           return normalized;
         }
 
@@ -241,11 +253,16 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
 
   const deleteSession = useCallback(
     async (sessionId: string) => {
-      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+      setSessions((prev) => {
+        const nextSessions = prev.filter((session) => session.id !== sessionId);
 
-      if (currentSessionId === sessionId) {
-        setCurrentSessionId('');
-      }
+        if (currentSessionId === sessionId) {
+          setCurrentSessionId('');
+          setIsDraftMode(nextSessions.length === 0);
+        }
+
+        return nextSessions;
+      });
 
       if (!userId) {
         return;
@@ -279,19 +296,93 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     [currentSessionId, refreshSessions, userId],
   );
 
-  const switchSession = useCallback(
+  const toggleFavorite = useCallback(
     (sessionId: string) => {
+      const target = sessions.find((session) => session.id === sessionId);
+      if (!target) {
+        return;
+      }
+
+      const nextValue = !target.is_favorite;
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === sessionId
+            ? {
+                ...session,
+                is_favorite: nextValue,
+                updated_at: Date.now(),
+              }
+            : session,
+        ),
+      );
+
+      if (!userId) {
+        return;
+      }
+
+      request(api.updateFreeChatSession(sessionId), {
+        method: 'PUT',
+        data: { is_favorite: nextValue },
+      })
+        .then(({ data: response }) => {
+          if (response.code !== 0) {
+            throw new Error(response.message || 'Failed to update favorite');
+          }
+          refreshSessions();
+        })
+        .catch((error) => {
+          logError(
+            error instanceof Error
+              ? error.message
+              : 'Failed to update favorite',
+            'useFreeChatSession.toggleFavorite',
+          );
+          setSessions((prev) =>
+            prev.map((session) =>
+              session.id === sessionId
+                ? { ...session, is_favorite: target.is_favorite }
+                : session,
+            ),
+          );
+        });
+    },
+    [refreshSessions, sessions, userId],
+  );
+
+  const switchSession = useCallback(
+    (sessionId: string | null) => {
+      if (!sessionId) {
+        setCurrentSessionId('');
+        setIsDraftMode(true);
+        return;
+      }
+
       if (sessions.find((session) => session.id === sessionId)) {
         setCurrentSessionId(sessionId);
+        setIsDraftMode(false);
       }
     },
     [sessions],
   );
 
   const clearAllSessions = useCallback(async () => {
-    const ids = sessions.map((session) => session.id);
-    setSessions([]);
-    setCurrentSessionId('');
+    const favorites = sessions.filter((session) => session.is_favorite);
+    const removable = sessions.filter((session) => !session.is_favorite);
+    const ids = removable.map((session) => session.id);
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    setSessions(favorites);
+
+    if (favorites.length > 0) {
+      setCurrentSessionId(favorites[0].id);
+      setIsDraftMode(false);
+    } else {
+      setCurrentSessionId('');
+      setIsDraftMode(true);
+    }
 
     if (!userId || ids.length === 0) {
       return;
@@ -356,11 +447,17 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     return [] as SessionMessage[];
   }, []);
 
+  const enterDraftMode = useCallback(() => {
+    setIsDraftMode(true);
+    setCurrentSessionId('');
+  }, []);
+
   return {
     loading,
     sessions,
     currentSession,
     currentSessionId,
+    isDraftMode,
     createSession,
     updateSession,
     deleteSession,
@@ -368,5 +465,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
     clearAllSessions,
     refreshSessions,
     loadMessages,
+    enterDraftMode,
+    toggleFavorite,
   };
 };

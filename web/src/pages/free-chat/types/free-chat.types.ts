@@ -37,6 +37,7 @@ export interface FreeChatSession {
   messages: Message[];
   created_at: number;
   updated_at: number;
+  is_favorite: boolean;
 }
 
 export interface FreeChatSettings {
@@ -100,18 +101,19 @@ export interface ChatInterfaceProps {
   onSendMessage: () => void;
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   inputValue: string;
-  setInputValue: (value: string) => void;
   sendLoading: boolean;
   scrollRef: React.RefObject<HTMLDivElement>;
   messageContainerRef: React.RefObject<HTMLDivElement>;
   stopOutputMessage: () => void;
   removeMessageById: (messageId: string) => void;
-  removeAllMessages: () => void;
   regenerateMessage: (message: Message) => void;
   dialogId: string;
   userAvatar?: string;
   userNickname?: string;
-  dialogAvatar?: string;
+  disableUserInfoFetch?: boolean;
+  onOpenSettings?: () => void;
+  isSettingsPanelOpen?: boolean;
+  onCreateNewSession?: () => void;
 }
 
 export interface ControlPanelProps {
@@ -129,16 +131,24 @@ export interface ControlPanelProps {
   userInfo?: UserInfo;
   tenantInfo?: TenantInfo;
   isMobile?: boolean;
+  onClosePanel?: () => void;
 }
 
 export interface SessionListProps {
   sessions: FreeChatSession[];
-  currentSessionId: string | null;
-  onSessionSelect: (sessionId: string) => void;
+  currentSessionId: string;
+  isDraftMode: boolean;
+  onSessionSelect: (sessionId: string | null) => void;
   onSessionDelete: (sessionId: string) => void;
-  onSessionRename: (sessionId: string, newName: string) => void;
+  onSessionRename?: (sessionId: string, newName: string) => void;
   onNewSession: () => void;
-  onClearAll: () => void;
+  onClearAll?: () => void;
+  onDraftSelect: () => void;
+  variant?: 'default' | 'mockTest';
+  userId?: string;
+  teamName?: string;
+  isSuperUser?: boolean;
+  onToggleFavorite?: (sessionId: string) => void;
 }
 
 // ==================== Hook 返回类型 ====================
@@ -158,13 +168,16 @@ export interface UseFreeChatReturn {
   messageContainerRef: React.RefObject<HTMLDivElement>;
   stopOutputMessage: () => void;
   currentSession?: FreeChatSession;
-  currentSessionId: string | null;
+  currentSessionId: string;
+  isDraftMode: boolean;
   sessions: FreeChatSession[];
   createSession: (name?: string) => string;
   updateSession: (id: string, updates: Partial<FreeChatSession>) => void;
-  switchSession: (id: string) => void;
+  switchSession: (id: string | null) => void;
   deleteSession: (id: string) => void;
   clearAllSessions: () => void;
+  enterDraftMode: () => void;
+  toggleFavorite: (id: string) => void;
   dialogId: string;
   setDialogId: (id: string) => void;
 }

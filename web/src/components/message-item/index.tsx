@@ -1,9 +1,9 @@
-import { ReactComponent as AssistantIcon } from '@/assets/svg/assistant.svg';
 import { MessageType } from '@/constants/chat';
 import { IReference, IReferenceChunk } from '@/interfaces/database/chat';
 import classNames from 'classnames';
 import { memo, useCallback, useEffect, useMemo } from 'react';
 
+import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import {
   useFetchDocumentInfosByIds,
   useFetchDocumentThumbnailsByIds,
@@ -12,7 +12,7 @@ import { IRegenerateMessage, IRemoveMessageById } from '@/hooks/logic-hooks';
 import { cn } from '@/lib/utils';
 import { IMessage } from '@/pages/chat/interface';
 import MarkdownContent from '@/pages/chat/markdown-content';
-import { Avatar, Flex, Space } from 'antd';
+import { Flex, Space } from 'antd';
 import { ReferenceDocumentList } from '../next-message-item/reference-document-list';
 import { InnerUploadedMessageFiles } from '../next-message-item/uploaded-message-files';
 import { useTheme } from '../theme-provider';
@@ -34,21 +34,25 @@ interface IProps extends Partial<IRemoveMessageById>, IRegenerateMessage {
   showLoudspeaker?: boolean;
 }
 
-const MessageItem = ({
-  item,
-  reference,
-  loading = false,
-  avatar,
-  avatarDialog,
-  sendLoading = false,
-  clickDocumentButton,
-  index,
-  removeMessageById,
-  regenerateMessage,
-  showLikeButton = true,
-  showLoudspeaker = true,
-  visibleAvatar = true,
-}: IProps) => {
+const ASSISTANT_AVATAR_SRC = '/lawyer-message.svg';
+
+const MessageItem = (props: IProps) => {
+  const {
+    item,
+    reference,
+    loading = false,
+    nickname,
+    avatar,
+    avatarDialog,
+    sendLoading = false,
+    clickDocumentButton,
+    index,
+    removeMessageById,
+    regenerateMessage,
+    visibleAvatar = true,
+    showLikeButton,
+    showLoudspeaker,
+  } = props;
   const { theme } = useTheme();
   const isAssistant = item.role === MessageType.Assistant;
   const isUser = item.role === MessageType.User;
@@ -95,11 +99,19 @@ const MessageItem = ({
         >
           {visibleAvatar &&
             (item.role === MessageType.User ? (
-              <Avatar size={40} src={avatar ?? '/logo.svg'} />
-            ) : avatarDialog ? (
-              <Avatar size={40} src={avatarDialog} />
+              <RAGFlowAvatar
+                avatar={avatar}
+                name={nickname || 'User'}
+                isPerson
+                className="h-10 w-10"
+              />
             ) : (
-              <AssistantIcon />
+              <RAGFlowAvatar
+                avatar={avatarDialog || ASSISTANT_AVATAR_SRC}
+                name="AI"
+                isPerson
+                className="h-10 w-10"
+              />
             ))}
 
           <Flex vertical gap={8} flex={1}>
@@ -110,9 +122,6 @@ const MessageItem = ({
                     messageId={item.id}
                     content={item.content}
                     prompt={item.prompt}
-                    showLikeButton={showLikeButton}
-                    audioBinary={item.audio_binary}
-                    showLoudspeaker={showLoudspeaker}
                   ></AssistantGroupButton>
                 )
               ) : (

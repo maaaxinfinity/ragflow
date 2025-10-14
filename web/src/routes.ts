@@ -49,6 +49,7 @@ export enum Routes {
   DataSetSetting = '/dataset-setting',
   DataflowResult = '/dataflow-result',
   FreeChat = '/free-chat',
+  FreeChatTest = '/free-chat/test',
   FreeChatUnauthorized = '/free-chat/unauthorized',
 }
 
@@ -149,6 +150,11 @@ const routes = [
   {
     path: '/search',
     component: '@/pages/search',
+  },
+  {
+    path: Routes.FreeChatTest,
+    layout: false,
+    component: `@/pages${Routes.FreeChat}/test`,
   },
   {
     path: '/document/:id',

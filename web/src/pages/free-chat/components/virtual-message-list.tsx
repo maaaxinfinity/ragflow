@@ -24,6 +24,7 @@ interface VirtualMessageListProps {
   removeMessageById: (messageId: string) => void;
   regenerateMessage: (message: Message) => void;
   scrollRef: React.RefObject<HTMLDivElement>;
+  containerRef?: React.RefObject<HTMLDivElement>;
 }
 
 export function VirtualMessageList({
@@ -35,8 +36,15 @@ export function VirtualMessageList({
   removeMessageById,
   regenerateMessage,
   scrollRef,
+  containerRef,
 }: VirtualMessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (containerRef) {
+      containerRef.current = parentRef.current;
+    }
+  }, [containerRef]);
 
   // 创建虚拟化器
   const rowVirtualizer = useVirtualizer({

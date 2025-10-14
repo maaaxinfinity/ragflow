@@ -1,23 +1,49 @@
+import { RAGFlowAvatar } from '@/components/ragflow-avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { RAGFlowAvatar } from '@/components/ragflow-avatar';
 import { useTranslate } from '@/hooks/common-hooks';
-import { useKBContext } from '../contexts/kb-context';
 import { CheckCheck, X } from 'lucide-react';
+import { useOptionalKBContext } from '../contexts/kb-context';
 
-export function KnowledgeBaseSelector() {
+export function KnowledgeBaseSelector({
+  mockKBs,
+  mockEnabled,
+  onToggleMock,
+}: {
+  mockKBs?: Array<{
+    id: string;
+    name: string;
+    avatar?: string;
+    chunk_num?: number;
+  }>;
+  mockEnabled?: Set<string>;
+  onToggleMock?: (id: string) => void;
+}) {
   const { t } = useTranslate('chat');
   const { t: tCommon } = useTranslate('common');
-  const { enabledKBs, availableKBs, loading, toggleKB, toggleAll, clearKBs, isAllSelected } =
-    useKBContext();
+  const ctx = useOptionalKBContext();
+  const usingMock = Array.isArray(mockKBs);
+  const enabledKBs = usingMock
+    ? mockEnabled ?? new Set<string>()
+    : ctx?.enabledKBs ?? new Set<string>();
+  const availableKBs = usingMock ? mockKBs! : ctx?.availableKBs ?? [];
+  const loading = usingMock ? false : !!ctx?.loading;
+  const toggleKB = usingMock
+    ? onToggleMock ?? (() => {})
+    : ctx?.toggleKB ?? (() => {});
+  const toggleAll = usingMock ? () => {} : ctx?.toggleAll ?? (() => {});
+  const clearKBs = usingMock ? () => {} : ctx?.clearKBs ?? (() => {});
+  const isAllSelected = usingMock ? false : !!ctx?.isAllSelected;
 
   if (loading) {
     return (
       <div className="space-y-2">
         <Label>{t('knowledgeBases')}</Label>
-        <div className="text-sm text-muted-foreground">{tCommon('loading')}</div>
+        <div className="text-sm text-muted-foreground">
+          {tCommon('loading')}
+        </div>
       </div>
     );
   }
@@ -63,7 +89,11 @@ export function KnowledgeBaseSelector() {
               onClick={() => toggleKB(kb.id)}
             >
               <Checkbox
-                checked={enabledKBs.has(kb.id)}
+                checked={
+                  enabledKBs instanceof Set
+                    ? enabledKBs.has(kb.id)
+                    : (enabledKBs as any[]).includes(kb.id)
+                }
                 onCheckedChange={() => toggleKB(kb.id)}
                 onClick={(e) => e.stopPropagation()}
               />
@@ -74,7 +104,7 @@ export function KnowledgeBaseSelector() {
               />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{kb.name}</div>
-                {kb.chunk_num > 0 && (
+                {!!kb.chunk_num && kb.chunk_num > 0 && (
                   <div className="text-xs text-muted-foreground">
                     {kb.chunk_num} {t('chunks')}
                   </div>

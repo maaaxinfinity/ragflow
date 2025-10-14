@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { t } from 'i18next';
-import { CircleStop, Paperclip, Send, Upload, X } from 'lucide-react';
+import { CircleStop, Paperclip, Plus, Send, Upload, X } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 
@@ -36,6 +36,9 @@ interface IProps {
   stopOutputMessage?(): void;
   onUpload?: NonNullable<FileUploadProps['onUpload']>;
   removeFile?(file: File): void;
+  onCreateNewSession?: () => void;
+  showCreateSessionButton?: boolean;
+  disableCreateSession?: boolean;
 }
 
 export function NextMessageInput({
@@ -50,6 +53,9 @@ export function NextMessageInput({
   stopOutputMessage,
   onPressEnter,
   removeFile,
+  onCreateNewSession,
+  showCreateSessionButton = false,
+  disableCreateSession = false,
 }: IProps) {
   const [files, setFiles] = React.useState<File[]>([]);
 
@@ -73,7 +79,12 @@ export function NextMessageInput({
       'text/xml',
     ];
 
-    if (!textFileTypes.includes(file.type) && !file.name.match(/\.(txt|md|csv|json|xml|html|css|js|ts|jsx|tsx|py|java|c|cpp|h|sh|yaml|yml)$/i)) {
+    if (
+      !textFileTypes.includes(file.type) &&
+      !file.name.match(
+        /\.(txt|md|csv|json|xml|html|css|js|ts|jsx|tsx|py|java|c|cpp|h|sh|yaml|yml)$/i,
+      )
+    ) {
       return '只允许上传文本文件';
     }
 
@@ -172,36 +183,54 @@ export function NextMessageInput({
           onKeyDown={handleKeyDown}
         />
         <div
-          className={cn('flex items-center justify-between gap-1.5', {
-            'justify-end': !showUploadIcon,
-          })}
+          className={cn('flex flex-wrap items-center justify-between gap-3')}
         >
-          {showUploadIcon && (
-            <FileUploadTrigger asChild>
+          <div className="flex items-center gap-2">
+            {showCreateSessionButton && onCreateNewSession && (
               <Button
                 type="button"
-                size="icon"
-                variant="ghost"
-                className="size-7 rounded-sm"
-                disabled={isUploading || sendLoading}
+                variant="outline"
+                className="h-10 rounded-lg px-3 border-sky-200 text-primary hover:bg-primary/5 hover:text-primary"
+                onClick={onCreateNewSession}
+                disabled={
+                  disableCreateSession || disabled || sendLoading || isUploading
+                }
               >
-                <Paperclip className="size-3.5" />
-                <span className="sr-only">Attach file</span>
+                <Plus className="mr-2 h-4 w-4" />
+                {t('chat.newConversation', {
+                  defaultValue: 'New Conversation',
+                })}
               </Button>
-            </FileUploadTrigger>
-          )}
+            )}
+            {showUploadIcon && (
+              <FileUploadTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-11 w-11 rounded-xl"
+                  disabled={isUploading || sendLoading}
+                >
+                  <Paperclip className="h-5 w-5" />
+                  <span className="sr-only">Attach file</span>
+                </Button>
+              </FileUploadTrigger>
+            )}
+          </div>
           {sendLoading ? (
-            <Button onClick={stopOutputMessage} className="size-5 rounded-sm">
-              <CircleStop />
+            <Button
+              onClick={stopOutputMessage}
+              className="h-11 w-11 rounded-xl"
+            >
+              <CircleStop className="h-5 w-5" />
             </Button>
           ) : (
             <Button
-              className="size-5 rounded-sm"
+              className="h-11 w-11 rounded-xl"
               disabled={
                 sendDisabled || isUploading || sendLoading || !value.trim()
               }
             >
-              <Send />
+              <Send className="h-5 w-5" />
               <span className="sr-only">Send message</span>
             </Button>
           )}

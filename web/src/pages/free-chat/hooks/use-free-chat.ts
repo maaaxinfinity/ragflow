@@ -37,6 +37,7 @@ export const useFreeChat = (
   const {
     currentSession,
     currentSessionId,
+    isDraftMode,
     createSession,
     updateSession,
     sessions,
@@ -44,9 +45,17 @@ export const useFreeChat = (
     deleteSession,
     clearAllSessions,
     refreshSessions,
+    enterDraftMode,
+    toggleFavorite,
   } = useFreeChatSession({
     userId,
   });
+
+  useEffect(() => {
+    if (onSessionsChange) {
+      onSessionsChange(sessions);
+    }
+  }, [sessions, onSessionsChange]);
 
   const [dialogId, setDialogId] = useState<string>(settings?.dialog_id || '');
 
@@ -340,12 +349,15 @@ export const useFreeChat = (
     // Session management
     currentSession,
     currentSessionId,
+    isDraftMode,
     sessions,
     createSession,
     updateSession,
     switchSession,
     deleteSession,
     clearAllSessions,
+    enterDraftMode,
+    toggleFavorite,
 
     // Dialog ID
     dialogId,

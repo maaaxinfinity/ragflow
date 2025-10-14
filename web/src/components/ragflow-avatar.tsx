@@ -89,7 +89,7 @@ export const RAGFlowAvatar = memo(
       <Avatar
         ref={ref}
         {...props}
-        className={cn(className, { 'rounded-md': !isPerson })}
+        className={cn(isPerson ? 'rounded-full' : 'rounded-md', className)}
       >
         <AvatarImage src={avatar} />
         <AvatarFallback

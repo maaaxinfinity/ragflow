@@ -114,7 +114,6 @@ function FreeChatContent() {
     currentUserInfo?.nickname ||
     currentUserInfo?.email ||
     'User';
-  const dialogAvatar = currentDialog?.icon; // Use dialog icon if set, otherwise MessageItem will show default AssistantIcon
 
   // Determine which team info to display
   // If user is found in tenantUsers, they are a NORMAL member -> show joined team (tenantInfo)
@@ -152,11 +151,14 @@ function FreeChatContent() {
     stopOutputMessage,
     sessions,
     currentSessionId,
+    isDraftMode,
     createSession,
     switchSession,
     deleteSession,
     clearAllSessions,
     updateSession,
+    enterDraftMode,
+    toggleFavorite,
     dialogId,
     setDialogId,
   } = useFreeChat(controller.current, userId, settings, handleSessionsChange);
@@ -165,6 +167,8 @@ function FreeChatContent() {
   const currentDialog = useMemo(() => {
     return dialogData?.dialogs?.find((d) => d.id === dialogId);
   }, [dialogData, dialogId]);
+
+  const dialogAvatar = currentDialog?.icon; // Use dialog icon if set, otherwise MessageItem will show default AssistantIcon
 
   const [loadedConversationId, setLoadedConversationId] = useState<string>('');
   const [hasSetInitialDialogId, setHasSetInitialDialogId] = useState(false);
@@ -233,7 +237,7 @@ function FreeChatContent() {
           const conversation = data.data;
 
           // Create new session with conversation data
-          const newSession = createSession(
+          const newSession = await createSession(
             conversation.name || 'Chat from conversation',
           );
 
@@ -271,6 +275,14 @@ function FreeChatContent() {
   const handleNewSession = useCallback(() => {
     createSession();
   }, [createSession]);
+
+  // Ensure draft mode on initial load if no conversation_id in URL
+  useEffect(() => {
+    const conversationId = searchParams.get('conversation_id');
+    if (!conversationId && sessions.length === 0 && !isDraftMode) {
+      enterDraftMode();
+    }
+  }, [searchParams, sessions.length, isDraftMode, enterDraftMode]);
 
   const handleSessionRename = useCallback(
     (sessionId: string, newName: string) => {
@@ -355,11 +367,17 @@ function FreeChatContent() {
       <SessionList
         sessions={sessions}
         currentSessionId={currentSessionId}
+        isDraftMode={isDraftMode}
         onSessionSelect={switchSession}
         onSessionDelete={deleteSession}
         onSessionRename={handleSessionRename}
         onNewSession={handleNewSession}
         onClearAll={clearAllSessions}
+        onDraftSelect={enterDraftMode}
+        onToggleFavorite={toggleFavorite}
+        userId={userId}
+        teamName={displayTenantInfo?.name}
+        isSuperUser={Boolean(currentLoginUser?.is_su || userInfo?.is_su)}
       />
 
       {/* Chat Interface */}

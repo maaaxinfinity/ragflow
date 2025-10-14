@@ -8,6 +8,9 @@ import {
   Eraser,
   MessageSquare,
   MessageSquarePlus,
+  Sparkles,
+  Star,
+  StarOff,
   Trash2,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -29,26 +32,43 @@ const formatTimeAgo = (timestamp: number, t: any) => {
 interface SessionListProps {
   sessions: IFreeChatSession[];
   currentSessionId: string;
+  isDraftMode: boolean;
   onSessionSelect: (sessionId: string) => void;
   onSessionDelete: (sessionId: string) => void;
   onSessionRename?: (sessionId: string, newName: string) => void;
   onNewSession: () => void;
   onClearAll?: () => void;
+  onDraftSelect: () => void;
+  variant?: 'default' | 'mockTest';
+  userId?: string;
+  teamName?: string;
+  isSuperUser?: boolean;
+  onToggleFavorite?: (sessionId: string) => void;
 }
 
 export function SessionList({
   sessions,
   currentSessionId,
+  isDraftMode,
   onSessionSelect,
   onSessionDelete,
   onSessionRename,
   onNewSession,
   onClearAll,
+  onDraftSelect,
+  variant = 'default',
+  userId,
+  teamName,
+  isSuperUser = false,
+  onToggleFavorite,
 }: SessionListProps) {
   const { t } = useTranslate('chat');
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const draftTitle = '来聊点啥';
+  const hasRemovableSessions = sessions.some((session) => !session.is_favorite);
+  const showUserMeta = Boolean(userId) || Boolean(teamName) || isSuperUser;
 
   const handleStartEdit = useCallback(
     (session: IFreeChatSession, e: React.MouseEvent) => {
@@ -114,48 +134,157 @@ export function SessionList({
       </div>
 
       {/* Session List */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto p-2 space-y-3">
+        {!isCollapsed &&
+          (variant === 'mockTest' ? (
+            <>
+              <div
+                className={`relative overflow-hidden rounded-2xl border p-4 cursor-pointer transition-all duration-300 ${
+                  isDraftMode
+                    ? 'border-primary/60 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.18),_transparent_70%)] shadow-[0_18px_45px_-30px_rgba(59,130,246,0.85)]'
+                    : 'border-dashed border-border/70 bg-card/70 hover:border-primary/40 hover:bg-primary/5'
+                }`}
+                onClick={onDraftSelect}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-primary/15 p-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold tracking-wide text-primary">
+                      {draftTitle}
+                    </h3>
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="h-1 w-12 rounded-full bg-primary/50" />
+                      <span className="h-1 w-6 rounded-full bg-primary/20" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {sessions.length > 0 && (
+                <div className="mt-4 border-t border-dashed border-border/70" />
+              )}
+            </>
+          ) : (
+            <div
+              className={`group relative overflow-hidden rounded-2xl border p-5 cursor-pointer transition-all duration-300 ${
+                isDraftMode
+                  ? 'border-primary/60 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.14),_transparent_70%)] shadow-[0_18px_38px_-28px_rgba(59,130,246,0.75)]'
+                  : 'border border-border/70 bg-gradient-to-r from-primary/5 via-background to-background hover:border-primary/40 hover:bg-primary/5'
+              }`}
+              onClick={onDraftSelect}
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-primary/15 p-2 shadow-inner shadow-primary/20">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-primary/70">
+                    <span className="rounded-full border border-primary/40 px-2 py-0.5">
+                      Draft
+                    </span>
+                    <span className="h-[2px] w-6 rounded-full bg-primary/30" />
+                  </div>
+                  <h3 className="mt-2 font-semibold text-sm text-primary">
+                    {draftTitle}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                    {t('freeChatWelcomeMessage')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+
         {isCollapsed ? (
-          // Collapsed view - just dots or icons
           <div className="space-y-2">
+            <div
+              className={`w-10 h-10 mx-auto rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center ${
+                variant === 'mockTest'
+                  ? isDraftMode
+                    ? 'bg-primary/25 border border-primary/50 ring-1 ring-primary/30 shadow-[0_6px_12px_-8px_rgba(59,130,246,0.35)]'
+                    : 'bg-card/70 border border-transparent hover:border-primary/30 hover:bg-primary/10'
+                  : isDraftMode
+                    ? 'bg-primary/25 border border-primary/50 ring-1 ring-primary/25 shadow-[0_6px_14px_-9px_rgba(59,130,246,0.4)]'
+                    : 'bg-card/80 border border-border/60 hover:border-primary/30 hover:bg-primary/10'
+              }`}
+              onClick={onDraftSelect}
+              title={draftTitle}
+            >
+              <Sparkles className="h-4 w-4" />
+            </div>
             {sessions.map((session) => {
-              const isActive = currentSessionId === session.id;
+              const isActive = currentSessionId === session.id && !isDraftMode;
+              const isFavorite = Boolean(session.is_favorite);
               return (
                 <div
                   key={session.id}
-                  className={`w-10 h-10 mx-auto rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center ${
-                    isActive
-                      ? 'bg-primary/20 border-2 border-primary/50'
-                      : 'bg-card hover:bg-accent border border-transparent'
+                  className={`relative w-10 h-10 mx-auto rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center ${
+                    variant === 'mockTest'
+                      ? isActive
+                        ? 'bg-primary/25 border border-primary/60 ring-1 ring-primary/35 shadow-[0_6px_15px_-10px_rgba(59,130,246,0.55)]'
+                        : 'bg-card/70 border border-transparent hover:border-primary/30 hover:bg-primary/10'
+                      : isActive
+                        ? 'bg-primary/25 border border-primary/60 ring-1 ring-primary/35 shadow-[0_6px_15px_-10px_rgba(59,130,246,0.55)]'
+                        : 'bg-card/80 border border-border/60 hover:border-primary/30 hover:bg-primary/10'
+                  } ${
+                    isFavorite
+                      ? 'border-amber-300 ring-2 ring-amber-300 bg-amber-50/70 shadow-[0_10px_22px_-12px_rgba(251,191,36,0.55)]'
+                      : ''
                   }`}
                   onClick={() => onSessionSelect(session.id)}
                   title={session.name}
                 >
                   <MessageSquare className="h-4 w-4" />
+                  {onToggleFavorite && (
+                    <button
+                      type="button"
+                      className={`absolute -top-1 -right-1 grid h-5 w-5 place-items-center rounded-full border border-white/80 bg-background/90 shadow-sm transition-colors ${
+                        isFavorite ? 'text-amber-500' : 'text-muted-foreground'
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleFavorite(session.id);
+                      }}
+                    >
+                      {isFavorite ? (
+                        <Star className="h-3 w-3 fill-amber-400" />
+                      ) : (
+                        <StarOff className="h-3 w-3" />
+                      )}
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
         ) : sessions.length === 0 ? (
-          <div className="p-8 text-center">
-            <MessageSquarePlus className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">
-              {t('noConversationsYet')}
-            </p>
+          <div className="p-8 text-center text-muted-foreground">
+            <MessageSquarePlus className="h-12 w-12 mx-auto mb-3 opacity-60" />
+            <p className="text-sm">{t('noConversationsYet')}</p>
           </div>
         ) : (
           <div className="space-y-2">
             {sessions.map((session) => {
               const isEditing = editingSessionId === session.id;
-              const isActive = currentSessionId === session.id;
+              const isActive = currentSessionId === session.id && !isDraftMode;
+              const isFavorite = Boolean(session.is_favorite);
 
               return (
                 <div
                   key={session.id}
                   className={`group relative p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                    isActive
-                      ? 'bg-primary/10 shadow-md border-2 border-primary/30'
-                      : 'bg-card hover:bg-accent hover:shadow-sm border border-transparent'
+                    variant === 'mockTest'
+                      ? isActive
+                        ? 'border border-primary/50 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_70%)] shadow-[0_20px_45px_-28px_rgba(59,130,246,0.9)] ring-1 ring-primary/25'
+                        : 'bg-card/80 border border-transparent hover:border-primary/30 hover:bg-primary/5'
+                      : isActive
+                        ? 'bg-primary/10 shadow-md border-2 border-primary/30'
+                        : 'bg-card hover:bg-accent hover:shadow-sm border border-transparent'
+                  } ${
+                    isFavorite
+                      ? 'border border-amber-300/70 ring-2 ring-amber-300 bg-amber-50/60 shadow-[0_18px_38px_-18px_rgba(251,191,36,0.55)]'
+                      : ''
                   }`}
                   onClick={() => !isEditing && onSessionSelect(session.id)}
                 >
@@ -181,6 +310,11 @@ export function SessionList({
                         <>
                           <div className="font-medium text-sm truncate mb-1">
                             {session.name}
+                            {isFavorite && (
+                              <span className="ml-2 inline-flex items-center rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] font-medium text-amber-600">
+                                收藏
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -194,28 +328,51 @@ export function SessionList({
                       )}
                     </div>
                     {!isEditing && (
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {onSessionRename && (
+                      <div className="flex gap-1 items-center">
+                        {onToggleFavorite && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 hover:bg-primary/20"
-                            onClick={(e) => handleStartEdit(session, e)}
+                            className={`h-7 w-7 ${
+                              isFavorite
+                                ? 'text-amber-500 hover:bg-amber-500/15'
+                                : 'hover:bg-primary/20'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleFavorite(session.id);
+                            }}
                           >
-                            <Edit3 className="h-3.5 w-3.5" />
+                            {isFavorite ? (
+                              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                            ) : (
+                              <StarOff className="h-3.5 w-3.5" />
+                            )}
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSessionDelete(session.id);
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {onSessionRename && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 hover:bg-primary/20"
+                              onClick={(e) => handleStartEdit(session, e)}
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSessionDelete(session.id);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -227,52 +384,92 @@ export function SessionList({
       </div>
 
       {/* Footer - Controls */}
-      <div className="p-3 border-t space-y-2 bg-card/50 backdrop-blur-sm">
-        {isCollapsed ? (
-          <>
-            <Button
-              onClick={onNewSession}
-              className="w-full shadow-sm"
-              size="icon"
-              title={t('newChat')}
-            >
-              <MessageSquarePlus className="h-4 w-4" />
-            </Button>
-            {onClearAll && sessions.length > 0 && (
+      <div className="p-3 border-t bg-card/50 backdrop-blur-sm space-y-3">
+        <div>
+          {isCollapsed ? (
+            <>
               <Button
-                onClick={onClearAll}
-                variant="outline"
-                className="w-full"
+                onClick={onNewSession}
+                className="w-full shadow-sm"
                 size="icon"
-                title="清除全部"
+                title={t('newChat')}
               >
-                <Eraser className="h-4 w-4" />
+                <MessageSquarePlus className="h-4 w-4" />
               </Button>
-            )}
-          </>
-        ) : (
-          <>
-            <Button
-              onClick={onNewSession}
-              className="w-full shadow-sm"
-              size="sm"
-            >
-              <MessageSquarePlus className="h-4 w-4 mr-2" />
-              {t('newChat')}
-            </Button>
-            {onClearAll && sessions.length > 0 && (
+              {onClearAll && sessions.length > 0 && (
+                <Button
+                  onClick={onClearAll}
+                  variant="outline"
+                  className="w-full"
+                  size="icon"
+                  title="清除全部（已收藏保留）"
+                  disabled={!hasRemovableSessions}
+                >
+                  <Eraser className="h-4 w-4" />
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
               <Button
-                onClick={onClearAll}
-                variant="outline"
-                className="w-full"
+                onClick={onNewSession}
+                className="w-full shadow-sm"
                 size="sm"
               >
-                <Eraser className="h-4 w-4 mr-2" />
-                清除全部
+                <MessageSquarePlus className="h-4 w-4 mr-2" />
+                {t('newChat')}
               </Button>
-            )}
-          </>
-        )}
+              {onClearAll && sessions.length > 0 && (
+                <Button
+                  onClick={onClearAll}
+                  variant="outline"
+                  className="w-full"
+                  size="sm"
+                  disabled={!hasRemovableSessions}
+                >
+                  <Eraser className="h-4 w-4 mr-2" />
+                  清除全部（已收藏保留）
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+
+        {showUserMeta &&
+          (isCollapsed ? (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 text-center text-[11px] text-muted-foreground leading-relaxed">
+              <div className="font-semibold text-foreground truncate">
+                {userId || '未识别用户'}
+              </div>
+              {teamName && <div className="truncate">{teamName}</div>}
+              {isSuperUser && (
+                <div className="mt-1 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                  SU
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-3 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">用户 ID</p>
+                  <p className="text-sm font-semibold text-foreground break-all">
+                    {userId || '未识别用户'}
+                  </p>
+                </div>
+                {isSuperUser && (
+                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm">
+                    SU
+                  </span>
+                )}
+              </div>
+              {teamName && (
+                <p className="mt-2 text-xs text-muted-foreground truncate">
+                  团队：{teamName}
+                </p>
+              )}
+            </div>
+          ))}
       </div>
     </div>
   );

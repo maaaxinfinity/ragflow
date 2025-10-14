@@ -50,6 +50,7 @@ export const useFreeChatStore = create<FreeChatStore>()(
             messages: [],
             created_at: Date.now(),
             updated_at: Date.now(),
+            is_favorite: false,
           };
 
           // 添加到会话列表开头

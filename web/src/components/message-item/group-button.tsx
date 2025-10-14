@@ -2,37 +2,23 @@ import { PromptIcon } from '@/assets/icon/next-icon';
 import CopyToClipboard from '@/components/copy-to-clipboard';
 import { useSetModalState } from '@/hooks/common-hooks';
 import { IRemoveMessageById } from '@/hooks/logic-hooks';
-import {
-  DeleteOutlined,
-  DislikeOutlined,
-  LikeOutlined,
-  PauseCircleOutlined,
-  SoundOutlined,
-  SyncOutlined,
-} from '@ant-design/icons';
+import { DeleteOutlined, FlagOutlined, SyncOutlined } from '@ant-design/icons';
 import { Radio, Tooltip } from 'antd';
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import FeedbackModal from './feedback-modal';
-import { useRemoveMessage, useSendFeedback, useSpeech } from './hooks';
+import { useRemoveMessage, useSendFeedback } from './hooks';
 import PromptModal from './prompt-modal';
 
 interface IProps {
   messageId: string;
   content: string;
   prompt?: string;
-  showLikeButton: boolean;
-  audioBinary?: string;
-  showLoudspeaker?: boolean;
 }
 
 export const AssistantGroupButton = ({
   messageId,
   content,
   prompt,
-  audioBinary,
-  showLikeButton,
-  showLoudspeaker = true,
 }: IProps) => {
   const { visible, hideModal, showModal, onFeedbackOk, loading } =
     useSendFeedback(messageId);
@@ -42,11 +28,6 @@ export const AssistantGroupButton = ({
     showModal: showPromptModal,
   } = useSetModalState();
   const { t } = useTranslation();
-  const { handleRead, ref, isPlaying } = useSpeech(content, audioBinary);
-
-  const handleLike = useCallback(() => {
-    onFeedbackOk({ thumbup: true });
-  }, [onFeedbackOk]);
 
   return (
     <>
@@ -54,24 +35,11 @@ export const AssistantGroupButton = ({
         <Radio.Button value="a">
           <CopyToClipboard text={content}></CopyToClipboard>
         </Radio.Button>
-        {showLoudspeaker && (
-          <Radio.Button value="b" onClick={handleRead}>
-            <Tooltip title={t('chat.read')}>
-              {isPlaying ? <PauseCircleOutlined /> : <SoundOutlined />}
-            </Tooltip>
-            <audio src="" ref={ref}></audio>
-          </Radio.Button>
-        )}
-        {showLikeButton && (
-          <>
-            <Radio.Button value="c" onClick={handleLike}>
-              <LikeOutlined />
-            </Radio.Button>
-            <Radio.Button value="d" onClick={showModal}>
-              <DislikeOutlined />
-            </Radio.Button>
-          </>
-        )}
+        <Radio.Button value="b" onClick={showModal}>
+          <Tooltip title={t('chat.feedback')}>
+            <FlagOutlined />
+          </Tooltip>
+        </Radio.Button>
         {prompt && (
           <Radio.Button value="e" onClick={showPromptModal}>
             <PromptIcon style={{ fontSize: '16px' }} />

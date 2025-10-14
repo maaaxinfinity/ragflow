@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode } from 'react';
+import { ReactNode, createContext, useContext } from 'react';
 import { useKBToggle } from '../hooks/use-kb-toggle';
 
 interface KBContextType {
@@ -13,6 +13,8 @@ interface KBContextType {
 }
 
 const KBContext = createContext<KBContextType | undefined>(undefined);
+export { KBContext };
+export type { KBContextType };
 
 interface KBProviderProps {
   children: ReactNode;
@@ -36,4 +38,9 @@ export function useKBContext() {
     throw new Error('useKBContext must be used within KBProvider');
   }
   return context;
+}
+
+// Optional variant for test/mock environments
+export function useOptionalKBContext() {
+  return useContext(KBContext);
 }

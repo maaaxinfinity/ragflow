@@ -68,8 +68,15 @@ class FreeChatSessionService(CommonService):
             return []
 
     @classmethod
-    def create_session(cls, session_id: str, user_id: str, name: str, created_at: int, 
-                      conversation_id: Optional[str] = None) -> Tuple[bool, str]:
+    def create_session(
+        cls,
+        session_id: str,
+        user_id: str,
+        name: str,
+        created_at: int,
+        conversation_id: Optional[str] = None,
+        is_favorite: bool = False,
+    ) -> Tuple[bool, str]:
         """
         创建新会话
 
@@ -90,7 +97,8 @@ class FreeChatSessionService(CommonService):
                 name=name,
                 conversation_id=conversation_id,
                 created_at=created_at,
-                updated_at=created_at
+                updated_at=created_at,
+                is_favorite=is_favorite,
             )
             logging.info(f"[FreeChatSessionService] Created session {session_id} for user {user_id}")
             return True, ""

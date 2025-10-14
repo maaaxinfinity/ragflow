@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useTranslate } from '@/hooks/common-hooks';
 import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
 import { Message } from '@/interfaces/database/chat';
-import { MessageCircle, Trash2 } from 'lucide-react';
+import { MessageCircle, Settings2 } from 'lucide-react';
 // ✅ 导入虚拟滚动组件
 import { VirtualMessageList } from './components/virtual-message-list';
 
@@ -13,19 +13,22 @@ interface ChatInterfaceProps {
   onSendMessage: () => void;
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   inputValue: string;
-  setInputValue: (value: string) => void;
   sendLoading: boolean;
   scrollRef: React.RefObject<HTMLDivElement>;
   messageContainerRef: React.RefObject<HTMLDivElement>;
   stopOutputMessage: () => void;
   removeMessageById: (messageId: string) => void;
-  removeAllMessages: () => void;
   regenerateMessage: (message: Message) => void;
   dialogId: string;
   // User and dialog avatar props
   userAvatar?: string;
   userNickname?: string;
   dialogAvatar?: string;
+  // Test mode: disable internal user info fetching
+  disableUserInfoFetch?: boolean;
+  onOpenSettings?: () => void;
+  isSettingsPanelOpen?: boolean;
+  onCreateNewSession?: () => void;
 }
 
 export function ChatInterface({
@@ -33,28 +36,32 @@ export function ChatInterface({
   onSendMessage,
   onInputChange,
   inputValue,
-  setInputValue,
   sendLoading,
   scrollRef,
   messageContainerRef,
   stopOutputMessage,
   removeMessageById,
-  removeAllMessages,
   regenerateMessage,
   dialogId,
   userAvatar,
   userNickname,
   dialogAvatar,
+  disableUserInfoFetch,
+  onOpenSettings,
+  isSettingsPanelOpen,
+  onCreateNewSession,
 }: ChatInterfaceProps) {
-  const { data: userInfo } = useFetchUserInfo();
+  const { data: userInfo } = useFetchUserInfo(!(disableUserInfoFetch === true));
   const { t } = useTranslate('chat');
 
   // Use provided avatar/nickname or fallback to userInfo
   const displayAvatar = userAvatar || userInfo.avatar;
-  const displayNickname = userNickname || userInfo.nickname;
+  const displayNickname =
+    userNickname || userInfo.nickname || userInfo.email || 'User';
+  const assistantAvatar = dialogAvatar || '/lawyer-message.svg';
 
   return (
-    <section className="flex flex-col h-full bg-gradient-to-b from-background to-muted/10">
+    <section className="relative flex flex-col h-full bg-gradient-to-b from-background to-muted/10">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b bg-card/50 backdrop-blur-sm">
         <div className="flex items-center gap-3">
@@ -68,19 +75,20 @@ export function ChatInterface({
             </p>
           </div>
         </div>
-        {messages.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={removeAllMessages}
-            disabled={sendLoading}
-            className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            {t('clearAll')}
-          </Button>
-        )}
       </div>
+
+      {/* Removed inline settings button - now using floating button */}
+      {false && onOpenSettings && (
+        <Button
+          variant={isSettingsPanelOpen ? 'default' : 'outline'}
+          size="sm"
+          onClick={onOpenSettings}
+          className="flex items-center gap-2"
+        >
+          <Settings2 className="h-4 w-4" />
+          {t('settings', { defaultValue: 'Settings' })}
+        </Button>
+      )}
 
       {/* Dialog Setup Alert */}
       {!dialogId && (
@@ -110,10 +118,11 @@ export function ChatInterface({
           sendLoading={sendLoading}
           nickname={displayNickname}
           avatar={displayAvatar}
-          dialogAvatar={dialogAvatar || ''}
+          dialogAvatar={assistantAvatar}
           removeMessageById={removeMessageById}
           regenerateMessage={regenerateMessage}
           scrollRef={scrollRef}
+          containerRef={messageContainerRef}
         />
       )}
 
@@ -129,7 +138,22 @@ export function ChatInterface({
         stopOutputMessage={stopOutputMessage}
         isUploading={false}
         removeFile={() => {}}
+        onCreateNewSession={onCreateNewSession}
+        showCreateSessionButton
       />
+
+      {/* Floating Settings Button */}
+      {onOpenSettings && (
+        <Button
+          variant={isSettingsPanelOpen ? 'default' : 'outline'}
+          size="icon"
+          onClick={onOpenSettings}
+          className="fixed bottom-24 right-6 lg:bottom-28 lg:right-8 z-50 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 border-2"
+          title={t('settings', { defaultValue: 'Settings' })}
+        >
+          <Settings2 className="h-6 w-6" />
+        </Button>
+      )}
     </section>
   );
 }

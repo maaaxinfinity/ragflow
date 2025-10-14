@@ -18,7 +18,7 @@ FreeChat Session & Message API - SQL 作为唯一可信数据源
 """
 
 from flask import request, Blueprint
-from flask_login import login_required, current_user
+from flask_login import current_user
 from api.db.services.free_chat_session_service import FreeChatSessionService
 from api.db.services.free_chat_message_service import FreeChatMessageService
 from api.db.services.user_service import UserTenantService
@@ -30,6 +30,14 @@ import time
 
 # Blueprint for free chat sessions and messages
 manager = Blueprint('free_chat_session', __name__)
+
+
+def _to_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in {"1", "true", "yes", "on"}
+    return bool(value)
 
 
 def verify_session_access(session_id: str, current_tenant_id: str) -> tuple[bool, str]:
@@ -87,6 +95,8 @@ def list_sessions(**kwargs):
                 type: integer
               updated_at:
                 type: integer
+              is_favorite:
+                type: boolean
     """
     try:
         user_id = request.args.get("user_id")
@@ -112,6 +122,7 @@ def list_sessions(**kwargs):
                 "conversation_id": s.conversation_id,
                 "created_at": s.created_at,
                 "updated_at": s.updated_at,
+                "is_favorite": _to_bool(getattr(s, "is_favorite", False)),
                 "message_count": FreeChatMessageService.count_by_session(s.id)
             }
             for s in sessions
@@ -147,12 +158,15 @@ def create_session(**kwargs):
               type: string
             conversation_id:
               type: string
+            is_favorite:
+              type: boolean
     """
     try:
         req = request.json
         user_id = req.get("user_id")
         name = req.get("name")
         conversation_id = req.get("conversation_id")
+        is_favorite = _to_bool(req.get("is_favorite", False))
         
         # 生成会话 ID
         from api.utils import get_uuid
@@ -165,7 +179,8 @@ def create_session(**kwargs):
             user_id=user_id,
             name=name,
             created_at=created_at,
-            conversation_id=conversation_id
+            conversation_id=conversation_id,
+            is_favorite=is_favorite,
         )
         
         if success:
@@ -174,7 +189,8 @@ def create_session(**kwargs):
                 "name": name,
                 "conversation_id": conversation_id,
                 "created_at": created_at,
-                "updated_at": created_at
+                "updated_at": created_at,
+                "is_favorite": is_favorite,
             })
         else:
             return get_data_error_result(message=error_msg)
@@ -192,12 +208,15 @@ def update_session(session_id, **kwargs):
         req = request.json
         name = req.get("name")
         conversation_id = req.get("conversation_id")
+        is_favorite = req.get("is_favorite")
         
         update_fields = {}
         if name is not None:
             update_fields["name"] = name
         if conversation_id is not None:
             update_fields["conversation_id"] = conversation_id
+        if is_favorite is not None:
+            update_fields["is_favorite"] = _to_bool(is_favorite)
         
         if not update_fields:
             return get_data_error_result(message="No fields to update")
