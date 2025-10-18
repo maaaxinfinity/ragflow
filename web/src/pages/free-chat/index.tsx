@@ -146,6 +146,7 @@ function FreeChatContent() {
     removeAllMessages,
     regenerateMessage,
     sendLoading,
+    messagesLoading,
     scrollRef,
     messageContainerRef,
     stopOutputMessage,
@@ -389,6 +390,7 @@ function FreeChatContent() {
           inputValue={value}
           setInputValue={setValue}
           sendLoading={sendLoading}
+          messagesLoading={messagesLoading}
           scrollRef={scrollRef}
           messageContainerRef={messageContainerRef}
           stopOutputMessage={stopOutputMessage}

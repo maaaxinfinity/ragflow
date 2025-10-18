@@ -7,6 +7,7 @@ import { Message } from '@/interfaces/database/chat';
 import {
   Briefcase,
   FileText,
+  Loader2,
   MessageCircle,
   Scale,
   Settings2,
@@ -21,6 +22,7 @@ interface ChatInterfaceProps {
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   inputValue: string;
   sendLoading: boolean;
+  messagesLoading?: boolean;
   scrollRef: React.RefObject<HTMLDivElement>;
   messageContainerRef: React.RefObject<HTMLDivElement>;
   stopOutputMessage: () => void;
@@ -57,6 +59,7 @@ export function ChatInterface({
   onOpenSettings,
   isSettingsPanelOpen,
   onCreateNewSession,
+  messagesLoading = false,
 }: ChatInterfaceProps) {
   const { data: userInfo } = useFetchUserInfo(!(disableUserInfoFetch === true));
   const { t } = useTranslate('chat');
@@ -123,7 +126,14 @@ export function ChatInterface({
       )}
 
       {/* Messages - 使用虚拟滚动优化 */}
-      {messages.length === 0 ? (
+      {messagesLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>正在加载对话记录...</span>
+          </div>
+        </div>
+      ) : messages.length === 0 ? (
         <div className="flex-1 overflow-auto">
           <div className="mx-auto max-w-4xl px-6 py-10">
             {/* Greeting */}

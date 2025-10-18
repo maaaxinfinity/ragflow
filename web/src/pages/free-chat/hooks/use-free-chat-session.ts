@@ -244,13 +244,31 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
         method: 'PUT',
         data: payload,
       })
-        .then(({ data: response }) => {
+        .then(async ({ data: response }) => {
           if (response.code !== 0) {
             logError(
               `Failed to update session (code ${response.code}): ${response.message || 'Unknown error'}`,
               'useFreeChatSession.updateSession',
             );
             refreshSessions();
+            return;
+          }
+          // Sync conversation title if name changed and conversation_id exists
+          if (updates.name) {
+            const session = sessions.find((s) => s.id === sessionId);
+            const convId = updates.conversation_id || session?.conversation_id;
+            if (convId) {
+              try {
+                await request(api.setConversation, {
+                  method: 'POST',
+                  data: {
+                    conversation_id: convId,
+                    is_new: false,
+                    name: updates.name,
+                  },
+                });
+              } catch (_) {}
+            }
           }
         })
         .catch((error) => {
@@ -261,7 +279,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
           refreshSessions();
         });
     },
-    [refreshSessions, userId],
+    [refreshSessions, sessions, userId],
   );
 
   const deleteSession = useCallback(

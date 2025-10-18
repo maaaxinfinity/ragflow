@@ -8,6 +8,7 @@ import {
 import { useUpdateConversation } from '@/hooks/use-chat-request';
 import { Message } from '@/interfaces/database/chat';
 import api from '@/utils/api';
+import request from '@/utils/request';
 import { trim } from 'lodash';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
@@ -47,6 +48,7 @@ export const useFreeChat = (
     refreshSessions,
     enterDraftMode,
     toggleFavorite,
+    loadMessages,
   } = useFreeChatSession({
     userId,
   });
@@ -88,15 +90,35 @@ export const useFreeChat = (
     removeAllMessages,
   } = useSelectDerivedMessages();
 
+  // Track latest derivedMessages safely
+  const derivedMessagesRef = useRef(derivedMessages);
+  useEffect(() => {
+    derivedMessagesRef.current = derivedMessages;
+  }, [derivedMessages]);
+
   // BUG FIX #10: Only sync when currentSessionId changes, not when currentSession object changes
   // This prevents overwriting derivedMessages when session is updated
+  const [messagesLoading, setMessagesLoading] = useState(false);
   useEffect(() => {
     if (currentSession) {
-      setDerivedMessages(currentSession.messages || []);
+      // If no messages loaded but backend reports count, fetch from SQL
+      const needFetch =
+        (!currentSession.messages || currentSession.messages.length === 0) &&
+        (currentSession.message_count || 0) > 0;
+      if (needFetch) {
+        setMessagesLoading(true);
+        loadMessages(currentSession.id)
+          .then((msgs) => {
+            setDerivedMessages(msgs);
+          })
+          .finally(() => setMessagesLoading(false));
+      } else {
+        setDerivedMessages(currentSession.messages || []);
+      }
     } else {
       setDerivedMessages([]);
     }
-  }, [currentSessionId, setDerivedMessages]); // Remove currentSession from deps
+  }, [currentSessionId, currentSession, loadMessages, setDerivedMessages]);
 
   // Stop output
   const stopOutputMessage = useCallback(() => {
@@ -168,12 +190,40 @@ export const useFreeChat = (
         role_prompt: settings?.role_prompt || '',
       };
 
+      // Persist user message to SQL
+      try {
+        if (currentSession?.id) {
+          await request(api.createFreeChatMessage(currentSession.id), {
+            method: 'POST',
+            data: { role: 'user', content: message.content },
+          });
+        }
+      } catch (_) {}
+
       const res = await send(requestBody, controllerRef.current);
 
       if (res && (res?.response.status !== 200 || res?.data?.code !== 0)) {
         setValue(message.content);
         removeLatestMessage();
       }
+
+      // Persist assistant final message to SQL
+      try {
+        const list = derivedMessagesRef.current;
+        const last = list[list.length - 1];
+        if (currentSession?.id && last && last.role === MessageType.Assistant) {
+          await request(api.createFreeChatMessage(currentSession.id), {
+            method: 'POST',
+            data: {
+              role: 'assistant',
+              content: last.content || '',
+              reference: last.reference || [],
+            },
+          });
+          // refresh session to update message_count / updated_at
+          refreshSessions();
+        }
+      } catch (_) {}
       // BUG FIX #1: Remove duplicate session update here
       // The session will be updated by the derivedMessages sync effect
     },
@@ -189,6 +239,7 @@ export const useFreeChat = (
       updateConversation,
       updateSession,
       t,
+      refreshSessions,
     ],
   );
 
@@ -342,6 +393,7 @@ export const useFreeChat = (
 
     // Status
     sendLoading: !done,
+    messagesLoading,
     scrollRef,
     messageContainerRef,
     stopOutputMessage,
