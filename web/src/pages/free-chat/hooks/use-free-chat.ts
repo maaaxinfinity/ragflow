@@ -180,14 +180,16 @@ export const useFreeChat = (
       }
 
       // BUG FIX #7 & #12: Ensure kb_ids from enabledKBs has priority over params
+      // Also explicitly drop max_tokens to avoid truncation complaints
       const baseParams = customParams || settings?.model_params || {};
+      const { max_tokens: _dropMaxTokens, ...safeParams } = baseParams as any;
       const kbIdsArray = Array.from(enabledKBs);
 
       const requestBody = {
         conversation_id: conversationId,
         messages: [...derivedMessages, message],
         // Dynamic parameters
-        ...baseParams,
+        ...safeParams,
         // Dynamic knowledge base (always include, overrides any kb_ids in params)
         kb_ids: kbIdsArray,
         // Dynamic role prompt (system prompt override)
