@@ -148,7 +148,7 @@ export const useFreeChatSession = (props?: UseFreeChatSessionProps) => {
   const createLocalSession = useCallback(
     (name?: string): IFreeChatSession => ({
       id: uuid(),
-      name: name || `Chat ${sessions.length + 1}`,
+      name: name || '来聊点啥',
       messages: [],
       created_at: Date.now(),
       updated_at: Date.now(),

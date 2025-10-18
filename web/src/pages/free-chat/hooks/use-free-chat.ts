@@ -145,7 +145,7 @@ export const useFreeChat = (
       if (!conversationId) {
         const convData = await updateConversation({
           dialog_id: dialogId,
-          name: message.content.slice(0, 50),
+          name: message.content.slice(0, 15),
           is_new: true,
           message: [
             {
@@ -212,12 +212,17 @@ export const useFreeChat = (
         const list = derivedMessagesRef.current;
         const last = list[list.length - 1];
         if (currentSession?.id && last && last.role === MessageType.Assistant) {
+          const reference = Array.isArray((last as any).reference)
+            ? (last as any).reference
+            : (last as any).reference
+              ? [(last as any).reference]
+              : [];
           await request(api.createFreeChatMessage(currentSession.id), {
             method: 'POST',
             data: {
               role: 'assistant',
               content: last.content || '',
-              reference: last.reference || [],
+              reference,
             },
           });
           // refresh session to update message_count / updated_at
@@ -251,10 +256,10 @@ export const useFreeChat = (
     async (content: string) => {
       if (trim(content) === '') return;
 
-      // Create session if not exists and mark message as pending
+      // Create session lazily on first user question (draft → real session)
       if (!currentSession) {
-        // Extract meaningful title: trim, limit to 50 chars, remove newlines
-        const title = content.trim().replace(/\n+/g, ' ').slice(0, 50);
+        // Extract meaningful title: trim, limit to 15 chars, remove newlines
+        const title = content.trim().replace(/\n+/g, ' ').slice(0, 15);
         createSession(title);
         // Store pending message to be sent after session is created
         pendingMessageRef.current = content;

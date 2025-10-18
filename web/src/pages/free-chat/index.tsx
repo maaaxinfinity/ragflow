@@ -274,8 +274,9 @@ function FreeChatContent() {
   ]);
 
   const handleNewSession = useCallback(() => {
-    createSession();
-  }, [createSession]);
+    // 不直接创建会话，进入草稿模式，待用户首条提问后再以问题作为标题创建
+    enterDraftMode();
+  }, [enterDraftMode]);
 
   // Ensure draft mode on initial load if no conversation_id in URL
   useEffect(() => {
@@ -307,10 +308,9 @@ function FreeChatContent() {
 
   const handleDialogChange = useCallback(
     (newDialogId: string) => {
-      // Check if dialog actually changed
+      // Dialog切换后进入草稿，不提前创建会话
       if (dialogId && dialogId !== newDialogId) {
-        // Dialog changed - create new chat session
-        createSession();
+        enterDraftMode();
       }
 
       setDialogId(newDialogId);
@@ -318,7 +318,7 @@ function FreeChatContent() {
         updateField('dialog_id', newDialogId);
       }
     },
-    [dialogId, createSession, setDialogId, userId, settings, updateField],
+    [dialogId, enterDraftMode, setDialogId, userId, settings, updateField],
   );
 
   const handleRolePromptChange = useCallback(
