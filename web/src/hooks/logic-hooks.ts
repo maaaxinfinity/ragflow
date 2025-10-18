@@ -256,6 +256,10 @@ export const useSendMessageWithSse = (
           .pipeThrough(new EventSourceParserStream())
           .getReader();
 
+        // Accumulators for raw provider chunk formats (e.g., OpenAI-like)
+        let accAnswer = '';
+        let accReasoning = '';
+
         while (true) {
           const x = await reader?.read();
           if (x) {
@@ -267,12 +271,35 @@ export const useSendMessageWithSse = (
             try {
               const val = JSON.parse(value?.data || '');
               const d = val?.data;
-              if (typeof d !== 'boolean') {
+              if (typeof d !== 'boolean' && d !== undefined) {
+                // Backend-wrapped format { code, data }
                 setAnswer({
                   ...d,
                   conversationId: body?.conversation_id,
                   chatBoxId: body.chatBoxId,
                 });
+              } else if (
+                val?.object === 'chat.completion.chunk' &&
+                Array.isArray(val?.choices) &&
+                val.choices.length > 0
+              ) {
+                const delta = val.choices[0]?.delta || {};
+                if (typeof delta?.reasoning_content === 'string') {
+                  accReasoning += delta.reasoning_content;
+                }
+                if (typeof delta?.content === 'string') {
+                  accAnswer += delta.content;
+                }
+                const merged =
+                  (accReasoning ? `<think>${accReasoning}</think>` : '') +
+                  accAnswer;
+                setAnswer({
+                  id: val.id,
+                  answer: merged,
+                  reference: [],
+                  conversationId: body?.conversation_id,
+                  chatBoxId: body.chatBoxId,
+                } as unknown as IAnswer);
               }
             } catch (e) {
               // Swallow parse errors silently

@@ -263,6 +263,10 @@ export function SessionList({
               const isEditing = editingSessionId === session.id;
               const isActive = currentSessionId === session.id && !isDraftMode;
               const isFavorite = Boolean(session.is_favorite);
+              const displayCount = Math.max(
+                session.message_count ?? 0,
+                session.messages?.length ?? 0,
+              );
 
               return (
                 <div
@@ -313,7 +317,7 @@ export function SessionList({
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <MessageSquare className="h-3 w-3" />
-                              {session.messages?.length ?? 0}
+                              {displayCount}
                             </span>
                             <span>•</span>
                             <span>{formatTimeAgo(session.updated_at, t)}</span>

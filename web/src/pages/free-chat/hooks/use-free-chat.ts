@@ -112,8 +112,12 @@ export const useFreeChat = (
             setDerivedMessages(msgs);
           })
           .finally(() => setMessagesLoading(false));
+      } else if ((currentSession.messages?.length || 0) > 0) {
+        // Only hydrate from session if it actually has messages;
+        // otherwise keep current draft messages to preserve streaming placeholder
+        setDerivedMessages(currentSession.messages);
       } else {
-        setDerivedMessages(currentSession.messages || []);
+        // keep existing derivedMessages (draft placeholder)
       }
     } else {
       setDerivedMessages([]);

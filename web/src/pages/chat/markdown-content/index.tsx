@@ -1,12 +1,12 @@
+import HexagonLoader from '@/components/hexagon-loader';
 import Image from '@/components/image';
 import SvgIcon from '@/components/svg-icon';
-import HexagonLoader from '@/components/hexagon-loader';
 import { IReference, IReferenceChunk } from '@/interfaces/database/chat';
 import { getExtension } from '@/utils/document-util';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { Button, Flex, Popover } from 'antd';
 import DOMPurify from 'dompurify';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import reactStringReplace from 'react-string-replace';
 import SyntaxHighlighter from 'react-syntax-highlighter';
@@ -50,19 +50,49 @@ const MarkdownContent = ({
   const { setDocumentIds, data: fileThumbnails } =
     useFetchDocumentThumbnailsByIds();
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
+  const [displayContent, setDisplayContent] = useState(content);
+  const streamTimerRef = useRef<number | null>(null);
+
+  // Throttled incremental rendering during streaming
+  useEffect(() => {
+    if (!loading) {
+      setDisplayContent(content);
+      if (streamTimerRef.current) {
+        window.clearInterval(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
+      return;
+    }
+    // Streaming: throttle updates
+    setDisplayContent((prev) =>
+      content.length >= prev.length ? content : prev,
+    );
+    if (streamTimerRef.current) return;
+    streamTimerRef.current = window.setInterval(() => {
+      setDisplayContent((prev) =>
+        content.length >= prev.length ? content : prev,
+      );
+    }, 80);
+    return () => {
+      if (streamTimerRef.current) {
+        window.clearInterval(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
+    };
+  }, [content, loading]);
 
   // 提取 thinking 内容
   const thinkingContent = useMemo(() => {
-    const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+    const thinkMatch = displayContent.match(/<think>([\s\S]*?)<\/think>/);
     return thinkMatch ? thinkMatch[1] : null;
-  }, [content]);
+  }, [displayContent]);
 
-  const isSearching = content === '' || (loading && !thinkingContent);
+  const isSearching = displayContent === '' || (loading && !thinkingContent);
   const hasThinking = !!thinkingContent;
 
   const contentWithCursor = useMemo(() => {
     // let text = DOMPurify.sanitize(content);
-    let text = content;
+    let text = displayContent;
     if (text === '') {
       text = ' '; // 返回空格以触发渲染
     }
@@ -70,7 +100,7 @@ const MarkdownContent = ({
     text = text.replace(/<think>[\s\S]*?<\/think>/g, '');
     const nextText = replaceTextByOldReg(text);
     return pipe(replaceThinkToSection, preprocessLaTeX)(nextText);
-  }, [content]);
+  }, [displayContent]);
 
   useEffect(() => {
     const docAggs = reference?.doc_aggs;
@@ -270,7 +300,10 @@ const MarkdownContent = ({
                 onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
                 className="text-sm italic opacity-80 text-gray-600 dark:text-gray-400 hover:opacity-100 transition-opacity cursor-pointer"
               >
-                {isThinkingExpanded ? t('common.collapseThinking') : t('common.expandThinking')} {isThinkingExpanded ? '∨' : '>'}
+                {isThinkingExpanded
+                  ? t('common.collapseThinking')
+                  : t('common.expandThinking')}{' '}
+                {isThinkingExpanded ? '∨' : '>'}
               </button>
             )}
           </div>
@@ -281,7 +314,7 @@ const MarkdownContent = ({
               className="ml-8 text-sm leading-relaxed opacity-80 text-gray-600 dark:text-gray-400 pl-4 border-l-2 border-gray-300 dark:border-gray-600"
               style={{
                 whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
+                wordBreak: 'break-word',
               }}
             >
               {thinkingContent}
