@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DynamicModelParams } from '../types';
 
 const DEFAULT_PARAMS: DynamicModelParams = {
@@ -82,14 +82,13 @@ export const useDynamicParams = (props?: UseDynamicParamsProps) => {
     [saveParams],
   );
 
-  // BUG FIX #5 & #6: Reset should NOT set changed flag - resetting means no changes
-  // 重置参数
+  // 重置参数：优先回到当前传入的 initialParams（相当于“刷新/撤销未保存更改”），无则回到内建默认
   const resetParams = useCallback(() => {
-    setParams(DEFAULT_PARAMS);
-    saveParams(DEFAULT_PARAMS);
-    // Reset means no changes, so clear the flag
+    const target = initialParams ?? DEFAULT_PARAMS;
+    setParams(target);
+    // 刷新/撤销操作不触发保存，仅恢复视图
     setParamsChanged(false);
-  }, [saveParams]);
+  }, [initialParams]);
 
   // 清除参数变化标记
   const clearChangedFlag = useCallback(() => {
